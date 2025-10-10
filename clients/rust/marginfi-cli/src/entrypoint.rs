@@ -8,21 +8,14 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
-use marginfi::state::marginfi_account::ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED;
-use marginfi::{
-    prelude::*,
-    state::{
-        marginfi_account::{Balance, LendingAccount, MarginfiAccount, ACCOUNT_FLAG_DEPRECATED},
-        marginfi_group::{
-            Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-            InterestRateConfigOpt, RiskTier, WrappedI80F48,
-        },
-    },
+use marginfi_type_crate::types::{
+    Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
+    InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup, RiskTier, WrappedI80F48,
+    ACCOUNT_FLAG_DEPRECATED, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
 use solana_sdk::{commitment_config::CommitmentLevel, pubkey::Pubkey};
-use type_layout::TypeLayout;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -48,12 +41,6 @@ pub enum Command {
     Profile {
         #[clap(subcommand)]
         subcmd: ProfileCommand,
-    },
-
-    InspectPadding {},
-
-    PatchIdl {
-        idl_path: String,
     },
 
     InspectSize {},
@@ -170,9 +157,13 @@ pub enum GroupCommand {
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
         #[clap(long)]
+        liquidation_flat_sol_fee: u32,
+        #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
         program_fee_rate: f64,
+        #[clap(long)]
+        liquidation_max_fee: f64,
     },
     EditFeeState {
         #[clap(long)]
@@ -182,9 +173,13 @@ pub enum GroupCommand {
         #[clap(long)]
         bank_init_flat_sol_fee: u32,
         #[clap(long)]
+        liquidation_flat_sol_fee: u32,
+        #[clap(long)]
         program_fee_fixed: f64,
         #[clap(long)]
         program_fee_rate: f64,
+        #[clap(long)]
+        liquidation_max_fee: f64,
     },
     ConfigGroupFee {
         #[clap(
@@ -468,9 +463,6 @@ pub fn entry(opts: Opts) -> Result<()> {
         Command::Bank { subcmd } => bank(subcmd, &opts.cfg_override),
         Command::Profile { subcmd } => profile(subcmd),
 
-        Command::InspectPadding {} => inspect_padding(),
-
-        Command::PatchIdl { idl_path } => patch_marginfi_idl(idl_path),
         Command::Account { subcmd } => process_account_subcmd(subcmd, &opts.cfg_override),
 
         Command::InspectSize {} => inspect_size(),
@@ -687,29 +679,37 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         } => processor::initialize_fee_state(
             config,
             admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         ),
         GroupCommand::EditFeeState {
             new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         } => processor::edit_fee_state(
             config,
             new_admin,
             fee_wallet,
             bank_init_flat_sol_fee,
+            liquidation_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
+            liquidation_max_fee,
         ),
         GroupCommand::ConfigGroupFee { enable_program_fee } => {
             processor::config_group_fee(config, profile, enable_program_fee)
@@ -762,10 +762,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             permissionless_bad_debt_settlement,
             freeze_settings,
         } => {
-            let bank = config
-                .mfi_program
-                .account::<marginfi::state::marginfi_group::Bank>(bank_pk)
-                .unwrap();
+            let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
             processor::bank_configure(
                 config,
                 profile, //
@@ -860,33 +857,12 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
     }
 }
 
-fn inspect_padding() -> Result<()> {
-    println!("MarginfiGroup: {}", MarginfiGroup::type_layout());
-    println!("InterestRateConfig: {}", InterestRateConfig::type_layout());
-    println!(
-        "Bank: {}",
-        marginfi::state::marginfi_group::Bank::type_layout()
-    );
-    println!("BankConfig: {}", BankConfig::type_layout());
-    println!("BankConfigOpt: {}", BankConfigOpt::type_layout());
-    println!("WrappedI80F48: {}", WrappedI80F48::type_layout());
-
-    println!("MarginfiAccount: {}", MarginfiAccount::type_layout());
-    println!("LendingAccount: {}", LendingAccount::type_layout());
-    println!("Balance: {}", Balance::type_layout());
-
-    Ok(())
-}
-
 fn inspect_size() -> Result<()> {
     use std::mem::size_of;
 
     println!("MarginfiGroup: {}", size_of::<MarginfiGroup>());
     println!("InterestRateConfig: {}", size_of::<InterestRateConfig>());
-    println!(
-        "Bank: {}",
-        size_of::<marginfi::state::marginfi_group::Bank>()
-    );
+    println!("Bank: {}", size_of::<Bank>());
     println!("BankConfig: {}", size_of::<BankConfig>());
     println!("BankConfigOpt: {}", size_of::<BankConfigOpt>());
     println!("WrappedI80F48: {}", size_of::<WrappedI80F48>());
@@ -894,43 +870,6 @@ fn inspect_size() -> Result<()> {
     println!("MarginfiAccount: {}", size_of::<MarginfiAccount>());
     println!("LendingAccount: {}", size_of::<LendingAccount>());
     println!("Balance: {}", size_of::<Balance>());
-
-    Ok(())
-}
-
-fn patch_marginfi_idl(target_dir: String) -> Result<()> {
-    use crate::patch_type_layout;
-
-    let idl_path = format!("{}/idl/marginfi.json", target_dir);
-
-    let file = std::fs::File::open(&idl_path)?;
-    let reader = std::io::BufReader::new(file);
-    let mut idl: serde_json::Value = serde_json::from_reader(reader)?;
-
-    let idl_original_path = idl_path.replace(".json", "_original.json");
-    let file = std::fs::File::create(idl_original_path)?;
-    let writer = std::io::BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &idl)?;
-
-    // Patch IDL
-
-    if let Some(types) = idl.get_mut("types").and_then(|t| t.as_array_mut()) {
-        if let Some(pos) = types
-            .iter()
-            .position(|t| t["name"] == "OraclePriceFeedAdapter")
-        {
-            types.remove(pos);
-        }
-    }
-
-    patch_type_layout!(idl, "Bank", Bank, "types");
-    patch_type_layout!(idl, "Balance", Balance, "types");
-    patch_type_layout!(idl, "BankConfig", BankConfig, "types");
-    patch_type_layout!(idl, "BankConfigCompact", BankConfig, "types");
-
-    let file = std::fs::File::create(&idl_path)?;
-    let writer = std::io::BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &idl)?;
 
     Ok(())
 }
@@ -1049,7 +988,7 @@ pub fn process_make_test_i80f48() {
         println!(
             "  {{ number: {:?}, innerValue: {:?} }},",
             i80f48,
-            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+            WrappedI80F48::from(i80f48).value
         );
     }
 
@@ -1067,7 +1006,7 @@ pub fn process_make_test_i80f48() {
         println!(
             "  {{ number: {:?}, innerValue: {:?} }},",
             i80f48,
-            marginfi::state::marginfi_group::WrappedI80F48::from(i80f48).value
+            WrappedI80F48::from(i80f48).value
         );
     }
     println!("];");

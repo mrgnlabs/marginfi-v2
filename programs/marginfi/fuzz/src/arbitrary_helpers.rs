@@ -1,6 +1,6 @@
 use arbitrary::Arbitrary;
 use fixed_macro::types::I80F48;
-use marginfi::state::marginfi_group::WrappedI80F48;
+use marginfi_type_crate::types::WrappedI80F48;
 use strum::{EnumDiscriminants, VariantArray};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

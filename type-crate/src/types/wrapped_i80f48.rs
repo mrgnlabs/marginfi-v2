@@ -1,11 +1,22 @@
-use bytemuck::Pod;
-use bytemuck::Zeroable;
+#[cfg(feature = "anchor")]
+use anchor_lang::prelude::{
+    borsh::{BorshDeserialize, BorshSerialize},
+    zero_copy, *,
+};
 use fixed::types::I80F48;
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
+
+#[cfg(not(feature = "anchor"))]
+use bytemuck::{Pod, Zeroable};
 
 #[repr(C, align(8))]
-#[derive(Clone, Copy, Hash, Pod, Zeroable)]
+#[cfg_attr(
+    feature = "anchor",
+    zero_copy,
+    derive(BorshDeserialize, BorshSerialize)
+)]
+#[cfg_attr(not(feature = "anchor"), derive(Clone, Copy, Pod, Zeroable))]
+#[derive(Default)]
 pub struct WrappedI80F48 {
     pub value: [u8; 16],
 }

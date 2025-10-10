@@ -26,6 +26,8 @@ import {
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
+  assertBNEqual,
+  assertI80F48Approx,
   assertKeyDefault,
   assertKeysEqual,
   getTokenBalance,
@@ -47,10 +49,12 @@ import {
 import {
   EMISSIONS_FLAG_BORROW_ACTIVE,
   EMISSIONS_FLAG_LENDING_ACTIVE,
+  ONE_WEEK_IN_SECONDS,
 } from "./utils/types";
 import { groupConfigure, setupEmissions } from "./utils/group-instructions";
 import { getEpochAndSlot } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
+import { Clock } from "solana-bankrun";
 
 describe("Set up emissions on staked collateral assets", () => {
   const provider = getProvider() as AnchorProvider;
@@ -71,7 +75,9 @@ describe("Set up emissions on staked collateral assets", () => {
     externalWallet.publicKey
   );
 
-  before(async () => {
+  let lastUpdate: BN;
+
+  it("(admin) emissions setup - happy path", async () => {
     // Fund the group admin with a bunch of Token B for emissions
     let fundTx: Transaction = new Transaction().add(
       createMintToInstruction(
@@ -145,6 +151,9 @@ describe("Set up emissions on staked collateral assets", () => {
       console.log("net shares oustanding: " + netDeposits);
       console.log("");
     }
+    assertI80F48Approx(bankAcc.emissionsRemaining, totalEmissions);
+    assertBNEqual(bankAcc.emissionsRate, emissionRate);
+    assertKeysEqual(bankAcc.emissionsMint, ecosystem.tokenBMint.publicKey);
   });
 
   it("(user 2) claims emissions when no time elapsed - nothing happens", async () => {
@@ -179,6 +188,11 @@ describe("Set up emissions on staked collateral assets", () => {
     const diff = tokenAfter - tokenBefore;
     assert.equal(diff, 0);
 
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    lastUpdate = userAcc.lastUpdate;
+
     if (verbose) {
       console.log("User 2 claimed token B emissions");
       console.log(
@@ -187,13 +201,21 @@ describe("Set up emissions on staked collateral assets", () => {
     }
   });
 
-  it("time elapses", async () => {
-    let { epoch } = await getEpochAndSlot(banksClient);
-    const warpTo = BigInt(epoch + 5);
-    bankrunContext.warpToEpoch(warpTo);
-    if (verbose) {
-      console.log("Warped to epoch: " + warpTo);
-    }
+  it("three hours elapses", async () => {
+    const THREE_HOURS_IN_SECONDS = 60 * 60 * 3;
+    const slotsToAdvance = THREE_HOURS_IN_SECONDS * 0.4;
+    let clock = await banksClient.getClock();
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
+    const timeTarget = clock.unixTimestamp + BigInt(THREE_HOURS_IN_SECONDS);
+    const targetUnix = BigInt(timeTarget);
+    const newClock = new Clock(
+      BigInt(slot + slotsToAdvance), // slot
+      0n, // epochStartTimestamp
+      BigInt(epoch), // epoch
+      0n, // leaderScheduleEpoch
+      targetUnix
+    );
+    bankrunContext.setClock(newClock);
   });
 
   let user2Claim: number;
@@ -215,6 +237,12 @@ describe("Set up emissions on staked collateral assets", () => {
         marginfiAccount: userAccount,
         bank: validators[0].bank,
         tokenAccount: user.tokenBAccount,
+      }),
+      // dummy ix so bankrun doesn't think this tx was already processed.
+      SystemProgram.transfer({
+        fromPubkey: user.wallet.publicKey,
+        toPubkey: bankrunProgram.provider.publicKey,
+        lamports: 4,
       })
     );
 
@@ -222,14 +250,18 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
 
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assert(userAcc.lastUpdate > lastUpdate);
+    lastUpdate = userAcc.lastUpdate;
+
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
       user.tokenBAccount
     );
     const diff = tokenAfter - tokenBefore;
     user2Claim = diff;
-    assert.isAtLeast(diff, 100); // assures the gain is non-zero
-
     const expectedShare = (userDeposits[2] / netDeposits) * 100;
 
     if (verbose) {
@@ -241,6 +273,8 @@ describe("Set up emissions on staked collateral assets", () => {
         "before: " + tokenBefore + "  after: " + tokenAfter + "  diff " + diff
       );
     }
+
+    assert.isAtLeast(diff, 100); // assures the gain is non-zero
   });
 
   it("(user 1) claims at the same time - gets proportional fair share", async () => {
@@ -268,6 +302,11 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.sign(user.wallet);
     await banksClient.processTransaction(tx);
 
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assertBNEqual(userAcc.lastUpdate, lastUpdate); // no change expected - no time passed
+
     const tokenAfter = await getTokenBalance(
       bankRunProvider,
       user.tokenBAccount
@@ -279,14 +318,6 @@ describe("Set up emissions on staked collateral assets", () => {
 
     // This is true with 2 users....
     const expectedUser1Claim = user2Claim * (userDeposits[1] / userDeposits[2]);
-    // User 1 gets ~
-    assert.approximately(
-      diff,
-      expectedUser1Claim,
-      expectedUser1Claim * 0.01,
-      "User 1's claim is not the expected proportion of user 2's claim"
-    );
-
     const expectedShare = (userDeposits[1] / netDeposits) * 100;
 
     if (verbose) {
@@ -299,6 +330,14 @@ describe("Set up emissions on staked collateral assets", () => {
       );
       console.log("actual claim share: " + claimedShareActual.toFixed(2) + "%");
     }
+
+    // User 1 gets ~
+    assert.approximately(
+      diff,
+      expectedUser1Claim,
+      expectedUser1Claim * 0.01,
+      "User 1's claim is not the expected proportion of user 2's claim"
+    );
   });
 
   it("(user 2) settle is always permissionless (does nothing here, no time elapsed)", async () => {
@@ -313,6 +352,11 @@ describe("Set up emissions on staked collateral assets", () => {
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(wallet.payer); // Provider wallet has to sign to pay tx fees
     await banksClient.processTransaction(tx);
+
+    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
+    assertBNEqual(userAcc.lastUpdate, lastUpdate); // no change expected - no time passed
   });
 
   // TODO explain why this happens in more detail:
@@ -320,13 +364,21 @@ describe("Set up emissions on staked collateral assets", () => {
   // Note: You may assume the claim amount should be the same the second time around, since the same
   // number of epochs have elapsed, but that's not typically the case (timing issues, interest
   // growth, etc)
-  it("time elapses", async () => {
-    let { epoch } = await getEpochAndSlot(banksClient);
-    const warpTo = BigInt(epoch + 5);
-    bankrunContext.warpToEpoch(warpTo);
-    if (verbose) {
-      console.log("Warped to epoch: " + warpTo);
-    }
+  it("three hours elapses", async () => {
+    const THREE_HOURS_IN_SECONDS = 60 * 60 * 3;
+    const slotsToAdvance = THREE_HOURS_IN_SECONDS * 0.4;
+    let clock = await banksClient.getClock();
+    let { epoch, slot } = await getEpochAndSlot(banksClient);
+    const timeTarget = clock.unixTimestamp + BigInt(THREE_HOURS_IN_SECONDS);
+    const targetUnix = BigInt(timeTarget);
+    const newClock = new Clock(
+      BigInt(slot + slotsToAdvance), // slot
+      0n, // epochStartTimestamp
+      BigInt(epoch), // epoch
+      0n, // leaderScheduleEpoch
+      targetUnix
+    );
+    bankrunContext.setClock(newClock);
   });
 
   it("(user 2) sets up a wallet to accept permissionless emission claims", async () => {
@@ -396,6 +448,8 @@ describe("Set up emissions on staked collateral assets", () => {
     const accAfter = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
     );
+    assert(accAfter.lastUpdate > lastUpdate);
+    lastUpdate = accAfter.lastUpdate;
     assertKeysEqual(
       accAfter.emissionsDestinationAccount,
       externalWallet.publicKey

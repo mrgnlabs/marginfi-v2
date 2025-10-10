@@ -18,7 +18,7 @@ target
 *.iml
 
 # other
-.env
+.env*
 .DS_Store
 node_modules
 .idea/
@@ -32,3 +32,4 @@ test-ledger/
 !tests/fixtures/**/*.json
 !programs/marginfi/tests/fixtures/**/*.json
 !.vscode/tasks.json
+!idls/*.json

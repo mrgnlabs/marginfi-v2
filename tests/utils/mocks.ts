@@ -16,6 +16,9 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { Mocks } from "../../target/types/mocks";
+import { KaminoLending } from "../fixtures/kamino_lending";
+import { ProgramTestContext } from "solana-bankrun";
+import { processBankrunTransaction } from "./tools";
 
 export type Ecosystem = {
   /** A generic wsol mint with 9 decimals (same as native) */
@@ -28,14 +31,24 @@ export type Ecosystem = {
   usdcMint: Keypair;
   /** A generic LST-like mint (like wsol, 9 decimals) */
   lstAlphaMint: Keypair;
+  /** 150 */
+  wsolPrice: number;
   /** 9 */
   wsolDecimals: number;
+  /** 10 */
+  tokenAPrice: number;
   /** Decimals for token A (default 8) */
   tokenADecimals: number;
+  /** 20 */
+  tokenBPrice: number;
   /** Decimals for token B (default 6)*/
   tokenBDecimals: number;
+  /** 1 */
+  usdcPrice: number;
   /** 6 */
   usdcDecimals: number;
+  /** 175 */
+  lstAlphaPrice: number;
   /** Decimals for lst alpha (default 9)*/
   lstAlphaDecimals: number;
 };
@@ -60,10 +73,15 @@ export const getGenericEcosystem = () => {
     tokenBMint: Keypair.fromSeed(TOKEN_B_MINT_SEED),
     usdcMint: Keypair.fromSeed(USDC_MINT_SEED),
     lstAlphaMint: Keypair.fromSeed(LST_ALPHA_MINT_SEED),
+    wsolPrice: 150,
     wsolDecimals: 9,
+    tokenAPrice: 10,
     tokenADecimals: 8,
+    tokenBPrice: 20,
     tokenBDecimals: 6,
+    usdcPrice: 1,
     usdcDecimals: 6,
+    lstAlphaPrice: 175,
     lstAlphaDecimals: 9,
   };
   return ecosystem;
@@ -124,6 +142,8 @@ export type MockUser = {
   mrgnProgram: Program<Marginfi> | undefined;
   /** A bankrun program that uses the user's wallet */
   mrgnBankrunProgram: Program<Marginfi> | undefined;
+  /** A Kamino bankrun program that uses the user's wallet */
+  klendBankrunProgram: Program<KaminoLending> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -132,10 +152,16 @@ export type MockUser = {
 export const USER_ACCOUNT: string = "g0_acc";
 /** in mockUser.accounts, key used to get/set the users's account for the emode group */
 export const USER_ACCOUNT_E: string = "ge_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the kamino group */
+export const USER_ACCOUNT_K: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
 export const STAKE_ACC = "v0_stakeAcc";
+/** in mockUser.accounts, the Kamino user metadata account */
+export const KAMINO_METADATA = "kamino_metadata";
+/** in mockUser.accounts, the obligation for the main market */
+export const KAMINO_OBLIGATION = "kamino_obligation";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 1 */
 export const LST_ATA_v1 = "v1_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 1 */
@@ -271,6 +297,7 @@ export const setupTestUser = async (
       ? getUserMarginfiProgram(options.marginProgram, userWalletKeypair)
       : undefined,
     mrgnBankrunProgram: undefined,
+    klendBankrunProgram: undefined,
     accounts: new Map<string, PublicKey>(),
   };
   return user;
@@ -337,6 +364,13 @@ export const createSimpleMint = async (
   return { ixes, mint };
 };
 
+/**
+ * Information about all the oracles in the world...
+ *
+ * If adding a Pyth Pull oracle with name *, make sure it is EXACTLY NAMED *Pull and
+ * *PullOracleFeed, with price named *Price and *Decimals, the refresh all function searches for
+ * those names exactly.
+ */
 export type Oracles = {
   wsolOracle: Keypair;
   wsolOracleFeed: Keypair;
@@ -375,13 +409,15 @@ export type Oracles = {
  * @param program - the mock program
  * @param space - for account space and rent exemption
  * @param wallet - pays tx fee
+ * @param bankrunContext - pass if using bankrun, omit otherwise
  * @returns address of the newly created account
  */
 export const createMockAccount = async (
   program: Program<Mocks>,
   space: number,
   wallet: Wallet,
-  keypair?: Keypair
+  keypair?: Keypair,
+  bankrunContext?: ProgramTestContext
 ) => {
   const newAccount = keypair ?? Keypair.generate();
   const createTx = new Transaction().add(
@@ -397,7 +433,14 @@ export const createMockAccount = async (
     })
   );
 
-  await program.provider.sendAndConfirm(createTx, [wallet.payer, newAccount]);
+  if (bankrunContext) {
+    await processBankrunTransaction(bankrunContext, createTx, [
+      wallet.payer,
+      newAccount,
+    ]);
+  } else {
+    await program.provider.sendAndConfirm(createTx, [wallet.payer, newAccount]);
+  }
   return newAccount;
 };
 
@@ -408,13 +451,15 @@ export const createMockAccount = async (
  * @param account - account to write into (create with `createMockAccount` first)
  * @param offset - byte to start writing
  * @param input - bytes to write
+ * @param bankrunContext - pass if using bankrun, omit otherwise
  */
 export const storeMockAccount = async (
   program: Program<Mocks>,
   wallet: Wallet,
   account: Keypair,
   offset: number,
-  input: Buffer
+  input: Buffer,
+  bankrunContext?: ProgramTestContext
 ) => {
   const tx = new Transaction().add(
     await program.methods
@@ -424,7 +469,14 @@ export const storeMockAccount = async (
       })
       .instruction()
   );
-  await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
+  if (bankrunContext) {
+    await processBankrunTransaction(bankrunContext, tx, [
+      wallet.payer,
+      account,
+    ]);
+  } else {
+    await program.provider.sendAndConfirm(tx, [wallet.payer, account]);
+  }
 };
 
 export type Validator = {

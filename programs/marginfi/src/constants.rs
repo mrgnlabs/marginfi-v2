@@ -1,34 +1,31 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::pubkey;
+use anchor_lang::solana_program::sysvar::instructions as ix_sysvar;
+use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
 
-pub const LIQUIDITY_VAULT_AUTHORITY_SEED: &str = "liquidity_vault_auth";
-pub const INSURANCE_VAULT_AUTHORITY_SEED: &str = "insurance_vault_auth";
-pub const FEE_VAULT_AUTHORITY_SEED: &str = "fee_vault_auth";
+use crate::MarginfiResult;
 
-pub const LIQUIDITY_VAULT_SEED: &str = "liquidity_vault";
-pub const INSURANCE_VAULT_SEED: &str = "insurance_vault";
-pub const FEE_VAULT_SEED: &str = "fee_vault";
+// This file should only contain the constants which couldn't be moved to type-crate:
+// 1. the constants used for testing/internal purposes
+// 2. or the ones dependant on some 3rd party crates which are not part of type-crate dependency tree
 
-pub const FEE_STATE_SEED: &str = "feestate";
-pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
-
-pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
-pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
+/// Mocks program ID for third-party ID restrictions
+pub const MOCKS_PROGRAM_ID: Pubkey = pubkey!("5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C");
 
 /// Used for the health cache to track which version of the program generated it.
 /// * 0 = invalid
 /// * 1 = 0.1.3
 /// * 2 = 0.1.4
+/// * 3 = 0.1.5
 /// * others = invalid
-pub const PROGRAM_VERSION: u8 = 2;
+pub const PROGRAM_VERSION: u8 = 3;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const PYTH_ID: Pubkey = pubkey!("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging", feature = "stagingalt"))] {
         pub const PYTH_ID: Pubkey = pubkey!("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH");
     } else {
         // The key of the mock program on localnet (see its declared id)
@@ -40,7 +37,7 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
     if #[cfg(feature = "devnet")] {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
-    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging"))] {
+    } else if #[cfg(any(feature = "mainnet-beta", feature = "staging", feature = "stagingalt"))] {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
     } else {
         pub const SPL_SINGLE_POOL_ID: Pubkey = pubkey!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
@@ -55,143 +52,29 @@ cfg_if::cfg_if! {
     }
 }
 
-pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
+pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 
-/// TODO: Make these variable per bank
-pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
-pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
+// Note: We mock Kamino/Kamino Farms with the same keys on localnet
+pub const KAMINO_PROGRAM_ID: Pubkey = pubkey!("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+pub const FARMS_PROGRAM_ID: Pubkey = pubkey!("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
+
+pub const NATIVE_STAKE_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
 
 /// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
 pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
-
-pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
-
-/// Due to real-world constraints, oracles using an age less than this value are typically too
-/// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
-pub const ORACLE_MIN_AGE: u16 = 30;
-pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
-
-/// Range that contains 95% price data distribution
-///
-/// https://docs.pyth.network/price-feeds/best-practices#confidence-intervals
-pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
-/// Range that contains 95% price data distribution in a normal distribution
-pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
-/// Maximum confidence interval allowed
-pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
-pub const U32_MAX: I80F48 = I80F48!(4_294_967_295);
-pub const U32_MAX_DIV_10: I80F48 = I80F48!(429_496_730);
-
-pub const USDC_EXPONENT: i32 = 6;
-
-pub const MAX_ORACLE_KEYS: usize = 5;
-
-/// Any balance below 1 SPL token amount is treated as none,
-/// this is to account for any artifacts resulting from binary fraction arithemtic.
-pub const EMPTY_BALANCE_THRESHOLD: I80F48 = I80F48!(1);
-
-/// Any account with assets below this threshold is considered bankrupt.
-/// The account also needs to have more liabilities than assets.
-///
-/// This is USD denominated, so 0.001 = $0.1
-pub const BANKRUPT_THRESHOLD: I80F48 = I80F48!(0.1);
-
-/// Comparios threshold used to account for arithmetic artifacts on balances
-pub const ZERO_AMOUNT_THRESHOLD: I80F48 = I80F48!(0.0001);
-
-pub const EMISSIONS_FLAG_BORROW_ACTIVE: u64 = 1 << 0;
-pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
-pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
-pub const FREEZE_SETTINGS: u64 = 1 << 3;
-pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
-
-/// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
-/// version. False otherwise.
-pub const PYTH_PUSH_MIGRATED: u8 = 1 << 0;
-
-pub(crate) const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub(crate) const GROUP_FLAGS: u64 =
-    PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS | CLOSE_ENABLED_FLAG;
-
-/// Cutoff timestamp for balance last_update used in accounting collected emissions.
-/// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
-pub const MIN_EMISSIONS_START_TIME: u64 = 1681989983;
-
-pub const MAX_EXP_10_I80F48: usize = 24;
-pub const EXP_10_I80F48: [I80F48; MAX_EXP_10_I80F48] = [
-    I80F48!(1),                        // 10^0
-    I80F48!(10),                       // 10^1
-    I80F48!(100),                      // 10^2
-    I80F48!(1000),                     // 10^3
-    I80F48!(10000),                    // 10^4
-    I80F48!(100000),                   // 10^5
-    I80F48!(1000000),                  // 10^6
-    I80F48!(10000000),                 // 10^7
-    I80F48!(100000000),                // 10^8
-    I80F48!(1000000000),               // 10^9
-    I80F48!(10000000000),              // 10^10
-    I80F48!(100000000000),             // 10^11
-    I80F48!(1000000000000),            // 10^12
-    I80F48!(10000000000000),           // 10^13
-    I80F48!(100000000000000),          // 10^14
-    I80F48!(1000000000000000),         // 10^15
-    I80F48!(10000000000000000),        // 10^16
-    I80F48!(100000000000000000),       // 10^17
-    I80F48!(1000000000000000000),      // 10^18
-    I80F48!(10000000000000000000),     // 10^19
-    I80F48!(100000000000000000000),    // 10^20
-    I80F48!(1000000000000000000000),   // 10^21
-    I80F48!(10000000000000000000000),  // 10^22
-    I80F48!(100000000000000000000000), // 10^23
-];
-
-pub const MAX_EXP_10: usize = 21;
-pub const EXP_10: [i128; MAX_EXP_10] = [
-    1,                     // 10^0
-    10,                    // 10^1
-    100,                   // 10^2
-    1000,                  // 10^3
-    10000,                 // 10^4
-    100000,                // 10^5
-    1000000,               // 10^6
-    10000000,              // 10^7
-    100000000,             // 10^8
-    1000000000,            // 10^9
-    10000000000,           // 10^10
-    100000000000,          // 10^11
-    1000000000000,         // 10^12
-    10000000000000,        // 10^13
-    100000000000000,       // 10^14
-    1000000000000000,      // 10^15
-    10000000000000000,     // 10^16
-    100000000000000000,    // 10^17
-    1000000000000000000,   // 10^18
-    10000000000000000000,  // 10^19
-    100000000000000000000, // 10^20
-];
-
-/// Value where total_asset_value_init_limit is considered inactive
-pub const TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE: u64 = 0;
-
-/// For testing, this is a typical program fee.
-pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
-/// For testing, this is a typical program fee.
-pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
+/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
+pub const LIQUIDATION_FLAT_FEE_DEFAULT: u32 = 5000;
+/// Liquidators can claim at least this premium, as a percent, when liquidating an asset in
+/// receivership liquidation, e.g. (1 + this) * amount repaid <= asset seized
+/// * This is the minimum value the program allows for the above, if fee state is set below this,
+///   the program will use this instead.
+pub const LIQUIDATION_BONUS_FEE_MINIMUM: I80F48 = I80F48!(0.05);
+/// Liquidators can consume/close out the entire account with essentially no limits (e.g. regardless
+/// of liquidation bonus, etc) if it has net assets worth less than this amount in dollars. This
+/// roughly covers the fee to open a liquidation record plus a little extra.
+pub const LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD: I80F48 = I80F48!(5);
 
 pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLevel::Full;
-/// Pyth Pull Oracles sponsored by Pyth use this shard ID.
-pub const PYTH_SPONSORED_SHARD_ID: u16 = 0;
-/// Pyth Pull Oracles sponsored by Marginfi use this shard ID.
-pub const MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
-
-/// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
-pub const ASSET_TAG_DEFAULT: u8 = 0;
-/// Accounts with a SOL position can comingle with **either** `ASSET_TAG_DEFAULT` or
-/// `ASSET_TAG_STAKED` positions, but not both
-pub const ASSET_TAG_SOL: u8 = 1;
-/// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
-/// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
-pub const ASSET_TAG_STAKED: u8 = 2;
 
 // TODO move this to the global fee wallet eventually
 /// A nominal fee paid to the global wallet when intiating an account transfer. Primarily intended
@@ -200,3 +83,70 @@ pub const ASSET_TAG_STAKED: u8 = 2;
 /// * Should be ~ $0.50 or around that magnitude
 /// * In lamports
 pub const ACCOUNT_TRANSFER_FEE: u64 = 5_000_000;
+
+/// When creating a mrgn account using a PDA, programs that wish to specify a third_party_id must be
+/// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 or
+/// (the default) or id < PDA_FREE_THRESHOLD is freely available to any caller.
+///
+/// This enables third-parties (who have registered) to quickly sort all mrgn accounts that are
+/// relevant to their use-case by memcmp without loading the entire mrgn ecosystem.
+///
+/// Registration is free, we will include your registration in the next program update (roughly
+/// monthly). Feel free to request multiple.
+///
+/// Contact us or open a GH issue to register.
+pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
+    (10_001, MOCKS_PROGRAM_ID),
+    (
+        11_111,
+        pubkey!("AsgardVwpApNc9DgEsDAHJcvupPuRtLQSKDP9MQNw16N"),
+    ), // (10_002, SOME_OTHER_PROGRAM_ID),
+       // (10_003, YET_ANOTHER_PROGRAM_ID),
+];
+
+/// * IDs < PDA_FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them
+///
+/// * IDs >= PDA_FREE_THRESHOLD are "restricted": must contact us to register first.
+pub const PDA_FREE_THRESHOLD: u16 = 10_000;
+
+// TODO move to ix_utils after liquidation_remix merged into 0.1.5
+/// third_party_id > PDA_FREE_THRESHOLD are restricted, contact us to secure one.
+///
+///
+/// Returns:
+/// - Ok(true)  => it *is* a CPI from the allowed program for `third_party_id`, or uses an
+///   unrestricted seed that isn't subject to any limits.
+/// - Ok(false) => not a CPI (direct call) OR CPI from a different program that has not registered
+///   that seed.
+pub fn is_allowed_cpi_for_third_party_id(
+    sysvar_info: &AccountInfo,
+    third_party_id: u16,
+) -> MarginfiResult<bool> {
+    // Free tier: no gating at all.
+    if third_party_id < PDA_FREE_THRESHOLD {
+        return Ok(true);
+    }
+
+    // Restricted tier: must have a rule.
+    let allowed_program = match THIRD_PARTY_CPI_RULES
+        .iter()
+        .find(|(id, _)| *id == third_party_id)
+        .map(|(_, program_id)| *program_id)
+    {
+        Some(p) => p,
+        None => {
+            return Ok(false);
+        }
+    };
+
+    let current_ix_index = ix_sysvar::load_current_index_checked(sysvar_info)?;
+    let current_ixn = load_instruction_at_checked(current_ix_index as usize, sysvar_info)?;
+
+    // If the current (top-level) instruction is *this* program, it's a direct call (not CPI) -> no
+    // "third party" id allowed in the restricted zone.
+    if current_ixn.program_id == crate::ID {
+        return Ok(false);
+    }
+
+    Ok(current_ixn.program_id == allowed_program)
+}

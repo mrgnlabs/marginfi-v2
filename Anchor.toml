@@ -16,10 +16,12 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-# liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 marginfi = "2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr"
 mocks = "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
 spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # cloned from solana-labs repo (see below)
+# liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
+kamino_lending = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+kamino_farms = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
 
 [programs.mainnet]
 # liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -45,16 +47,40 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # Emode tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
 
+# Basic tests only (01-13)
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/0*.spec.ts tests/1*.spec.ts --exit --require tests/rootHooks.ts"
+
+# Emode tests only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
+
+# Kamino tests only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/k*.spec.ts --exit --require tests/rootHooks.ts"
+
 # Multiple account limits test only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/m*.spec.ts --exit --require tests/rootHooks.ts"
 
 # Compound interest only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/z*.spec.ts --exit --require tests/rootHooks.ts"
 
+# Bankruptcy only
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/zb*.spec.ts --exit --require tests/rootHooks.ts"
+
 [test]
 startup_wait = 60000
 shutdown_wait = 2000
 upgradeable = false
+
+[[test.genesis]]
+address = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+program = "tests/fixtures/kamino_lending.so"
+
+[[test.genesis]]
+address = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
+program = "tests/fixtures/kamino_farms.so"
+
+[[test.genesis]]
+address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
+program = "tests/fixtures/spl_single_pool.so"
 
 [test.validator]
 bind_address = "0.0.0.0"

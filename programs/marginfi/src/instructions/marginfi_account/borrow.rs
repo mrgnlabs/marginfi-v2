@@ -1,21 +1,32 @@
 use crate::{
     bank_signer, check,
-    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, PROGRAM_VERSION},
+    constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountBorrowEvent},
     math_error,
-    prelude::{MarginfiError, MarginfiGroup, MarginfiResult},
+    prelude::{MarginfiError, MarginfiResult},
     state::{
-        health_cache::HealthCache,
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, RiskEngine, ACCOUNT_DISABLED},
-        marginfi_group::{Bank, BankVaultType},
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{
+            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+        },
+        marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_asset_tags},
+    utils::{
+        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
+use marginfi_type_crate::{
+    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    types::{
+        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
+};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset borrowed if it does not exist yet
@@ -47,10 +58,13 @@ pub fn lending_account_borrow<'info>(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let group = &marginfi_group_loader.load()?;
+
     let program_fee_rate: I80F48 = group.fee_state_cache.program_fee_rate.into();
 
     check!(
-        !marginfi_account.get_flag(ACCOUNT_DISABLED),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED)
+        // Sanity check: liquidation doesn't allow the borrow ix, but just in case
+            && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
         MarginfiError::AccountDisabled
     );
 
@@ -66,6 +80,7 @@ pub fn lending_account_borrow<'info>(
         let mut bank = bank_loader.load_mut()?;
 
         validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         let liquidity_vault_authority_bump = bank.liquidity_vault_authority_bump;
         let origination_fee_rate: I80F48 = bank
@@ -74,11 +89,9 @@ pub fn lending_account_borrow<'info>(
             .protocol_origination_fee
             .into();
 
-        let mut bank_account = BankAccountWrapper::find_or_create(
-            &bank_loader.key(),
-            &mut bank,
-            &mut marginfi_account.lending_account,
-        )?;
+        let lending_account = &mut marginfi_account.lending_account;
+        let mut bank_account =
+            BankAccountWrapper::find_or_create(&bank_loader.key(), &mut bank, lending_account)?;
 
         // User needs to borrow amount + fee to receive amount
         let amount_pre_fee = maybe_bank_mint
@@ -108,7 +121,9 @@ pub fn lending_account_borrow<'info>(
             bank_account.borrow(I80F48::from_num(amount_pre_fee))?;
         }
 
-        bank_account.withdraw_spl_transfer(
+        marginfi_account.last_update = clock.unix_timestamp as u64;
+
+        bank.withdraw_spl_transfer(
             amount_pre_fee,
             bank_liquidity_vault.to_account_info(),
             destination_token_account.to_account_info(),
@@ -190,6 +205,11 @@ pub fn lending_account_borrow<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountBorrow<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -204,7 +224,9 @@ pub struct LendingAccountBorrow<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = liquidity_vault
+        has_one = liquidity_vault,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -213,7 +235,6 @@ pub struct LendingAccountBorrow<'info> {
 
     /// CHECK: Seed constraint check
     #[account(
-        mut,
         seeds = [
             LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
             bank.key().as_ref(),

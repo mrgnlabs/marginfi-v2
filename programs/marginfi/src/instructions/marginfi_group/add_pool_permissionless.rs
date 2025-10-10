@@ -2,25 +2,26 @@
 // stake pool to a group so users can borrow SOL against it
 use crate::{
     check,
-    constants::{
-        ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PYTH_PUSH_MIGRATED, SPL_SINGLE_POOL_ID,
-    },
+    constants::SPL_SINGLE_POOL_ID,
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
-    state::{
-        marginfi_group::{
-            Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
-        },
-        price::OracleSetup,
-        staked_settings::StakedSettings,
-    },
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
 use fixed_macro::types::I80F48;
+use marginfi_type_crate::{
+    constants::{
+        ASSET_TAG_STAKED, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        PYTH_PUSH_MIGRATED_DEPRECATED,
+    },
+    types::{
+        Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
+        OracleSetup, StakedSettings,
+    },
+};
 
 pub fn lending_pool_add_bank_permissionless(
     ctx: Context<LendingPoolAddBankPermissionless>,
@@ -72,13 +73,15 @@ pub fn lending_pool_add_bank_permissionless(
         borrow_limit: 0,
         risk_tier: settings.risk_tier,
         asset_tag: ASSET_TAG_STAKED,
-        config_flags: PYTH_PUSH_MIGRATED,
+        config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
         _pad0: [0; 5],
         total_asset_value_init_limit: settings.total_asset_value_init_limit,
         oracle_max_age: settings.oracle_max_age,
         // Note: this will use the default of 10%. SOL oracle confidence is generally fine.
         oracle_max_confidence: 0,
     };
+
+    let now = Clock::get().unwrap().unix_timestamp;
 
     *bank = Bank::new(
         ctx.accounts.marginfi_group.key(),
@@ -88,7 +91,7 @@ pub fn lending_pool_add_bank_permissionless(
         liquidity_vault.key(),
         insurance_vault.key(),
         fee_vault.key(),
-        Clock::get().unwrap().unix_timestamp,
+        now,
         liquidity_vault_bump,
         liquidity_vault_authority_bump,
         insurance_vault_bump,
@@ -98,7 +101,6 @@ pub fn lending_pool_add_bank_permissionless(
     );
     bank.config.oracle_setup = OracleSetup::StakedWithPythPush;
     bank.config.oracle_keys[0] = settings.oracle;
-    bank.config.update_config_flag(true, PYTH_PUSH_MIGRATED);
 
     log_pool_info(&bank);
 
@@ -248,8 +250,6 @@ pub struct LendingPoolAddBankPermissionless<'info> {
         bump,
     )]
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    pub rent: Sysvar<'info, Rent>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

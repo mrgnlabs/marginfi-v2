@@ -201,6 +201,5 @@ pub struct CreateDeposit<'info> {
     /// CHECK: Asserted by CPI call
     pub marginfi_program: Program<'info, Marginfi>,
     pub token_program: Interface<'info, TokenInterface>,
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }

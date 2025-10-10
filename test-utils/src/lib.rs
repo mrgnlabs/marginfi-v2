@@ -6,4 +6,5 @@ pub mod spl;
 pub mod test;
 pub mod utils;
 
+pub use mocks;
 pub use transfer_hook;

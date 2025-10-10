@@ -1,42 +1,106 @@
-use anchor_lang::prelude::*;
+use marginfi_type_crate::types::FeeState;
 
-use crate::{assert_struct_align, assert_struct_size};
+use crate::MarginfiResult;
 
-use super::marginfi_group::WrappedI80F48;
-
-assert_struct_size!(FeeState, 256);
-assert_struct_align!(FeeState, 8);
-
-/// Unique per-program. The Program Owner uses this account to administrate fees collected by the protocol
-#[account(zero_copy)]
-#[repr(C)]
-pub struct FeeState {
-    /// The fee state's own key. A PDA derived from just `b"feestate"`
-    pub key: Pubkey,
-    /// Can modify fees
-    pub global_fee_admin: Pubkey,
-    /// The base wallet for all protocol fees. All SOL fees go to this wallet. All non-SOL fees go
-    /// to the canonical ATA of this wallet for that asset.
-    pub global_fee_wallet: Pubkey,
-    // Reserved for future use, forces 8-byte alignment
-    pub placeholder0: u64,
-    /// Flat fee assessed when a new bank is initialized, in lamports.
-    /// * In SOL, in native decimals.
-    pub bank_init_flat_sol_fee: u32,
-    pub bump_seed: u8,
-    // Pad to next 8-byte multiple
-    _padding0: [u8; 4],
-    // Pad to 128 bytes
-    _padding1: [u8; 15],
-    /// Fee collected by the program owner from all groups
-    pub program_fee_fixed: WrappedI80F48,
-    /// Fee collected by the program owner from all groups
-    pub program_fee_rate: WrappedI80F48,
-    // Reserved for future use
-    _reserved0: [u8; 32],
-    _reserved1: [u8; 64],
+pub trait FeeStateImpl {
+    fn _placeholder(&self) -> MarginfiResult;
 }
 
-impl FeeState {
-    pub const LEN: usize = std::mem::size_of::<FeeState>();
+impl FeeStateImpl for FeeState {
+    fn _placeholder(&self) -> MarginfiResult {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::hex_to_bytes;
+
+    use super::*;
+    use anchor_lang::{
+        pubkey,
+        solana_program::{account_info::AccountInfo, pubkey::Pubkey},
+    };
+    use fixed::types::I80F48;
+    use fixed_macro::types::I80F48;
+    use marginfi_type_crate::constants::discriminators;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn fee_state_regression() {
+        // HoMNdUF3RDZDPKAARYK1mxcPFfUnPjLmpKYibZzAijev Mainnet August 1, 2025
+        let mut bytes = hex_to_bytes("3fe01055c124ebdcf99abe673005fd029ed4e061d83daab0145fa9c01140e8ab5e05b1aaaeef4317ab83bfce0e61a1a233632ba4cfbabf812b8023caf2be7df80972bfc9ff327540ab83bfce0e61a1a233632ba4cfbabf812b8023caf2be7df80972bfc9ff327540000000000000000080d1f008ff000000000000000000000000000000000000000000000000000000000000000000000033333333331300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+        let expected_len = 8 + std::mem::size_of::<FeeState>();
+        assert_eq!(
+            bytes.len(),
+            expected_len,
+            "Buffer length mismatch: {} vs {}",
+            bytes.len(),
+            expected_len
+        );
+
+        // Split out the discriminator and check it
+        let (disc, payload) = bytes.split_at_mut(8);
+        assert_eq!(disc, discriminators::FEE_STATE, "Discriminator mismatch");
+
+        let (expected_key, expected_bump) =
+            Pubkey::find_program_address(&[b"feestate"], &crate::ID);
+
+        // Wrap into AccountInfo to test zero-copy deserialization
+        let mut lamports = 1u64;
+        let account_info = AccountInfo {
+            key: &expected_key,
+            lamports: Rc::new(RefCell::new(&mut lamports)),
+            data: Rc::new(RefCell::new(payload)),
+            owner: &crate::ID,
+            rent_epoch: 0,
+            is_signer: false,
+            is_writable: true,
+            executable: false,
+        };
+
+        let binding = account_info.data.borrow();
+        let fee_state: &FeeState = bytemuck::from_bytes(&binding);
+
+        // 1) PDA and bump seed
+        assert_eq!(fee_state.key, expected_key);
+        assert_eq!(fee_state.bump_seed, expected_bump);
+
+        // 2) Flat, alignment, and reserved fields
+        let admin = pubkey!("CYXEgwbPHu2f9cY3mcUkinzDoDcsSan7myh1uBvYRbEw");
+        assert_eq!(fee_state.global_fee_admin, admin); // the MS
+        assert_eq!(fee_state.global_fee_wallet, admin); // MS was also wallet at this time
+        assert_eq!(fee_state.placeholder0, 0);
+        assert_eq!(fee_state.bank_init_flat_sol_fee, 150000000);
+
+        // 3) Percentage-based fees: with tolerance
+        let tol: I80F48 = I80F48!(0.001);
+        let expected_liquidation_max_fee: I80F48 = I80F48!(0);
+        let actual_max_fee: I80F48 = fee_state.liquidation_max_fee.into();
+        assert!(
+            (actual_max_fee - expected_liquidation_max_fee).abs()
+                <= expected_liquidation_max_fee * tol
+        );
+
+        // program_fee_fixed
+        let expected_program_fee_fixed: I80F48 = I80F48!(0);
+        let actual_program_fee_fixed: I80F48 = fee_state.program_fee_fixed.into();
+        assert!(
+            (actual_program_fee_fixed - expected_program_fee_fixed).abs()
+                <= expected_program_fee_fixed * tol
+        );
+
+        // program_fee_rate
+        let expected_program_fee_rate: I80F48 = I80F48!(0.075);
+        let actual_program_fee_rate: I80F48 = fee_state.program_fee_rate.into();
+        assert!(
+            (actual_program_fee_rate - expected_program_fee_rate).abs()
+                <= expected_program_fee_rate * tol
+        );
+
+        // 4) Remaining reserved and flat fields
+        assert_eq!(fee_state.placeholder1, 0);
+        assert_eq!(fee_state.liquidation_flat_sol_fee, 0);
+    }
 }

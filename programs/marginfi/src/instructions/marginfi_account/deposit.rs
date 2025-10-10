@@ -4,16 +4,23 @@ use crate::{
     math_error,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
+        bank::BankImpl,
+        bank_config::BankConfigImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, validate_asset_tags},
+    utils::{
+        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// 1. Accrue interest
 /// 2. Create the user's bank account for the asset deposited if it does not exist yet
@@ -46,14 +53,19 @@ pub fn lending_account_deposit<'info>(
 
     let mut bank = bank_loader.load_mut()?;
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+    let group = &marginfi_group_loader.load()?;
 
     validate_asset_tags(&bank, &marginfi_account)?;
+    validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
     check!(
-        !marginfi_account.get_flag(ACCOUNT_DISABLED),
+        !marginfi_account.get_flag(ACCOUNT_DISABLED)
+            // Sanity check: liquidation doesn't allow the deposit ix, but just in case
+            && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
         MarginfiError::AccountDisabled
     );
 
+    // TODO: this should be in a helper function
     let deposit_amount = if deposit_up_to_limit && bank.config.is_deposit_limit_active() {
         let current_asset_amount = bank.get_asset_amount(bank.total_asset_shares.into())?;
         let deposit_limit = I80F48::from_num(bank.config.deposit_limit);
@@ -80,8 +92,6 @@ pub fn lending_account_deposit<'info>(
     if deposit_amount == 0 {
         return Ok(());
     }
-
-    let group = &marginfi_group_loader.load()?;
     bank.accrue_interest(
         clock.unix_timestamp,
         group,
@@ -96,6 +106,7 @@ pub fn lending_account_deposit<'info>(
     )?;
 
     bank_account.deposit(I80F48::from_num(deposit_amount))?;
+    marginfi_account.last_update = clock.unix_timestamp as u64;
 
     let amount_pre_fee = maybe_bank_mint
         .as_ref()
@@ -109,7 +120,7 @@ pub fn lending_account_deposit<'info>(
         .transpose()?
         .unwrap_or(deposit_amount);
 
-    bank_account.deposit_spl_transfer(
+    bank.deposit_spl_transfer(
         amount_pre_fee,
         signer_token_account.to_account_info(),
         bank_liquidity_vault.to_account_info(),
@@ -140,6 +151,11 @@ pub fn lending_account_deposit<'info>(
 
 #[derive(Accounts)]
 pub struct LendingAccountDeposit<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -154,7 +170,9 @@ pub struct LendingAccountDeposit<'info> {
     #[account(
         mut,
         has_one = group,
-        has_one = liquidity_vault
+        has_one = liquidity_vault,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 

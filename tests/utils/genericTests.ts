@@ -7,7 +7,14 @@ import { BankrunProvider } from "anchor-bankrun";
 import BigNumber from "bignumber.js";
 import BN from "bn.js";
 import { assert } from "chai";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
+import {
+  BanksTransactionMeta,
+  BanksTransactionResultWithMeta,
+} from "solana-bankrun";
+import {
+  WrappedI68F60 as WrappedU68F60,
+  wrappedU68F60toBigNumber,
+} from "./kamino-utils";
 
 /**
  * Shorthand for `assert.equal(a.toString(), b.toString())`
@@ -39,6 +46,30 @@ export const assertBNEqual = (a: BN, b: BN | number) => {
 };
 
 /**
+ * Shorthand for assert that a BN is greater than another BN
+ * @param a - The value to check
+ * @param b - The value to compare against
+ * @param message - Optional message to display if the assertion fails
+ */
+export const assertBNGreaterThan = (
+  a: BN,
+  b: BN | number,
+  message?: string
+) => {
+  if (typeof b === "number") {
+    b = new BN(b);
+  }
+  const aB = BigInt(a.toString());
+  const bB = BigInt(b.toString());
+
+  if (!(aB > bB)) {
+    throw new Error(
+      message || `Expected ${aB.toString()} to be greater than ${bB.toString()}`
+    );
+  }
+};
+
+/**
  * Shorthand to convert I80F48 to a string and compare against a BN, number, or other WrappedI80F48
  *
  * Generally, use `assertI80F48Approx` instead if the expected value is not a whole number or zero.
@@ -58,6 +89,37 @@ export const assertI80F48Equal = (
     bigB = new BigNumber(b.toString());
   } else if (isWrappedI80F48(b)) {
     bigB = wrappedI80F48toBigNumber(b);
+  } else {
+    throw new Error("Unsupported type for comparison");
+  }
+
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
+  }
+
+  assert.equal(bigA.toString(), bigB.toString());
+};
+
+/**
+ * Shorthand to convert I68F60 to a string and compare against a BN, number, or other WrappedI68F60
+ *
+ * Generally, use `assertI68F60Approx` instead if the expected value is not a whole number or zero.
+ * @param a
+ * @param b
+ */
+export const assertI68F60Equal = (
+  a: WrappedU68F60 | BN,
+  b: WrappedU68F60 | BN | number
+) => {
+  const bigA = wrappedU68F60toBigNumber(a);
+  let bigB: BigNumber;
+
+  if (typeof b === "number") {
+    bigB = new BigNumber(b);
+  } else if (b instanceof BN) {
+    bigB = new BigNumber(b.toString());
+  } else if (isWrappedU68F60(b)) {
+    bigB = wrappedU68F60toBigNumber(b);
   } else {
     throw new Error("Unsupported type for comparison");
   }
@@ -109,11 +171,59 @@ export const assertI80F48Approx = (
 };
 
 /**
+ * Shorthand to convert U68F60 to a BigNumber and compare against a BN, number, or other WrappedU68F60 within a given tolerance
+ * @param a
+ * @param b
+ * @param tolerance - the allowed difference between the two values (default .000001)
+ */
+export const assertU68F60Approx = (
+  a: WrappedU68F60 | BN,
+  b: WrappedU68F60 | BN | number,
+  tolerance: number = 0.000001
+) => {
+  const bigA = wrappedU68F60toBigNumber(a);
+  let bigB: BigNumber;
+
+  if (typeof b === "number") {
+    bigB = new BigNumber(b);
+  } else if (b instanceof BN) {
+    bigB = new BigNumber(b.toString());
+  } else if (isWrappedU68F60(b)) {
+    bigB = wrappedU68F60toBigNumber(b);
+  } else {
+    throw new Error("Unsupported type for comparison");
+  }
+
+  if (bigA.isNaN() || bigB.isNaN()) {
+    throw new Error("One of the values is NaN");
+  }
+
+  const diff = bigA.minus(bigB).abs();
+  const allowedDifference = new BigNumber(tolerance);
+
+  if (diff.isGreaterThan(allowedDifference)) {
+    throw new Error(
+      `Values are not approximately equal. A: ${bigA.toString()} B: ${bigB.toString()} 
+      Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
+    );
+  }
+};
+
+/**
  * Type guard to check if a value is WrappedI80F48
  * @param value
  * @returns
  */
 function isWrappedI80F48(value: any): value is WrappedI80F48 {
+  return value && typeof value === "object" && Array.isArray(value.value);
+}
+
+/**
+ * Type guard to check if a value is WrappedU68F60
+ * @param value
+ * @returns
+ */
+function isWrappedU68F60(value: any): value is WrappedU68F60 {
   return value && typeof value === "object" && Array.isArray(value.value);
 }
 
@@ -128,15 +238,15 @@ export const assertBNApproximately = (
   b: BN | number,
   tolerance: BN | number
 ) => {
-  const aB = BigInt(a.toString());
-  const bB = BigInt(b.toString());
-  const toleranceB = BigInt(tolerance.toString());
-  const diff = aB >= bB ? aB - bB : bB - aB;
+  const aB = BigNumber(a.toString());
+  const bB = BigNumber(b.toString());
+  const toleranceB = BigNumber(tolerance.toString());
+  const diff = aB.minus(bB).abs();
 
-  if (diff > toleranceB) {
+  if (diff.isGreaterThan(toleranceB)) {
     throw new Error(
-      `Values are not approximately equal. A: ${aB.toString()}, B: ${bB.toString()}, ` +
-        `Difference: ${diff.toString()}, Allowed Tolerance: ${toleranceB.toString()}`
+      `Values are not approximately equal. A: ${aB.toString()} B: ${bB.toString()} 
+      Difference: ${diff.toString()}, Allowed Tolerance: ${tolerance}`
     );
   }
 };
@@ -199,16 +309,20 @@ export const waitUntil = async (
  * error 6047 pass `0x179f` (a string) or 6047 (a number)
  */
 export const assertBankrunTxFailed = (
-  result: BanksTransactionResultWithMeta,
+  result: BanksTransactionResultWithMeta | BanksTransactionMeta,
   expectedErrorCode: string | number
 ) => {
+  if (!("result" in result)) {
+    throw new Error("TX succeeded when it should have failed");
+  }
+
   // Convert decimal number to hex string if necessary,
   // otherwise assume it's already a hex string.
   const codeHex =
     typeof expectedErrorCode === "number"
       ? "0x" + expectedErrorCode.toString(16)
       : expectedErrorCode.toLocaleLowerCase();
-
+  assert(result.meta && result.meta.logMessages, "no log");
   assert(result.meta.logMessages.length > 0, "empty log");
   assert(result.result, "TX succeeded when it should have failed");
   const lastLog = result.meta.logMessages.pop();

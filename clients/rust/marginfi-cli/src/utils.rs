@@ -4,17 +4,10 @@ use {
     fixed::types::I80F48,
     fixed_macro::types::I80F48,
     log::error,
-    marginfi::{
-        bank_authority_seed, bank_seed,
-        constants::{
-            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED,
-            PYTH_SPONSORED_SHARD_ID,
-        },
-        state::{
-            marginfi_account::MarginfiAccount,
-            marginfi_group::{Bank, BankConfig, BankVaultType},
-            price::PythPushOraclePriceFeed,
-        },
+    marginfi::{bank_authority_seed, bank_seed, state::bank::BankVaultType},
+    marginfi_type_crate::{
+        constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED},
+        types::{Bank, BankConfig, MarginfiAccount},
     },
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
@@ -65,23 +58,8 @@ pub fn process_transaction(
     }
 }
 
-pub fn bank_to_oracle_key(bank_config: &BankConfig, shard_id: u16) -> Pubkey {
-    let oracle_key_or_price_feed_id = bank_config.oracle_keys.first().unwrap();
-
-    match bank_config.oracle_setup {
-        marginfi::state::price::OracleSetup::PythPushOracle => {
-            if bank_config.is_pyth_push_migrated() {
-                *oracle_key_or_price_feed_id
-            } else {
-                PythPushOraclePriceFeed::find_oracle_address(
-                    shard_id,
-                    bank_config.get_pyth_push_oracle_feed_id().unwrap(),
-                )
-                .0
-            }
-        }
-        _ => *oracle_key_or_price_feed_id,
-    }
+pub fn bank_to_oracle_key(bank_config: &BankConfig) -> Pubkey {
+    *bank_config.oracle_keys.first().unwrap()
 }
 
 pub fn find_bank_vault_pda(
@@ -186,7 +164,7 @@ pub fn load_observation_account_metas(
         .iter()
         .zip(bank_pks.iter())
         .flat_map(|(bank, bank_pk)| {
-            let oracle_key = bank_to_oracle_key(&bank.config, PYTH_SPONSORED_SHARD_ID);
+            let oracle_key = bank_to_oracle_key(&bank.config);
 
             vec![
                 AccountMeta {

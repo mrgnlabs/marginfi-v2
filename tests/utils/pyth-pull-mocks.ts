@@ -1,9 +1,11 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
-import { createMockAccount, storeMockAccount } from "./mocks";
+import { createMockAccount, Oracles, storeMockAccount } from "./mocks";
+import { ORACLE_CONF_INTERVAL } from "./types";
 import { Mocks } from "../../target/types/mocks";
 import { Program, Wallet, workspace } from "@coral-xyz/anchor";
 import { printBuffers } from "../rootHooks";
+import { ProgramTestContext } from "solana-bankrun";
 
 type VerificationLevel =
   | { kind: "Partial"; num_signatures: number }
@@ -138,18 +140,37 @@ export async function initOrUpdatePriceUpdateV2(
   feed_id: PublicKey,
   price: BN,
   conf: BN,
-  ema_price: BN,
-  ema_conf: BN,
-  slot: BN,
+  time: number,
   exponent: number,
-  // User after setup to update existing account
+  // Use after setup to update existing account
   existingAccount?: Keypair,
   // Use to give a deterministic keypair during initial setup instead of a random one
-  oracleKeypair?: Keypair
+  oracleKeypair?: Keypair,
+  bankrunContext?: ProgramTestContext,
+  verbose: boolean = false,
+  publishTime?: number
 ) {
   const space = 134;
   // Compute publish times.
-  const now = Math.floor(Date.now() / 1000);
+  const now = publishTime ?? Math.floor(Date.now() / 1000);
+  if (verbose) {
+    if (existingAccount) {
+      console.log(
+        "publish price to " +
+        existingAccount.publicKey.toString() +
+        " at: " +
+        now
+      );
+    } else {
+      console.log("publish price to a new feed at " + now);
+    }
+    let nowActually = Math.floor(Date.now() / 1000);
+    console.log("your system clock reads: " + nowActually);
+    if (bankrunContext) {
+      let clock = await bankrunContext.banksClient.getClock();
+      console.log("bankrun thinks the time is: " + clock.unixTimestamp);
+    }
+  }
   const publish_time = new BN(now);
   const prev_publish_time = new BN(now - 1);
   // Allocate a 134-byte buffer.
@@ -188,13 +209,13 @@ export async function initOrUpdatePriceUpdateV2(
   prev_publish_time.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_price (i64, 8 bytes)
-  ema_price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  price.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // ema_conf (u64, 8 bytes)
-  ema_conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  conf.toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
   // posted_slot (u64, 8 bytes)
-  slot.toArrayLike(Buffer, "le", 8).copy(buf, offset);
+  (new BN(0)).toArrayLike(Buffer, "le", 8).copy(buf, offset);
   offset += 8;
 
   if (printBuffers) {
@@ -204,25 +225,112 @@ export async function initOrUpdatePriceUpdateV2(
   // Write the buffer to the mock account
   const mockProgram: Program<Mocks> = workspace.Mocks;
   if (existingAccount) {
-    await storeMockAccount(mockProgram, wallet, existingAccount, 0, buf);
+    await storeMockAccount(
+      mockProgram,
+      wallet,
+      existingAccount,
+      0,
+      buf,
+      bankrunContext
+    );
     return existingAccount;
   } else {
     let account = await createMockAccount(
       mockProgram,
       space,
       wallet,
-      oracleKeypair
+      oracleKeypair,
+      bankrunContext
     );
-    await storeMockAccount(mockProgram, wallet, account, 0, buf);
+    await storeMockAccount(mockProgram, wallet, account, 0, buf, bankrunContext);
     return account;
   }
+}
+
+// TODO use this in roothooks instead of the custom implementation...
+/**
+ * Refreshes any oracle in Oracles that is EXACTLY NAMED *Pull with *OracleFeed to the same
+ * price/conf/etc it currently has but the given slot/time
+ * @param oracles
+ * @param wallet
+ * @param publishTime
+ * @param bankrunContext
+ * @param verbose
+ */
+export async function refreshPullOracles(
+  oracles: Oracles,
+  wallet: Keypair,
+  slot: BN,
+  publishTime: number,
+  bankrunContext?: ProgramTestContext,
+  verbose: boolean = false
+) {
+  // Discover all "*PullOracleFeed" "*Pull" "*Price" "*Decimals" entries
+  const feeds = (Object.keys(oracles) as Array<keyof Oracles>)
+    .filter((k) => k.endsWith("PullOracleFeed"))
+    .map((feedKey) => {
+      const baseKey = feedKey.replace(/OracleFeed$/, "") as keyof Oracles;
+      const feedId: PublicKey = (oracles[feedKey] as Keypair).publicKey;
+      const account = oracles[baseKey] as Keypair;
+
+      const tokenName = (baseKey as string).replace(/Pull$/, "");
+      const priceKey = `${tokenName}Price` as keyof Oracles;
+      const decimalsKey = `${tokenName}Decimals` as keyof Oracles;
+
+      const priceNum = (oracles as any)[priceKey] as number;
+      const dec = (oracles as any)[decimalsKey] as number;
+      const price = new BN(priceNum * 10 ** dec);
+      const conf = new BN(priceNum * ORACLE_CONF_INTERVAL * 10 ** dec);
+      const emaPrice = price.clone();
+      const emaConf = conf.clone();
+      const exponent = -dec;
+
+      return {
+        base: baseKey,
+        feedId,
+        account,
+        price,
+        conf,
+        emaPrice,
+        emaConf,
+        exponent,
+      };
+    });
+
+  const tasks = feeds.map(
+    ({ base, feedId, account, price, conf, emaPrice, emaConf, exponent }) => {
+      if (verbose) {
+        console.log(
+          `[batchUpdate] ${base}: price=${price.toString()}, conf=${conf.toString()}, slot=${slot.toString()}, exp=${exponent}`
+        );
+      }
+      return initOrUpdatePriceUpdateV2(
+        new Wallet(wallet),
+        feedId,
+        price,
+        conf,
+        emaPrice,
+        emaConf,
+        slot,
+        exponent,
+        account,
+        undefined,
+        bankrunContext,
+        verbose,
+        publishTime
+      );
+    }
+  );
+
+  await Promise.all(tasks);
 }
 
 /**
  * Price updates expect a `valid` feed, but don't actually read anything from it. If suffices to
  * create an account of the correct size with "PYTH" as the owner. Pass this key as the `feed_id` to
  * create price updates for an asset. This size of this account also doesn't matter, nor does the
- * discrminator, etc. It can literally be any account owned by PYTH.
+ * discriminator, etc. It can literally be any account owned by "PYTH". On mainnet this is the
+ * receiver program, on localnet we let the mocks program own both the oracles and these feeds.
  * @param wallet
  * @returns
  */

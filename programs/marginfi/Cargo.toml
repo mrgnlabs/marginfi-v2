@@ -1,6 +1,6 @@
 [package]
 name = "marginfi"
-version = "0.1.4"
+version = "0.1.5"
 description = "Created with Anchor"
 edition = "2021"
 
@@ -18,12 +18,15 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 test-bpf = ["test", "debug"]
 test = []
 client = []
-devnet = []
-mainnet-beta = []
 debug = []
-staging = []
+mainnet-beta = ["id-crate/mainnet-beta", "marginfi-type-crate/mainnet-beta"]
+staging = ["id-crate/staging", "marginfi-type-crate/staging"]
+stagingalt = ["id-crate/stagingalt", "marginfi-type-crate/stagingalt"]
+devnet = ["id-crate/devnet", "marginfi-type-crate/devnet"]
 
 [dependencies]
+id-crate = { workspace = true }
+marginfi-type-crate = { workspace = true, features = ["anchor"] }
 # solana-program = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 # spl-tlv-account-resolution = { workspace = true }
@@ -36,15 +39,16 @@ pyth-solana-receiver-sdk = { workspace = true }
 switchboard-on-demand = { workspace = true }
 
 borsh = { workspace = true }
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
 fixed = { workspace = true }
 fixed-macro = { workspace = true }
 lazy_static = { workspace = true }
-type-layout = { workspace = true }
 static_assertions = { workspace = true }
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.13"
 solana-security-txt = "1.1.1"
+
+kamino-mocks = { path = "../kamino-mocks" , features = ["no-entrypoint"]}
 
 [dev-dependencies]
 solana-account-decoder = { workspace = true }
@@ -53,6 +57,7 @@ solana-program-test = { workspace = true }
 # solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
 fixtures = { workspace = true, package = "test-utilities" }
+mocks = { workspace = true }
 
 anyhow = "1.0.66"
 assert_matches = "1.5.0"

@@ -1,14 +1,18 @@
+// Note: Although flash loans are not explicitly disabled during a protocol pause, they are disabled
+// in effect because withdraw/borrow/deposit/repay are all disabled.
 use crate::{
     check,
-    prelude::*,
-    state::marginfi_account::{
-        MarginfiAccount, RiskEngine, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
+    ix_utils::{
+        get_discrim_hash, validate_not_cpi_by_stack_height, validate_not_cpi_with_sysvar, Hashable,
     },
+    prelude::*,
+    state::marginfi_account::{MarginfiAccountImpl, RiskEngine},
 };
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{
-    instruction::{get_stack_height, TRANSACTION_LEVEL_STACK_HEIGHT},
-    sysvar::{self, instructions},
+use anchor_lang::solana_program::sysvar::{self, instructions};
+use marginfi_type_crate::{
+    constants::ix_discriminators::END_FLASHLOAN,
+    types::{MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP},
 };
 
 pub fn lending_account_start_flashloan(
@@ -43,13 +47,18 @@ pub struct LendingAccountStartFlashloan<'info> {
 }
 
 const END_FL_IX_MARGINFI_ACCOUNT_AI_IDX: usize = 0;
+impl Hashable for LendingAccountStartFlashloan<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_start_flashloan")
+    }
+}
 
 /// Checklist
 /// 1. `end_flashloan` ix index is after `start_flashloan` ix index
 /// 2. Ixs has an `end_flashloan` ix present
 /// 3. `end_flashloan` ix is for the marginfi program
 /// 3. `end_flashloan` ix is for the same marginfi account
-/// 4. Account is not disabled
+/// 4. Account is not disabled or in receivership
 /// 5. Account is not already in a flashloan
 /// 6. Start flashloan ix is not in CPI
 /// 7. End flashloan ix is not in CPI
@@ -58,39 +67,21 @@ pub fn check_flashloan_can_start(
     sysvar_ixs: &AccountInfo,
     end_fl_idx: usize,
 ) -> MarginfiResult<()> {
-    // Note: FLASHLOAN_ENABLED_FLAG is now deprecated, any non-disabled account can initiate a flash loan.
-    let current_ix_idx: usize = instructions::load_current_index_checked(sysvar_ixs)?.into();
-
+    let current_ix_idx: usize = validate_not_cpi_with_sysvar(sysvar_ixs)?;
     check!(current_ix_idx < end_fl_idx, MarginfiError::IllegalFlashloan);
-
-    // Check current ix is not a CPI
-    let current_ix = instructions::load_instruction_at_checked(current_ix_idx, sysvar_ixs)?;
-
-    check!(
-        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
-        MarginfiError::IllegalFlashloan,
-        "Start flashloan ix should not be in CPI"
-    );
-
-    check!(
-        current_ix.program_id.eq(&crate::id()),
-        MarginfiError::IllegalFlashloan,
-        "Start flashloan ix should not be in CPI"
-    );
+    validate_not_cpi_by_stack_height()?;
 
     // Will error if ix doesn't exist
     let unchecked_end_fl_ix = instructions::load_instruction_at_checked(end_fl_idx, sysvar_ixs)?;
 
     let discrim = &unchecked_end_fl_ix.data[..8];
-    // TODO figure out anchor's fancy new discrim syntax to avoid hard coding this.
-    const FLASHLOAN_DISCRIM: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
-    if discrim != FLASHLOAN_DISCRIM {
-        msg!("discrim: {:?}, expected: {:?}", discrim, FLASHLOAN_DISCRIM);
+    if discrim != END_FLASHLOAN {
+        msg!("discrim: {:?}, expected: {:?}", discrim, END_FLASHLOAN);
         return err!(MarginfiError::IllegalFlashloan);
     }
 
     check!(
-        unchecked_end_fl_ix.program_id.eq(&crate::id()),
+        unchecked_end_fl_ix.program_id.eq(&crate::ID),
         MarginfiError::IllegalFlashloan
     );
 
@@ -118,23 +109,29 @@ pub fn check_flashloan_can_start(
         MarginfiError::IllegalFlashloan
     );
 
+    check!(
+        !marginf_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
+        MarginfiError::ForbiddenIx
+    );
+
     Ok(())
 }
 
 pub fn lending_account_end_flashloan<'info>(
     ctx: Context<'_, '_, 'info, 'info, LendingAccountEndFlashloan<'info>>,
 ) -> MarginfiResult<()> {
-    check!(
-        get_stack_height() == TRANSACTION_LEVEL_STACK_HEIGHT,
-        MarginfiError::IllegalFlashloan,
-        "End flashloan ix should not be in CPI"
-    );
+    validate_not_cpi_by_stack_height()?;
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
+    );
+
+    check!(
+        !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
+        MarginfiError::ForbiddenIx
     );
 
     marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN);
@@ -155,4 +152,10 @@ pub struct LendingAccountEndFlashloan<'info> {
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     pub authority: Signer<'info>,
+}
+
+impl Hashable for LendingAccountEndFlashloan<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "lending_account_end_flashloan")
+    }
 }

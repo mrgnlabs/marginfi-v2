@@ -1,9 +1,14 @@
 import { BN } from "@coral-xyz/anchor";
 import {
+  AddressLookupTableAccount,
+  AddressLookupTableProgram,
   ComputeBudgetProgram,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   groupAdmin,
@@ -13,6 +18,8 @@ import {
   ecosystem,
   oracles,
   users,
+  globalFeeWallet,
+  verbose,
 } from "./rootHooks";
 import {
   configBankEmode,
@@ -21,19 +28,38 @@ import {
 } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
-import { defaultBankConfigOptRaw, newEmodeEntry } from "./utils/types";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  defaultBankConfigOptRaw,
+  newEmodeEntry,
+  ORACLE_CONF_INTERVAL,
+} from "./utils/types";
 import {
   borrowIx,
   composeRemainingAccounts,
   depositIx,
   liquidateIx,
+  initLiquidationRecordIx,
+  startLiquidationIx,
+  endLiquidationIx,
+  withdrawIx,
+  repayIx,
 } from "./utils/user-instructions";
+import { deriveGlobalFeeState, deriveLiquidationRecord } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
-import { dumpAccBalances } from "./utils/tools";
+import { bytesToF64, dumpAccBalances } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
+import { getEpochAndSlot } from "./utils/stake-utils";
+import { Clock } from "solana-bankrun";
+import {
+  assertBNApproximately,
+  assertBNEqual,
+  assertKeyDefault,
+  assertKeysEqual,
+} from "./utils/genericTests";
 
-/** Banks in this test use a "random" seed so their key is non-deterministic. */
-let startingSeed: number;
+const startingSeed: number = 299;
+const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000M2");
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
@@ -46,9 +72,10 @@ describe("Limits on number of accounts, with emode in effect", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       MAX_BALANCES,
-      USER_ACCOUNT_THROWAWAY
+      USER_ACCOUNT_THROWAWAY,
+      groupBuff,
+      startingSeed
     );
-    startingSeed = result.startingSeed;
     banks = result.banks;
     throwawayGroup = result.throwawayGroup;
   });
@@ -191,7 +218,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
           // anything other than OOM should blow up the test
           throw new Error(
             `Unexpected borrowIx failure on bank ${banks[i].toBase58()}: ` +
-              logs.join("\n")
+            logs.join("\n")
           );
         }
       }
@@ -297,6 +324,170 @@ describe("Limits on number of accounts, with emode in effect", () => {
         // anything other than OOM should blow up the test
         throw new Error(`Unexpected liquidate failure}: ` + logs.join("\n"));
       }
+    }
+  });
+
+  it("(user 1) Liquidates user 0 with start/end", async () => {
+    const liquidatee = users[0];
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const liquidator = users[1];
+    const remainingAccounts: PublicKey[][] = [];
+    for (let i = 0; i < MAX_BALANCES; i++) {
+      remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
+    }
+
+    const recentSlot = Number(await banksClient.getSlot());
+    const [createLutIx, lutAddress] =
+      AddressLookupTableProgram.createLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        recentSlot: recentSlot - 1,
+      });
+    let createLutTx = new Transaction().add(createLutIx);
+    createLutTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    createLutTx.sign(liquidator.wallet);
+    await banksClient.processTransaction(createLutTx);
+
+    let extendLutTx1 = new Transaction().add(
+      AddressLookupTableProgram.extendLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        lookupTable: lutAddress,
+        addresses: remainingAccounts.flat().slice(0, 20),
+      })
+    );
+    extendLutTx1.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    extendLutTx1.sign(liquidator.wallet);
+    await banksClient.processTransaction(extendLutTx1);
+
+    let extendLutTx2 = new Transaction().add(
+      AddressLookupTableProgram.extendLookupTable({
+        authority: liquidator.wallet.publicKey,
+        payer: liquidator.wallet.publicKey,
+        lookupTable: lutAddress,
+        addresses: remainingAccounts.flat().slice(20),
+      })
+    );
+    extendLutTx2.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    extendLutTx2.sign(liquidator.wallet);
+    await banksClient.processTransaction(extendLutTx2);
+
+    // We must advance the bankrun slot to allow the lut to activate
+    const ONE_MINUTE = 60;
+    const slotsToAdvance = ONE_MINUTE * 0.4;
+    let { epoch: _, slot } = await getEpochAndSlot(banksClient);
+    bankrunContext.warpToSlot(BigInt(slot + slotsToAdvance));
+
+    const [liqRecordKey] = deriveLiquidationRecord(
+      bankrunProgram.programId,
+      liquidateeAccount
+    );
+
+    const mrgnAccountBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
+    assertKeyDefault(mrgnAccountBefore.liquidationRecord);
+    dumpAccBalances(mrgnAccountBefore);
+
+    let tx = new Transaction();
+    tx.add(
+      await initLiquidationRecordIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        feePayer: liquidator.wallet.publicKey,
+        // liquidationRecord: liqRecord,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(liquidator.wallet);
+    await banksClient.processTransaction(tx);
+
+    const recordBefore = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+    assertKeysEqual(recordBefore.key, liqRecordKey);
+    assertKeysEqual(recordBefore.recordPayer, liquidator.wallet.publicKey);
+    assertKeysEqual(recordBefore.marginfiAccount, liquidateeAccount);
+
+    tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
+      await startLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        // liquidationRecord: liqRecord,
+        liquidationReceiver: liquidator.wallet.publicKey,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      }),
+      await withdrawIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[0],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(0.105 * 10 ** ecosystem.lstAlphaDecimals),
+      }),
+      await repayIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[MAX_BALANCES - 1],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(0.1 * 10 ** ecosystem.lstAlphaDecimals),
+      }),
+      await endLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      })
+    );
+    const blockhash = await getBankrunBlockhash(bankrunContext);
+    const lutRaw = await banksClient.getAccount(lutAddress);
+    const lutState = AddressLookupTableAccount.deserialize(lutRaw.data);
+    const lutAccount = new AddressLookupTableAccount({
+      key: lutAddress,
+      state: lutState,
+    });
+    const messageV0 = new TransactionMessage({
+      payerKey: liquidator.wallet.publicKey,
+      recentBlockhash: blockhash,
+      instructions: [...tx.instructions],
+    }).compileToV0Message([lutAccount]);
+    const versionedTx = new VersionedTransaction(messageV0);
+    versionedTx.sign([liquidator.wallet]);
+    await banksClient.processTransaction(versionedTx);
+
+    const recordAfter = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+    const mrgnAccountAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidateeAccount
+    );
+    dumpAccBalances(mrgnAccountAfter);
+    assertKeysEqual(mrgnAccountAfter.liquidationRecord, liqRecordKey);
+
+    const entry = recordAfter.entries[3];
+    assert(entry.timestamp.toNumber() > 0);
+
+    // Note: asset seized and liability repaid are scaled to the oracle confidence adjustment
+    const seized = bytesToF64(entry.assetAmountSeized);
+    const repaid = bytesToF64(entry.liabAmountRepaid);
+    if (verbose) {
+      console.log("asset seized: " + seized);
+      console.log("liab repaid: " + repaid);
+      console.log("theoretical profit: " + (seized - repaid));
+    }
+    const expectedAssets =
+      0.105 * oracles.lstAlphaPrice -
+      0.105 *
+        oracles.lstAlphaPrice *
+        ORACLE_CONF_INTERVAL *
+        CONF_INTERVAL_MULTIPLE;
+    assert.approximately(seized, expectedAssets, 0.001);
+    const expectedLiabs =
+      0.1 * oracles.lstAlphaPrice +
+      0.1 *
+        oracles.lstAlphaPrice *
+        ORACLE_CONF_INTERVAL *
+        CONF_INTERVAL_MULTIPLE;
+    assert.approximately(repaid, expectedLiabs, 0.001);
+
+    // other slots (0-2) should still be zero
+    for (let i = 0; i < 3; i++) {
+      assert(recordAfter.entries[i].timestamp.toNumber() == 0);
     }
   });
 

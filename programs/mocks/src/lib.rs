@@ -50,4 +50,31 @@ pub mod mocks {
 
         Ok((&mut borrow_data[offset..]).write_all(&data[..])?)
     }
+
+    /// Create a marginfi account PDA via CPI
+    pub fn create_marginfi_account_pda_via_cpi(
+        ctx: Context<CreateMarginfiAccountPdaViaCpi>,
+        account_index: u16,
+        third_party_id: Option<u16>,
+    ) -> Result<()> {
+        instructions::pda_account_creation::CreateMarginfiAccountPdaViaCpi::create_marginfi_account_pda_via_cpi(
+            ctx,
+            account_index,
+            third_party_id,
+        )
+    }
+
+    /// Start a liquidation via CPI
+    pub fn start_liquidation_via_cpi<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartLiquidationViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::start_liquidate::StartLiquidationViaCpi::start_liquidation_via_cpi(ctx)
+    }
+
+    /// Handle bankruptcy via CPI
+    pub fn handle_bankruptcy<'info>(
+        ctx: Context<'_, '_, 'info, 'info, HandleBankruptcyViaCpi<'info>>,
+    ) -> Result<()> {
+        instructions::handle_bankruptcy::HandleBankruptcyViaCpi::handle_bankruptcy_via_cpi(ctx)
+    }
 }

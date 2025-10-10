@@ -5,8 +5,7 @@ use anchor_lang::{
     Key,
 };
 use fixed::types::I80F48;
-
-use marginfi::state::marginfi_account::MarginfiAccount;
+use marginfi_type_crate::types::{user_account::MarginfiAccount, BalanceSide};
 
 use crate::{arbitrary_helpers::BankIdx, bank_accounts::BankAccounts};
 
@@ -40,14 +39,14 @@ impl<'info> UserAccount<'info> {
             .lending_account
             .balances
             .iter()
-            .filter(|blc| !blc.is_empty(marginfi::state::marginfi_account::BalanceSide::Assets))
+            .filter(|blc| !blc.is_empty(BalanceSide::Assets))
             .collect::<Vec<_>>();
         let mut liab_balances = marginfi_account
             .lending_account
             .balances
             .iter()
             .filter(|blc| {
-                !blc.is_empty(marginfi::state::marginfi_account::BalanceSide::Liabilities)
+                !blc.is_empty(BalanceSide::Liabilities)
             })
             .collect::<Vec<_>>();
 

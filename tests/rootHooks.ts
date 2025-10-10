@@ -21,6 +21,13 @@ import {
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
+
+// ---------------------------------------------------------------------------
+// Kamino farms (liquidity-incentive) program
+// ---------------------------------------------------------------------------
+export const FARMS_PROGRAM_ID = new PublicKey(
+  "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
+);
 import { setupPythOracles } from "./utils/pyth_mocks";
 import { BankrunProvider } from "anchor-bankrun";
 import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
@@ -39,6 +46,8 @@ import { decodeSinglePool } from "./utils/spl-staking-utils";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { initGlobalFeeState } from "./utils/group-instructions";
 import { deriveGlobalFeeState } from "./utils/pdas";
+import { KaminoLending } from "./fixtures/kamino_lending";
+import klendIdl from "./fixtures/kamino_lending.json";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -63,17 +72,25 @@ export let globalFeeWallet: PublicKey = undefined;
 
 /** Lamports charged when creating any pool */
 export const INIT_POOL_ORIGINATION_FEE = 1000;
+/** Lamports charged for receivership liquidation events */
+export const LIQUIDATION_FLAT_FEE = 500;
 
 export const PROGRAM_FEE_FIXED = 0.01;
 export const PROGRAM_FEE_RATE = 0.02;
+/** The most a liquidator can earn in profit from receivership liquidation events */
+export const LIQUIDATION_MAX_FEE = 0.5;
 
-// All groups and banks below need to be deterministic to ensure the same ordering of balances in lending accounts
+// All groups and banks below need to be deterministic to ensure the same ordering of balances in
+// lending accounts
 /** Group used for most regular e2e tests */
 const MARGINFI_GROUP_SEED = Buffer.from("MARGINFI_GROUP_SEED_000000000000");
 export const marginfiGroup = Keypair.fromSeed(MARGINFI_GROUP_SEED);
 /** Group used for e-mode tests */
 const EMODE_GROUP_SEED = Buffer.from("EMODE_GROUP_SEED_000000000000000");
 export const emodeGroup = Keypair.fromSeed(EMODE_GROUP_SEED);
+/** Group used for kamino tests */
+const KAMINO_GROUP_SEED = Buffer.from("KAMINO_GROUP_SEED_00000000000000");
+export const kaminoGroup = Keypair.fromSeed(KAMINO_GROUP_SEED);
 
 /** Bank for USDC */
 const USDC_SEED = Buffer.from("USDC_BANK_SEED_00000000000000000");
@@ -85,9 +102,16 @@ export const bankKeypairA = Keypair.fromSeed(TOKEN_A_SEED);
 const SOL_SEED = Buffer.from("SOL_BANK_SEED_000000000000000000");
 export const bankKeypairSol = Keypair.fromSeed(SOL_SEED);
 
+/** Multibank group created for liquidation test k10 that's recycled for time saving purposes where
+ * applicable. */
+export const THROWAWAY_GROUP_SEED_K10 = Buffer.from(
+  "MARGINFI_GROUP_SEED_123400000010"
+);
+
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
+export let klendBankrunProgram: Program<KaminoLending>;
 export let banksClient: BanksClient;
 /** A mainnet Pyth pull feed (Jup's Sol feed) */
 export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
@@ -130,17 +154,42 @@ let copyKeys: PublicKey[] = [
   GAPPY3_SAMPLE,
   GAPPY4_SAMPLE,
   PRE_MIGRATION_BANK_SAMPLE,
-  PRE_MIGRATION_BANK_LIQ_VAULT
+  PRE_MIGRATION_BANK_LIQ_VAULT,
 ];
+
+export let kaminoAccounts: Map<string, PublicKey>;
+/** Kamino Market */
+export const MARKET = "market";
+/** Kamino USDC Reserve */
+export const USDC_RESERVE = "usdc_reserve";
+/** Kamino Token A Reserve */
+export const TOKEN_A_RESERVE = "token_a_reserve";
+/** mrgn USDC bank trading on `USDC_RESERVE` (the reserve for ecosystem.usdcMint) */
+export const KAMINO_USDC_BANK = "kamino_usdc_bank";
+/** mrgn Token A bank trading on `TOKEN_A_RESERVE` (the reserve for ecosystem.tokenAMint) */
+export const KAMINO_TOKENA_BANK = "kamino_tokenA_bank";
+
+// Kamino farms related accounts
+export const farmAccounts = new Map<string, PublicKey>();
+export const GLOBAL_CONFIG = "GLOBAL_CONFIG";
+export const A_FARM_STATE = "FARM_STATE_TOKEN_A";
+export const A_OBLIGATION_USER_STATE = "USER_STATE_TOKEN_A";
+export const A_REWARD_MINT = "REWARD_MINT";
+export const A_REWARD_VAULT = "REWARD_VAULT";
+export const A_REWARD_TREASURY_VAULT = "REWARD_TREASURY_VAULT";
+export const A_FARM_VAULTS_AUTHORITY = "FARM_VAULTS_AUTHORITY";
+export const A_TREASURY_VAULTS_AUTHORITY = "TREASURY_VAULTS_AUTHORITY";
 
 export const mochaHooks = {
   beforeAll: async () => {
     // If false, you are in the wrong environment to run this, update Node or try polyfill
     console.log("Environment supports crypto: ", !!global.crypto?.subtle);
 
+    console.log("Available workspace programs:", Object.keys(workspace));
     const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
     const provider = AnchorProvider.local();
     const wallet = provider.wallet as Wallet;
+    kaminoAccounts = new Map<string, PublicKey>();
 
     copyKeys.push(wallet.publicKey);
 
@@ -229,8 +278,10 @@ export const mochaHooks = {
         admin: wallet.payer.publicKey,
         wallet: globalFeeWallet,
         bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
+        liquidationFlatSolFee: LIQUIDATION_FLAT_FEE,
         programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
         programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+        liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
       })
     );
 
@@ -287,15 +338,15 @@ export const mochaHooks = {
 
     oracles = await setupPythOracles(
       wallet,
-      150,
+      ecosystem.wsolPrice,
       ecosystem.wsolDecimals,
-      1,
+      ecosystem.usdcPrice,
       ecosystem.usdcDecimals,
-      10,
+      ecosystem.tokenAPrice,
       ecosystem.tokenADecimals,
-      20,
+      ecosystem.tokenBPrice,
       ecosystem.tokenBDecimals,
-      175,
+      ecosystem.lstAlphaPrice,
       ecosystem.lstAlphaDecimals,
       verbose
     );
@@ -344,12 +395,25 @@ export const mochaHooks = {
     bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
     bankRunProvider = new BankrunProvider(bankrunContext);
     bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
+    klendBankrunProgram = new Program<KaminoLending>(
+      klendIdl as KaminoLending,
+      bankRunProvider
+    );
     for (let i = 0; i < numUsers; i++) {
       const wal = new Wallet(users[i].wallet);
       const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
       users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
     }
     banksClient = bankrunContext.banksClient;
+
+    globalProgramAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(globalProgramAdmin.wallet),
+        {}
+      )
+    );
 
     groupAdmin.mrgnBankrunProgram = new Program(
       mrgnProgram.idl,

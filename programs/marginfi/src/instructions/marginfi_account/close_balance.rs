@@ -1,12 +1,14 @@
 use anchor_lang::prelude::*;
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
 
 use crate::{
     check,
     prelude::*,
     state::{
-        marginfi_account::{BankAccountWrapper, MarginfiAccount, ACCOUNT_DISABLED},
-        marginfi_group::Bank,
+        bank::BankImpl,
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
     },
+    utils::is_marginfi_asset_tag,
 };
 
 pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -> MarginfiResult {
@@ -41,6 +43,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
     bank_account.close_balance()?;
     lending_account.sort_balances();
+    marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 
     Ok(())
 }
@@ -60,7 +63,9 @@ pub struct LendingAccountCloseBalance<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group,
+        constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

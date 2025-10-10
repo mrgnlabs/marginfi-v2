@@ -6,14 +6,10 @@ use anyhow::bail;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi::{
+use marginfi_type_crate::{
     constants::ASSET_TAG_DEFAULT,
-    state::{
-        bank_cache::BankCache,
-        health_cache::HealthCache,
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankOperationalState, RiskTier},
-        price::OracleSetup,
+    types::{
+        Bank, BankCache, BankOperationalState, HealthCache, MarginfiAccount, OracleSetup, RiskTier,
     },
 };
 use solana_account_decoder::UiAccountData;
@@ -50,7 +46,15 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(account.account_flags, 0);
     // health cache doesn't exist on these old accounts, but it also doesn't matter since it's read-only
     assert_eq!(account.health_cache, HealthCache::zeroed());
-    assert_eq!(account._padding0, [0; 13]);
+    assert_eq!(account.migrated_from, Pubkey::default());
+    assert_eq!(account.migrated_to, Pubkey::default());
+    assert_eq!(account.last_update, 0);
+    assert_eq!(account.account_index, 0);
+    assert_eq!(account.third_party_index, 0);
+    assert_eq!(account.bump, 0);
+    assert_eq!(account._pad0, [0; 3]);
+    assert_eq!(account.liquidation_record, Pubkey::default());
+    assert_eq!(account._padding0, [0; 7]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -127,7 +131,8 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("3T1kGHp7CrdeW9Qj1t8NMc2Ks233RyvzVhoaUPWoBEFK")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 13]);
+    assert_eq!(account.last_update, 0);
+    assert_eq!(account._padding0, [0; 7]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(balance_1.is_active());
@@ -204,7 +209,13 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         pubkey!("7hmfVTuXc7HeX3YQjpiCXGVQuTeXonzjp795jorZukVR")
     );
     assert_eq!(account.account_flags, 0);
-    assert_eq!(account._padding0, [0; 13]);
+    assert_eq!(account.last_update, 0);
+    assert_eq!(account.account_index, 0);
+    assert_eq!(account.third_party_index, 0);
+    assert_eq!(account.bump, 0);
+    assert_eq!(account._pad0, [0; 3]);
+    assert_eq!(account.liquidation_record, Pubkey::default());
+    assert_eq!(account._padding0, [0; 7]);
 
     let balance_1 = account.lending_account.balances[0];
     assert!(!balance_1.is_active());
@@ -682,7 +693,9 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.lending_position_count, 0);
     assert_eq!(bank.borrowing_position_count, 0);
     assert_eq!(bank._padding_0, [0; 16]);
-    assert_eq!(bank._padding_1, [[0, 0]; 19]);
+    assert_eq!(bank.kamino_reserve, Pubkey::default());
+    assert_eq!(bank.kamino_obligation, Pubkey::default());
+    assert_eq!(bank._padding_1, [[0, 0]; 15]);
 
     Ok(())
 }

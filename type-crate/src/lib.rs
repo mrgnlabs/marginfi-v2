@@ -2,9 +2,12 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use types::FeeState;
 
+pub mod constants;
 pub mod macros;
 pub mod types;
-pub mod constants;
+
+#[cfg(feature = "anchor")]
+pub use id_crate::ID;
 
 /// Just a sample function demonstrating usage.
 pub fn generic_fee_state() -> FeeState {

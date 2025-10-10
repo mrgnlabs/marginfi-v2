@@ -1,11 +1,12 @@
-use crate::constants::FREEZE_SETTINGS;
 use crate::set_if_some;
-use crate::state::marginfi_group::InterestRateConfigOpt;
-use crate::{
-    state::marginfi_group::{Bank, MarginfiGroup},
-    MarginfiResult,
-};
+use crate::state::bank::BankImpl;
+use crate::state::interest_rate::InterestRateConfigImpl;
+use crate::MarginfiResult;
 use anchor_lang::prelude::*;
+use marginfi_type_crate::{
+    constants::FREEZE_SETTINGS,
+    types::{Bank, InterestRateConfigOpt, MarginfiGroup},
+};
 
 pub fn lending_pool_configure_bank_interest_only(
     ctx: Context<LendingPoolConfigureBankInterestOnly>,
@@ -29,7 +30,6 @@ pub fn lending_pool_configure_bank_interest_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankInterestOnly<'info> {
     #[account(
-        mut,
         has_one = delegate_curve_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
@@ -74,7 +74,6 @@ pub fn lending_pool_configure_bank_limits_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankLimitsOnly<'info> {
     #[account(
-        mut,
         has_one = delegate_limit_admin,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,

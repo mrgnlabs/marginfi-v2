@@ -7,6 +7,7 @@ import {
 } from "./pyth-pull-mocks";
 import { ORACLE_CONF_INTERVAL } from "./types";
 
+// TODO deprecate standard oracles
 /**
  * Set up mock usdc and wsol oracles
  * @param wallet
@@ -41,9 +42,9 @@ export const setupPythOracles = async (
     usdc: boolean;
     a: boolean;
     b: boolean;
-    wsolPyth: boolean;
   }
 ) => {
+  const now = Math.floor(Date.now() / 1000);
   let wsolPythPullOracle = Keypair.fromSeed(
     Buffer.from("ORACLE_SEED_00000000000000F_WSOL")
   );
@@ -61,9 +62,7 @@ export const setupPythOracles = async (
       wsolPythPullOracleFeed.publicKey,
       new BN(wsolNativePrice),
       new BN(wsolConfidence),
-      new BN(wsolNativePrice),
-      new BN(wsolConfidence),
-      new BN(0),
+      now,
       -wsolDecimals
     );
   }
@@ -85,9 +84,7 @@ export const setupPythOracles = async (
       usdcPythPullOracleFeed.publicKey,
       new BN(usdcNativePrice),
       new BN(usdcConfidence),
-      new BN(usdcNativePrice),
-      new BN(usdcConfidence),
-      new BN(0),
+      now,
       -usdcDecimals
     );
   }
@@ -109,9 +106,7 @@ export const setupPythOracles = async (
       fakeUsdcPythPullOracleFeed.publicKey,
       new BN(fakeUsdcNativePrice),
       new BN(fakeUsdcConfidence),
-      new BN(fakeUsdcNativePrice),
-      new BN(fakeUsdcConfidence),
-      new BN(0),
+      now,
       -usdcDecimals
     );
   }
@@ -133,9 +128,7 @@ export const setupPythOracles = async (
       tokenAPythPullOracleFeed.publicKey,
       new BN(tokenANativePrice),
       new BN(tokenAConfidence),
-      new BN(tokenANativePrice),
-      new BN(tokenAConfidence),
-      new BN(0),
+      now,
       -tokenADecimals
     );
   }
@@ -157,9 +150,7 @@ export const setupPythOracles = async (
       tokenBPythPullOracleFeed.publicKey,
       new BN(tokenBNativePrice),
       new BN(tokenBConfidence),
-      new BN(tokenBNativePrice),
-      new BN(tokenBConfidence),
-      new BN(0),
+      now,
       -tokenBDecimals
     );
   }
@@ -184,16 +175,12 @@ export const setupPythOracles = async (
       lstPythPullOracleFeed.publicKey,
       new BN(priceAlpha),
       new BN(confAlpha),
-      new BN(priceAlpha),
-      new BN(confAlpha),
-      new BN(0),
+      now,
       -lstAlphaDecimals,
       undefined,
       lstPythPullOracle
     );
   }
-
-  // testy test test
 
   if (verbose) {
     console.log("Mock Pyth Pull price oracles:");
@@ -260,3 +247,29 @@ export const setupPythOracles = async (
   };
   return oracles;
 };
+
+async function setupPull(
+  wallet: Wallet,
+  price: number,
+  decimals: number,
+  oracleConfDefault: number
+): Promise<[Keypair, Keypair]> {
+  // compute BN-scaled values
+  const priceBn = new BN(price * 10 ** decimals);
+  const confBn = new BN(price * oracleConfDefault * 10 ** decimals);
+
+  // overwrite feed/oracle
+  const newFeed = await initBlankOracleFeed(wallet);
+  const newOracle = await initOrUpdatePriceUpdateV2(
+    wallet,
+    newFeed.publicKey,
+    priceBn,
+    confBn,
+    priceBn,
+    confBn,
+    new BN(0),
+    -decimals
+  );
+
+  return [newOracle, newFeed];
+}

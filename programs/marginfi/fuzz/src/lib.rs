@@ -1,3 +1,27 @@
+use account_state::{AccountInfoCache, AccountsState};
+use anchor_lang::prelude::*;
+use anchor_lang::{
+    accounts::{interface::Interface, interface_account::InterfaceAccount},
+    prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer},
+    Discriminator, Key,
+};
+use anchor_spl::token_2022::spl_token_2022::error::TokenError;
+use arbitrary_helpers::{
+    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
+};
+use bank_accounts::{get_bank_map, BankAccounts};
+use fixed_macro::types::I80F48;
+use marginfi::{errors::MarginfiError, instructions::LendingPoolAddBankBumps};
+use marginfi::{instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType};
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{
+        Bank, BankConfigCompact, BankOperationalState, FeeState, InterestRateConfig,
+        MarginfiAccount, MarginfiGroup, RiskTier,
+    },
+};
+use metrics::{MetricAction, Metrics};
+use solana_program::system_program;
 use std::{
     collections::HashMap,
     mem::size_of,
@@ -5,34 +29,6 @@ use std::{
     sync::{Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use account_state::{AccountInfoCache, AccountsState};
-use anchor_lang::{
-    accounts::{interface::Interface, interface_account::InterfaceAccount},
-    prelude::{AccountInfo, AccountLoader, Context, Program, Pubkey, Rent, Signer, Sysvar},
-    Discriminator, Key,
-};
-use arbitrary_helpers::{
-    AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
-};
-use bank_accounts::{get_bank_map, BankAccounts};
-use fixed_macro::types::I80F48;
-use marginfi::{
-    constants::FEE_STATE_SEED,
-    instructions::LendingPoolConfigureBankOracleBumps,
-    state::{fee_state::FeeState, marginfi_group::BankConfigCompact},
-};
-use marginfi::{
-    errors::MarginfiError,
-    instructions::LendingPoolAddBankBumps,
-    prelude::MarginfiGroup,
-    state::{
-        marginfi_account::MarginfiAccount,
-        marginfi_group::{Bank, BankVaultType, InterestRateConfig},
-    },
-};
-use metrics::{MetricAction, Metrics};
-use solana_program::system_program;
 use stubs::test_syscall_stubs;
 use user_accounts::UserAccount;
 use utils::{
@@ -56,7 +52,6 @@ pub struct MarginfiFuzzContext<'info> {
     pub marginfi_accounts: Vec<UserAccount<'info>>,
     pub owner: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
-    pub rent_sysvar: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
     pub metrics: Arc<RwLock<Metrics>>,
     pub state: &'info AccountsState,
@@ -71,12 +66,10 @@ impl<'state> MarginfiFuzzContext<'state> {
         let system_program = state.new_program(system_program::id());
         let admin = state.new_sol_account(1_000_000, true, true);
         let fee_state_wallet = state.new_sol_account(1_000_000, true, true);
-        let rent_sysvar = state.new_rent_sysvar_account(Rent::free());
         let fee_state = initialize_fee_state(
             state,
             admin.clone(),
             fee_state_wallet.clone(),
-            rent_sysvar.clone(),
             system_program.clone(),
         );
         let marginfi_group = initialize_marginfi_group(
@@ -93,7 +86,6 @@ impl<'state> MarginfiFuzzContext<'state> {
             banks: vec![],
             owner: admin,
             system_program,
-            rent_sysvar,
             marginfi_accounts: vec![],
             last_sysvar_current_timestamp: RwLock::new(
                 SystemTime::now()
@@ -180,7 +172,7 @@ impl<'state> MarginfiFuzzContext<'state> {
         initial_bank_config: &BankAndOracleConfig,
     ) {
         log!("Setting up bank with config {:#?}", initial_bank_config);
-        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::id(), rent.clone());
+        let bank = state.new_owned_account(size_of::<Bank>(), marginfi::ID, rent.clone());
 
         let mint = state.new_token_mint(
             rent.clone(),
@@ -214,7 +206,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             bank.key,
         );
         let (_fee_state_key, fee_state_bump) =
-            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::id());
+            Pubkey::find_program_address(&[FEE_STATE_SEED.as_bytes()], &marginfi::ID);
 
         let oracle = state.new_oracle_account(
             rent.clone(),
@@ -264,7 +256,6 @@ impl<'state> MarginfiFuzzContext<'state> {
                         ),
                         fee_vault_authority: ails(fee_vault_authority.clone()),
                         fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
-                        rent: Sysvar::from_account_info(airls(&self.rent_sysvar)).unwrap(),
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
                     },
@@ -289,12 +280,11 @@ impl<'state> MarginfiFuzzContext<'state> {
                         ..Default::default()
                     }
                     .into(),
-                    operational_state:
-                        marginfi::state::marginfi_group::BankOperationalState::Operational,
+                    operational_state: BankOperationalState::Operational,
                     risk_tier: if !initial_bank_config.risk_tier_isolated {
-                        marginfi::state::marginfi_group::RiskTier::Collateral
+                        RiskTier::Collateral
                     } else {
-                        marginfi::state::marginfi_group::RiskTier::Isolated
+                        RiskTier::Isolated
                     },
                     oracle_max_age: 100,
                     ..Default::default()
@@ -346,10 +336,10 @@ impl<'state> MarginfiFuzzContext<'state> {
         token_mints: &Vec<AccountInfo<'state>>,
     ) -> anyhow::Result<()> {
         let marginfi_account =
-            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::id(), rent.clone());
+            state.new_owned_account(size_of::<MarginfiAccount>(), marginfi::ID, rent.clone());
 
         marginfi::instructions::marginfi_account::initialize_account(Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::marginfi_account::MarginfiAccountInitialize {
                 marginfi_group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                 marginfi_account: AccountLoader::try_from_unchecked(
@@ -439,7 +429,11 @@ impl<'state> MarginfiFuzzContext<'state> {
             self.metrics.write().unwrap().update_error(&error);
 
             assert!(
-                [MarginfiError::AccountDisabled.into(),].contains(&error),
+                [
+                    MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationDepositOnly.into(),
+                ]
+                .contains(&error),
                 "Unexpected deposit error: {:?}",
                 error
             );
@@ -698,6 +692,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                     MarginfiError::IsolatedAccountIllegalState.into(),
                     MarginfiError::IllegalUtilizationRatio.into(),
                     MarginfiError::AccountDisabled.into(),
+                    MarginfiError::OperationBorrowOnly.into(),
                 ]
                 .contains(&error),
                 "Unexpected borrow error: {:?}",
@@ -793,7 +788,7 @@ impl<'state> MarginfiFuzzContext<'state> {
 
         let res = marginfi::instructions::lending_account_liquidate(
             Context::new(
-                &marginfi::id(),
+                &marginfi::ID,
                 &mut marginfi::instructions::LendingAccountLiquidate {
                     group: AccountLoader::try_from(airls(&self.marginfi_group))?,
                     asset_bank: AccountLoader::try_from(airls(&asset_bank.bank))?,
@@ -820,36 +815,75 @@ impl<'state> MarginfiFuzzContext<'state> {
             asset_amount.0,
         );
 
-        let success = if res.is_err() {
-            let error = res.unwrap_err();
+        let success = if let Err(error) = res {
+            let allowed_errors = &[
+                MarginfiError::RiskEngineInitRejected.into(),
+                MarginfiError::IsolatedAccountIllegalState.into(),
+                MarginfiError::IllegalUtilizationRatio.into(),
+                MarginfiError::ZeroLiquidationAmount.into(),
+                MarginfiError::OverliquidationAttempt.into(),
+                MarginfiError::HealthyAccount.into(),
+                MarginfiError::ExhaustedLiability.into(),
+                MarginfiError::TooSevereLiquidation.into(),
+                MarginfiError::AccountDisabled.into(),
+                MarginfiError::ZeroAssetPrice.into(),
+                MarginfiError::ZeroLiabilityPrice.into(),
+                MarginfiError::OperationRepayOnly.into(),
+                // Note: because updates in 1.5 allow liquidation of underwater banks, it is now
+                // possible for a bank's liquidity value to become empty in the fuzz suite, which
+                // leads to the `liquidatee_liab_bank_account.withdraw_spl_transfer` failing. This
+                // is probably benign but certainly rare-or-nonexistent in prod.
+                ProgramError::Custom(TokenError::InsufficientFunds as u32).into(),
+            ];
 
-            self.metrics.write().unwrap().update_error(&error);
+            // Log full context on unexpected error
+            if !allowed_errors.contains(&error) {
+                match &error {
+                    Error::ProgramError(boxed_pe) => {
+                        // Note: non-program errors from CPI calls (like Token Error) may look like:
+                        // program_error: Custom(1), error_origin: None, compared_values: None,
+                        let pe = &**boxed_pe;
+                        if let ProgramError::Custom(code) = pe.program_error {
+                            eprintln!("🚨 raw custom error code: {}", code);
+                        } else {
+                            eprintln!("🚨 program_error variant: {:?}", pe.program_error);
+                        }
+                        eprintln!("🚨 error_origin:   {:?}", pe.error_origin);
+                        eprintln!("🚨 compared_vals: {:?}", pe.compared_values);
+                    }
+                    Error::AnchorError(anchor_err) => {
+                        eprintln!("🚨 anchor error: {:?}", anchor_err);
+                    }
+                }
 
+                eprintln!(
+                    "❌ unexpected liquidate error:\n\
+                     → liquidator_idx: {:?}\n\
+                     → liquidatee_idx: {:?}\n\
+                     → asset_bank_idx: {:?}\n\
+                     → liab_bank_idx: {:?}\n\
+                     → asset_amount: {:?}\n\
+                     → error: {:?}\n",
+                    liquidator_idx,
+                    liquidatee_idx,
+                    asset_bank_idx,
+                    liab_bank_idx,
+                    asset_amount,
+                    error,
+                );
+            }
+
+            // Assert and fail if unexpected error
             assert!(
-                vec![
-                    MarginfiError::RiskEngineInitRejected.into(),
-                    MarginfiError::IsolatedAccountIllegalState.into(),
-                    MarginfiError::IllegalUtilizationRatio.into(),
-                    MarginfiError::ZeroLiquidationAmount.into(),
-                    MarginfiError::OverliquidationAttempt.into(),
-                    MarginfiError::HealthyAccount.into(),
-                    MarginfiError::ExhaustedLiability.into(),
-                    MarginfiError::TooSevereLiquidation.into(),
-                    MarginfiError::AccountDisabled.into(),
-                    MarginfiError::ZeroAssetPrice.into(),
-                    MarginfiError::ZeroLiabilityPrice.into(),
-                ]
-                .contains(&error),
+                allowed_errors.contains(&error),
                 "Unexpected liquidate error: {:?}",
                 error
             );
 
             account_cache.revert();
-
             false
         } else {
             self.process_handle_bankruptcy(liquidatee_idx, &liab_bank_idx)?;
-
             true
         };
 
@@ -977,13 +1011,13 @@ fn initialize_marginfi_group<'a>(
     fee_state: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
-    let program_id = marginfi::id();
+    let program_id = marginfi::ID;
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
 
     marginfi::instructions::marginfi_group::initialize_group(
         Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::MarginfiGroupInitialize {
                 // Unchecked because we are initializing the account.
                 marginfi_group: AccountLoader::try_from_unchecked(
@@ -1012,20 +1046,18 @@ fn initialize_fee_state<'a>(
     state: &'a AccountsState,
     admin: AccountInfo<'a>,
     wallet: AccountInfo<'a>,
-    rent: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> AccountInfo<'a> {
-    let program_id = marginfi::id();
+    let program_id = marginfi::ID;
     let (fee_state, _fee_state_bump) = state.new_fee_state(program_id);
 
     marginfi::instructions::marginfi_group::initialize_fee_state(
         Context::new(
-            &marginfi::id(),
+            &marginfi::ID,
             &mut marginfi::instructions::InitFeeState {
                 payer: Signer::try_from(airls(&admin)).unwrap(),
                 fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state))
                     .unwrap(),
-                rent: Sysvar::from_account_info(airls(&rent)).unwrap(),
                 system_program: Program::try_from(airls(&system_program)).unwrap(),
             },
             &[],
@@ -1033,11 +1065,13 @@ fn initialize_fee_state<'a>(
         ),
         admin.key(),
         wallet.key(),
-        // WARN: tests will fail at add_bank::system_program::transfer if this is non-zero because
-        // the fuzz suite does not yet support the system program.
+        // WARN: tests will fail at add_bank::system_program::transfer if these fees are non-zero
+        // because the fuzz suite does not yet support the system program.
+        0,
         0,
         I80F48!(0).into(),
         I80F48!(0).into(),
+        I80F48!(0.05).into(),
     )
     .unwrap();
 
@@ -1051,6 +1085,7 @@ mod tests {
     use anchor_lang::AnchorDeserialize;
     use fixed::types::I80F48;
     use marginfi::state::marginfi_account::RiskEngine;
+    use marginfi_type_crate::types::MarginfiGroup;
     use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
     use super::*;
@@ -1061,7 +1096,7 @@ mod tests {
         let a = MarginfiFuzzContext::setup(&account_state, &[BankAndOracleConfig::dummy(); 2], 2);
 
         let al =
-            AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::id(), &a.marginfi_group)
+            AccountLoader::<MarginfiGroup>::try_from_unchecked(&marginfi::ID, &a.marginfi_group)
                 .unwrap();
 
         assert_eq!(al.load().unwrap().admin, a.owner.key());
@@ -1070,7 +1105,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1095,7 +1130,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1144,7 +1179,7 @@ mod tests {
         a.banks[1].log_oracle_price().unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1175,7 +1210,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1205,7 +1240,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();
@@ -1236,7 +1271,7 @@ mod tests {
             .unwrap();
 
         let marginfi_account_ai = AccountLoader::<MarginfiAccount>::try_from_unchecked(
-            &marginfi::id(),
+            &marginfi::ID,
             &a.marginfi_accounts[0].margin_account,
         )
         .unwrap();

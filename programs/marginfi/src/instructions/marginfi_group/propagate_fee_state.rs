@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
-
-use crate::{constants::FEE_STATE_SEED, state::fee_state::FeeState, MarginfiGroup};
+use marginfi_type_crate::{
+    constants::FEE_STATE_SEED,
+    types::{FeeState, MarginfiGroup},
+};
 
 #[derive(Accounts)]
 pub struct PropagateFee<'info> {
@@ -11,7 +13,7 @@ pub struct PropagateFee<'info> {
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
-    /// Any group, this ix is permisionless and can propogate the fee to any group
+    /// Any group, this ix is permisionless and can propagate the fee to any group
     #[account(mut)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 }
@@ -26,6 +28,16 @@ pub fn propagate_fee(ctx: Context<PropagateFee>) -> Result<()> {
 
     let clock = Clock::get()?;
     group.fee_state_cache.last_update = clock.unix_timestamp;
+
+    group
+        .panic_state_cache
+        .update_from_panic_state(&fee_state.panic_state, clock.unix_timestamp);
+
+    msg!(
+        "Propagated fee and panic state to group. Panic state: paused={}",
+        group.panic_state_cache.is_paused_flag()
+            && !group.panic_state_cache.is_expired(clock.unix_timestamp)
+    );
 
     Ok(())
 }

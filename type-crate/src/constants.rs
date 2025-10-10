@@ -15,11 +15,12 @@ pub const STAKED_SETTINGS_SEED: &str = "staked_settings";
 pub const EMISSIONS_AUTH_SEED: &str = "emissions_auth_seed";
 pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 
+pub const LIQUIDATION_RECORD_SEED: &str = "liq_record";
+pub const MARGINFI_ACCOUNT_SEED: &str = "marginfi_account";
+
+/// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
-
-/// The default fee, in native SOL in native decimals (i.e. lamports) used in testing
-pub const INIT_BANK_ORIGINATION_FEE_DEFAULT: u32 = 10000;
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
 
@@ -37,6 +38,9 @@ pub const CONF_INTERVAL_MULTIPLE: I80F48 = I80F48!(2.12);
 pub const STD_DEV_MULTIPLE: I80F48 = I80F48!(1.96);
 /// Maximum confidence interval allowed
 pub const MAX_CONF_INTERVAL: I80F48 = I80F48!(0.05);
+
+pub const U32_MAX: I80F48 = I80F48!(4_294_967_295);
+pub const U32_MAX_DIV_10: I80F48 = I80F48!(429_496_730);
 
 pub const USDC_EXPONENT: i32 = 6;
 
@@ -61,12 +65,12 @@ pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
 pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
 
-/// Flags stored on [`BankConfig`].
-pub const PYTH_PUSH_MIGRATED_FLAG: u8 = 1 << 0;
+/// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
+/// version. False otherwise.
+pub const PYTH_PUSH_MIGRATED_DEPRECATED: u8 = 1 << 0;
 
 pub const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub const GROUP_FLAGS: u64 =
-    PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS | CLOSE_ENABLED_FLAG;
+pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
@@ -133,8 +137,10 @@ pub const PROTOCOL_FEE_RATE_DEFAULT: I80F48 = I80F48!(0.025);
 /// For testing, this is a typical program fee.
 pub const PROTOCOL_FEE_FIXED_DEFAULT: I80F48 = I80F48!(0.01);
 
-pub const PYTH_PUSH_PYTH_SPONSORED_SHARD_ID: u16 = 0;
-pub const PYTH_PUSH_MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
+/// Pyth Pull Oracles sponsored by Pyth use this shard ID.
+pub const PYTH_SPONSORED_SHARD_ID: u16 = 0;
+/// Pyth Pull Oracles sponsored by Marginfi use this shard ID.
+pub const MARGINFI_SPONSORED_SHARD_ID: u16 = 3301;
 
 /// A regular asset that can be comingled with any other regular asset or with `ASSET_TAG_SOL`
 pub const ASSET_TAG_DEFAULT: u8 = 0;
@@ -144,11 +150,35 @@ pub const ASSET_TAG_SOL: u8 = 1;
 /// Staked SOL assets. Accounts with a STAKED position can only deposit other STAKED assets or SOL
 /// (`ASSET_TAG_SOL`) and can only borrow SOL (`ASSET_TAG_SOL`)
 pub const ASSET_TAG_STAKED: u8 = 2;
+/// Kamino assets. Accounts with a KAMINO position can only deposit other KAMINO assets or regular
+/// assets (`ASSET_TAG_DEFAULT`).
+pub const ASSET_TAG_KAMINO: u8 = 3;
 
+/// Maximum number of Kamino positions allowed per account. Hardcoded limit to prevent accounts from
+/// becoming unliquidatable due to CU/heap memory issues in liquidation instruction.
+pub const MAX_KAMINO_POSITIONS: usize = 8;
+
+// WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
+// with that name, and prod will use that hash anyways. Don't change these hashes once a struct is
+// live in prod.
 pub mod discriminators {
     pub const GROUP: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
     pub const BANK: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
     pub const ACCOUNT: [u8; 8] = [67, 178, 130, 109, 126, 114, 28, 42];
     pub const FEE_STATE: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
     pub const STAKED_SETTINGS: [u8; 8] = [157, 140, 6, 77, 89, 173, 173, 125];
+    pub const LIQUIDATION_RECORD: [u8; 8] = [95, 116, 23, 132, 89, 210, 245, 162];
+}
+
+pub mod ix_discriminators {
+    pub const INIT_LIQUIDATION_RECORD: [u8; 8] = [236, 213, 238, 126, 147, 251, 164, 8];
+    pub const START_LIQUIDATION: [u8; 8] = [244, 93, 90, 214, 192, 166, 191, 21];
+    pub const END_LIQUIDATION: [u8; 8] = [110, 11, 244, 54, 229, 181, 22, 184];
+    pub const LENDING_ACCOUNT_WITHDRAW: [u8; 8] = [36, 72, 74, 19, 210, 210, 192, 192];
+    pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
+    pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
+    pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
+    pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
+    pub const START_FLASHLOAN: [u8; 8] = [14, 131, 33, 220, 81, 186, 180, 107];
+    pub const END_FLASHLOAN: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
 }

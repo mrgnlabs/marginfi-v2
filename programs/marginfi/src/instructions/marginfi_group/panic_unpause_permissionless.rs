@@ -1,0 +1,39 @@
+use anchor_lang::prelude::*;
+use marginfi_type_crate::{constants::FEE_STATE_SEED, types::FeeState};
+
+use crate::state::panic_state::PanicStateImpl;
+
+pub fn panic_unpause_permissionless(ctx: Context<PanicUnpausePermissionless>) -> Result<()> {
+    let mut fee_state = ctx.accounts.fee_state.load_mut()?;
+    let current_timestamp = Clock::get()?.unix_timestamp;
+
+    require!(
+        fee_state.panic_state.is_paused_flag(),
+        crate::errors::MarginfiError::ProtocolNotPaused
+    );
+
+    require!(
+        fee_state.panic_state.is_expired(current_timestamp),
+        crate::errors::MarginfiError::PauseLimitExceeded
+    );
+
+    msg!(
+        "Permissionlessly unpaused at: {} (expired {}s)",
+        current_timestamp,
+        current_timestamp - fee_state.panic_state.pause_start_timestamp
+    );
+
+    fee_state.panic_state.unpause();
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct PanicUnpausePermissionless<'info> {
+    #[account(
+        mut,
+        seeds = [FEE_STATE_SEED.as_bytes()],
+        bump
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
+}
