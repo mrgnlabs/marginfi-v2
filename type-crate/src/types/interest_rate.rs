@@ -12,11 +12,9 @@ assert_struct_size!(InterestRateConfig, 240);
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Pod, Zeroable, Default)]
 pub struct InterestRateConfig {
-    // TODO deprecate
+    // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
-    // TODO deprecate
     pub plateau_interest_rate: WrappedI80F48,
-    // TODO deprecate
     pub max_interest_rate: WrappedI80F48,
 
     // Fees
@@ -30,43 +28,15 @@ pub struct InterestRateConfig {
     pub protocol_ir_fee: WrappedI80F48,
     pub protocol_origination_fee: WrappedI80F48,
 
-    /// The base rate at utilizatation = 0
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub zero_util_rate: u32,
-    /// The base rate at utilizatation = 100
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub hundred_util_rate: u32,
-    /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
-    /// linear curve.
-    /// * always in ascending order, e.g. points[0] = first kink point, points[1] = second kink
-    ///   point, and so forth.
-    /// * points where util = 0 are unused
-    pub points: [RatePoint; 5],
-
-    pub _padding0: [u8; 8],
-    pub _padding1: [[u8; 32]; 2],
-}
-
-#[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
-#[derive(Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq)]
-#[repr(C)]
-pub struct RatePoint {
-    /// The base rate that applies
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    rate: u32,
-    /// The utilization rate where `rate` applies
-    /// * a %, as u32, out of 100%, e.g. 50% = .5 * u32::MAX
-    util: u32,
+    pub _padding0: [u8; 16],
+    pub _padding1: [[u8; 32]; 3],
 }
 
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigOpt {
-    // TODO deprecate
     pub optimal_utilization_rate: Option<WrappedI80F48>,
-    // TODO deprecate
     pub plateau_interest_rate: Option<WrappedI80F48>,
-    // TODO deprecate
     pub max_interest_rate: Option<WrappedI80F48>,
 
     pub insurance_fee_fixed_apr: Option<WrappedI80F48>,
@@ -74,29 +44,15 @@ pub struct InterestRateConfigOpt {
     pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
     pub protocol_ir_fee: Option<WrappedI80F48>,
     pub protocol_origination_fee: Option<WrappedI80F48>,
-    /// The base rate at utilizatation = 0
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub zero_util_rate: Option<u32>,
-    /// The base rate at utilizatation = 100
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub hundred_util_rate: Option<u32>,
-    /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
-    /// linear curve.
-    /// * always in ascending order, e.g. points[0] = first kink point, points[1] = second kink
-    ///   point, and so forth.
-    /// * points where util = 0 are unused
-    pub points: Option<[RatePoint; 5]>,
 }
 
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigCompact {
-    // TODO deprecate
+    // Curve Params
     pub optimal_utilization_rate: WrappedI80F48,
-    // TODO deprecate
     pub plateau_interest_rate: WrappedI80F48,
-    // TODO deprecate
     pub max_interest_rate: WrappedI80F48,
 
     // Fees
@@ -105,19 +61,6 @@ pub struct InterestRateConfigCompact {
     pub protocol_fixed_fee_apr: WrappedI80F48,
     pub protocol_ir_fee: WrappedI80F48,
     pub protocol_origination_fee: WrappedI80F48,
-
-    /// The base rate at utilizatation = 0
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub zero_util_rate: u32,
-    /// The base rate at utilizatation = 100
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub hundred_util_rate: u32,
-    /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
-    /// linear curve.
-    /// * always in ascending order, e.g. points[0] = first kink point, points[1] = second kink
-    ///   point, and so forth.
-    /// * points where util = 0 are unused
-    pub points: [RatePoint; 5],
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
@@ -131,11 +74,8 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
             protocol_origination_fee: ir_config.protocol_origination_fee,
-            zero_util_rate: ir_config.zero_util_rate,
-            hundred_util_rate: ir_config.hundred_util_rate,
-            points: ir_config.points,
-            _padding0: [0; 8],
-            _padding1: [[0; 32]; 2],
+            _padding0: [0; 16],
+            _padding1: [[0; 32]; 3],
         }
     }
 }
@@ -151,9 +91,6 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             protocol_fixed_fee_apr: ir_config.protocol_fixed_fee_apr,
             protocol_ir_fee: ir_config.protocol_ir_fee,
             protocol_origination_fee: ir_config.protocol_origination_fee,
-            zero_util_rate: ir_config.zero_util_rate,
-            hundred_util_rate: ir_config.hundred_util_rate,
-            points: ir_config.points,
         }
     }
 }
