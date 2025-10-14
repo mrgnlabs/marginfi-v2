@@ -43,7 +43,6 @@ pub struct InterestRateConfig {
     /// * points where util = 0 are unused
     pub points: [RatePoint; 5],
 
-    pub _padding0: [u8; 8],
     pub _padding1: [[u8; 32]; 2],
 }
 
@@ -134,7 +133,6 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             zero_util_rate: ir_config.zero_util_rate,
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
-            _padding0: [0; 8],
             _padding1: [[0; 32]; 2],
         }
     }
