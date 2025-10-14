@@ -6,6 +6,8 @@ edition = "2021"
 
 [features]
 # lip = ["liquidity-incentive-program"]
+default = []
+transfer-hook = ["transfer_hook"]
 
 [dependencies]
 marginfi-type-crate = { workspace = true, features = ["anchor"] }
@@ -41,10 +43,10 @@ serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.115"
 
 marginfi = { workspace = true, features = ["test-bpf"] }
-transfer_hook = { workspace = true, package = "test_transfer_hook", features = [
+transfer_hook = { workspace = true, features = [
     "no-entrypoint",
-] }
-mocks = {workspace = true, features = ["no-entrypoint"] }
+], optional = true }
+mocks = { workspace = true, features = ["no-entrypoint"] }
 
 # [dependencies.liquidity-incentive-program]
 # path = "../programs/liquidity-incentive-program"

@@ -11,6 +11,8 @@ use solana_sdk::{
     signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
+#[cfg(feature = "transfer-hook")]
+use transfer_hook::TEST_HOOK_ID;
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}
@@ -104,21 +106,22 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
         // If t22 with transfer hook, add remaining accounts
-        let fetch_account_data_fn = |key| async move {
-            Ok(self
-                .ctx
+        let _fetch_account_data_fn = |key| async move {
+            self.ctx
                 .borrow_mut()
                 .banks_client
                 .get_account(key)
                 .await
-                .map(|acc| acc.map(|a| a.data))?)
+                .map(|acc| acc.map(|a| a.data))
         };
-        let payer = self.ctx.borrow_mut().payer.pubkey();
+        let _payer = self.ctx.borrow_mut().payer.pubkey();
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
             println!(
@@ -127,13 +130,13 @@ impl MarginfiAccountFixture {
             );
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &funding_account,
                 &bank.mint.key,
                 &bank.get_vault(BankVaultType::Liquidity).0,
-                &payer,
+                &_payer,
                 ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
+                _fetch_account_data_fn,
             )
             .await;
         }
@@ -291,25 +294,26 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         nonce: u64,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let payer = self.ctx.borrow().payer.pubkey();
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &bank.get_vault(BankVaultType::Liquidity).0,
                 &bank.mint.key,
                 &destination_account,
@@ -490,21 +494,21 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
+        #[cfg(feature = "transfer-hook")]
         if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,
