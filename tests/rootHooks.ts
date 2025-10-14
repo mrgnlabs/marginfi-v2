@@ -354,6 +354,7 @@ export const mochaHooks = {
       oracles.wsolOracle.publicKey,
       oracles.usdcOracle.publicKey,
       oracles.tokenAOracle.publicKey,
+      oracles.tokenBOracle.publicKey,
       oracles.pythPullLst.publicKey,
       oracles.pythPullLstOracleFeed.publicKey
     );

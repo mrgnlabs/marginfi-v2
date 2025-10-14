@@ -7,7 +7,7 @@ import { ORACLE_CONF_INTERVAL } from "./types";
 /**
  * Sets a Pyth Pull oracle price directly using bankrun, bypassing transactions.
  * This avoids "Account in use" errors from concurrent transactions.
- * 
+ *
  * @param bankrunContext - The bankrun context
  * @param banksClient - The banks client to get clock from
  * @param oracleAccount - The PriceUpdateV2 account to update
@@ -25,7 +25,9 @@ export async function setPythPullOraclePrice(
   price: number,
   decimals: number,
   confidence: number,
-  owner: PublicKey = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ")
+  owner: PublicKey = new PublicKey(
+    "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"
+  )
 ) {
   // Get current clock for slot and timestamp
   const clock = await banksClient.getClock();
@@ -91,8 +93,10 @@ export async function setPythPullOraclePrice(
   const existing = await banksClient.getAccount(oracleAccount);
 
   if (!existing) {
-    console.log("Account does not exist, not creating because this causes bankrun issues")
-    return
+    console.log(
+      "Account does not exist, not creating because this causes bankrun issues"
+    );
+    return;
     // Create new account with proper rent exemption
     const rent = await banksClient.getRent();
     const lamports = Number(rent.minimumBalance(BigInt(134)));
@@ -119,7 +123,7 @@ export async function setPythPullOraclePrice(
 /**
  * Updates all Pyth Pull oracles in the oracles object.
  * This is a drop-in replacement for refreshPullOracles that avoids "Account in use" errors.
- * 
+ *
  * @param oracles - The oracles object containing all oracle accounts and price data
  * @param bankrunContext - The bankrun context
  * @param banksClient - The banks client to get clock from
@@ -129,7 +133,9 @@ export async function refreshPullOraclesBankrun(
   oracles: Oracles,
   bankrunContext: ProgramTestContext,
   banksClient: BanksClient,
-  owner: PublicKey = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ")
+  owner: PublicKey = new PublicKey(
+    "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"
+  )
 ) {
   // Update each oracle sequentially to avoid any race conditions
   await setPythPullOraclePrice(
@@ -176,14 +182,14 @@ export async function refreshPullOraclesBankrun(
     owner
   );
 
-  // await setPythPullOraclePrice(
-  //   bankrunContext,
-  //   banksClient,
-  //   oracles.tokenBOracle.publicKey,
-  //   oracles.tokenBOracleFeed.publicKey,
-  //   oracles.tokenBPrice,
-  //   oracles.tokenBDecimals,
-  //   ORACLE_CONF_INTERVAL,
-  //   owner
-  // );
+  await setPythPullOraclePrice(
+    bankrunContext,
+    banksClient,
+    oracles.tokenBOracle.publicKey,
+    oracles.tokenBOracleFeed.publicKey,
+    oracles.tokenBPrice,
+    oracles.tokenBDecimals,
+    ORACLE_CONF_INTERVAL,
+    owner
+  );
 }
