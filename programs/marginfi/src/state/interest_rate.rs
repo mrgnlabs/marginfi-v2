@@ -1,7 +1,10 @@
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::SECONDS_PER_YEAR,
-    types::{InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, RatePoint},
+    types::{
+        InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, RatePoint, INTEREST_CURVE_LEGACY,
+        INTEREST_CURVE_SEVEN_POINT,
+    },
 };
 
 use crate::{
@@ -13,6 +16,8 @@ use crate::{
 };
 
 pub trait InterestRateConfigImpl {
+    fn validate_seven_point(&self) -> MarginfiResult;
+    fn validate_legacy(&self) -> MarginfiResult;
     fn create_interest_rate_calculator(&self, group: &MarginfiGroup) -> InterestRateCalc;
     fn validate(&self) -> MarginfiResult;
     fn update(&mut self, ir_config: &InterestRateConfigOpt);
@@ -44,6 +49,16 @@ impl InterestRateConfigImpl for InterestRateConfig {
     }
 
     fn validate(&self) -> MarginfiResult {
+        match self.curve_type {
+            INTEREST_CURVE_LEGACY => self.validate_legacy()?,
+            INTEREST_CURVE_SEVEN_POINT => self.validate_seven_point()?,
+            _ => panic!("unsupported curve type"),
+        }
+
+        Ok(())
+    }
+
+    fn validate_legacy(&self) -> MarginfiResult {
         let optimal_ur: I80F48 = self.optimal_utilization_rate.into();
         let plateau_ir: I80F48 = self.plateau_interest_rate.into();
         let max_ir: I80F48 = self.max_interest_rate.into();
@@ -55,6 +70,57 @@ impl InterestRateConfigImpl for InterestRateConfig {
         check!(plateau_ir > I80F48::ZERO, MarginfiError::InvalidConfig);
         check!(max_ir > I80F48::ZERO, MarginfiError::InvalidConfig);
         check!(plateau_ir < max_ir, MarginfiError::InvalidConfig);
+
+        Ok(())
+    }
+
+    fn validate_seven_point(&self) -> MarginfiResult {
+        let zero = self.zero_util_rate;
+        let hundred = self.hundred_util_rate;
+
+        // Collect used points (util > 0). Enforce that any zero-util entries are trailing padding
+        // and that padding entries are (util=0, rate=0).
+        let mut used: Vec<RatePoint> = Vec::with_capacity(self.points.len());
+        let mut seen_padding = false;
+        for p in self.points.iter() {
+            if p.util == 0 {
+                // Padding: must be (0,0); once seen, all following must be padding as well.
+                check!(p.rate == 0, MarginfiError::InvalidConfig);
+                seen_padding = true;
+            } else {
+                // No "holes": non-zero util after padding is not allowed.
+                check!(!seen_padding, MarginfiError::InvalidConfig);
+
+                // Util must be strictly between 0% and 100% (exclusive) since these are interior kinks.
+                check!(
+                    p.util > 0 && p.util < u32::MAX,
+                    MarginfiError::InvalidConfig
+                );
+
+                // Rates must lie within the global [zero, hundred] envelope.
+                check!(
+                    p.rate >= zero && p.rate <= hundred,
+                    MarginfiError::InvalidConfig
+                );
+
+                used.push(*p);
+            }
+        }
+
+        // Points must be strictly increasing in util, and non-decreasing in rate
+        for i in 1..used.len() {
+            let prev = &used[i - 1];
+            let curr = &used[i];
+
+            check!(prev.util < curr.util, MarginfiError::InvalidConfig);
+            check!(prev.rate <= curr.rate, MarginfiError::InvalidConfig);
+        }
+
+        // rate at zero < rate at 100%, and each point > 0 rate but < 100% rate
+        check!(
+            zero <= hundred && used.iter().all(|p| zero <= p.rate && p.rate <= hundred),
+            MarginfiError::InvalidConfig
+        );
 
         Ok(())
     }
@@ -80,7 +146,8 @@ impl InterestRateConfigImpl for InterestRateConfig {
             self.protocol_origination_fee,
             ir_config.protocol_origination_fee
         );
-        set_if_some!(self.curve_type, ir_config.curve_type);
+        // TODO handle new fields, deprecate old fields
+        // set_if_some!(self.curve_type, ir_config.curve_type);
     }
 }
 
@@ -433,7 +500,7 @@ mod tests {
     use fixed_macro::types::I80F48;
     use marginfi_type_crate::{
         constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
-        types::{Bank, BankConfig, InterestRateConfig, RatePoint},
+        types::{Bank, BankConfig, InterestRateConfig, RatePoint, INTEREST_CURVE_SEVEN_POINT},
     };
     use solana_sdk::clock::Clock;
     #[cfg(not(feature = "client"))]
@@ -537,7 +604,7 @@ mod tests {
                 RatePoint::default(),
                 RatePoint::default(),
             ],
-            curve_type: 1,
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
         }
     }
 

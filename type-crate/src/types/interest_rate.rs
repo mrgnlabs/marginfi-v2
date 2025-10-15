@@ -8,6 +8,9 @@ use fixed::types::I80F48;
 
 use super::WrappedI80F48;
 
+pub const INTEREST_CURVE_LEGACY: u8 = 0;
+pub const INTEREST_CURVE_SEVEN_POINT: u8 = 1;
+
 assert_struct_size!(InterestRateConfig, 240);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -44,8 +47,8 @@ pub struct InterestRateConfig {
     /// * points where util = 0 are unused
     pub points: [RatePoint; 5],
 
-    /// Determines which interest rate curve implementation is active.
-    /// 0 = legacy three point curve, 1 = multi-point curve.
+    /// Determines which interest rate curve implementation is active. 0 (INTEREST_CURVE_LEGACY) =
+    /// legacy three point curve, 1 (INTEREST_CURVE_SEVEN_POINT) = multi-point curve.
     pub curve_type: u8,
 
     // Pad to nearest 8-byte multiple
@@ -62,10 +65,10 @@ pub struct InterestRateConfig {
 pub struct RatePoint {
     /// The base rate that applies
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    rate: u32,
+    pub rate: u32,
     /// The utilization rate where `rate` applies
     /// * a %, as u32, out of 100%, e.g. 50% = .5 * u32::MAX
-    util: u32,
+    pub util: u32,
 }
 
 impl RatePoint {
@@ -134,9 +137,7 @@ pub struct InterestRateConfigCompact {
     /// Determines which interest rate curve implementation is active.
     /// 0 = legacy three point curve, 1 = multi-point curve.
     pub curve_type: u8,
-
-    // Pad to nearest 8-byte multiple
-    pub _pad0: [u8; 7],
+    // Note: Remember when adding fields in the future that there is 7 bytes of padding here!
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
@@ -174,7 +175,6 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
             curve_type: ir_config.curve_type,
-            _pad0: [0; 7],
         }
     }
 }

@@ -368,10 +368,10 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
             protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
             protocol_origination_fee: Some(I80F48::ZERO.into()),
-            zero_util_rate: None,
-            hundred_util_rate: None,
-            points: None,
-            curve_type: None,
+            // zero_util_rate: None,
+            // hundred_util_rate: None,
+            // points: None,
+            // curve_type: None,
         }),
         ..BankConfigOpt::default()
     };
@@ -783,10 +783,10 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
         protocol_fixed_fee_apr: Some(I80F48::from_num(0.03).into()),
         protocol_ir_fee: Some(I80F48::from_num(0.04).into()),
         protocol_origination_fee: Some(I80F48::from_num(0.05).into()),
-        zero_util_rate: None,
-        hundred_util_rate: None,
-        points: None,
-        curve_type: None,
+        // zero_util_rate: None,
+        // hundred_util_rate: None,
+        // points: None,
+        // curve_type: None,
     };
 
     test_f

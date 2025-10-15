@@ -18,7 +18,7 @@ import {
   CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
-  InterestRateConfigRawWithOrigination,
+  InterestRateConfig1_6,
 } from "./utils/types";
 
 describe("Lending pool configure bank", () => {
@@ -26,7 +26,7 @@ describe("Lending pool configure bank", () => {
 
   it("(admin) Configure bank (USDC) - happy path", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    let interestRateConfig: InterestRateConfigRawWithOrigination = {
+    let interestRateConfig: InterestRateConfig1_6 = {
       optimalUtilizationRate: bigNumberToWrappedI80F48(0.1),
       plateauInterestRate: bigNumberToWrappedI80F48(0.2),
       maxInterestRate: bigNumberToWrappedI80F48(4),

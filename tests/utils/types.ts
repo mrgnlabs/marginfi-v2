@@ -84,6 +84,9 @@ export const MAX_CONSECUTIVE_PAUSES = 2;
 export const MAX_DAILY_PAUSES = 3;
 export const DAILY_RESET_INTERVAL = 24 * 60 * 60; // 24 hours
 
+export const INTEREST_CURVE_LEGACY = 0;
+export const INTEREST_CURVE_SEVEN_POINT = 1;
+
 /**
  * The default bank config has
  * * all weights are 1
@@ -198,7 +201,7 @@ export const emptyBankConfigOptRaw = () => {
 /**
  * A blank config except that `defaultInterestRateConfigRaw` is used. Useful when trying to set a
  * config without updating deposit limits, etc.
- * @returns 
+ * @returns
  */
 export const blankBankConfigOptRaw = () => {
   let bankConfigOpt: BankConfigOptRaw = {
@@ -239,17 +242,78 @@ export const blankBankConfigOptRaw = () => {
  * @returns
  */
 export const defaultInterestRateConfigRaw = () => {
-  let config: InterestRateConfigRawWithOrigination = {
-    optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
-    plateauInterestRate: bigNumberToWrappedI80F48(0.6),
-    maxInterestRate: bigNumberToWrappedI80F48(3),
+  let config: InterestRateConfig1_6 = {
+    // optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
+    // plateauInterestRate: bigNumberToWrappedI80F48(0.6),
+    // maxInterestRate: bigNumberToWrappedI80F48(3),
     insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.01),
     insuranceIrFee: bigNumberToWrappedI80F48(0.02),
     protocolFixedFeeApr: bigNumberToWrappedI80F48(0.03),
     protocolIrFee: bigNumberToWrappedI80F48(0.04),
     protocolOriginationFee: bigNumberToWrappedI80F48(0.01),
+    zeroUtilRate: 0,
+    hundredUtilRate: aprToU32(3),
+    points: makeRatePoints([0.5], [0.6]),
+    curveType: INTEREST_CURVE_SEVEN_POINT,
   };
   return config;
+};
+
+export const makeRatePoint = (util: number, apr: number) => {
+  const point: RatePoint = {
+    util: utilToU32(util),
+    rate: aprToU32(apr),
+  };
+  return point;
+};
+
+// TODO validation here could be more robust. E.g. zero < all. hundred > all. no gaps, etc. In
+// principle this is low-priority since the program already validates this properly.
+export const makeRatePoints = (util: number[], apr: number[]) => {
+  // Validate input lengths
+  if (util.length > 5 || apr.length > 5) {
+    throw new Error("makeRatePoints: maximum of 5 points allowed");
+  }
+
+  // Validate that utils are in ascending order
+  for (let i = 1; i < util.length; i++) {
+    if (util[i] == 0) {
+      continue;
+    }
+    if (util[i] < util[i - 1]) {
+      throw new Error("makeRatePoints: util values must be in ascending order");
+    }
+    if (apr[i] <= apr[i - 1]) {
+      throw new Error("makeRatePoints: apr values must be in ascending order");
+    }
+  }
+
+  // Pad arrays with zeros to ensure 5 entries
+  const paddedUtil = [...util];
+  const paddedApr = [...apr];
+  while (paddedUtil.length < 5) paddedUtil.push(0);
+  while (paddedApr.length < 5) paddedApr.push(0);
+
+  const points: RatePoint[] = [];
+  for (let i = 0; i < 5; i++) {
+    points.push(makeRatePoint(paddedUtil[i], paddedApr[i]));
+  }
+
+  return points;
+};
+
+export type RatePoint = {
+  util: number;
+  rate: number;
+};
+
+export const aprToU32 = (apr: number): number => {
+  const clamped = Math.max(0, Math.min(apr, 10));
+  return Math.round((clamped / 10) * u32_MAX);
+};
+export const utilToU32 = (util: number): number => {
+  const clamped = Math.max(0, Math.min(util, 1));
+  return Math.round(clamped * u32_MAX);
 };
 
 /**
@@ -257,15 +321,20 @@ export const defaultInterestRateConfigRaw = () => {
  * @returns
  */
 export const defaultInterestRateConfig = () => {
-  let config: InterestRateConfigWithOrigination = {
-    optimalUtilizationRate: new BigNumber(0.5),
-    plateauInterestRate: new BigNumber(0.6),
-    maxInterestRate: new BigNumber(3),
+  let config: InterestRateConfigBN1_6 = {
+    // optimalUtilizationRate: new BigNumber(0.5),
+    // plateauInterestRate: new BigNumber(0.6),
+    // maxInterestRate: new BigNumber(3),
     insuranceFeeFixedApr: new BigNumber(0),
     insuranceIrFee: new BigNumber(0),
     protocolFixedFeeApr: new BigNumber(0),
     protocolIrFee: new BigNumber(0),
     protocolOriginationFee: new BigNumber(0.1),
+
+    zeroUtilRate: 0,
+    hundredUtilRate: aprToU32(3),
+    points: makeRatePoints([0.5], [0.6]),
+    curveType: INTEREST_CURVE_SEVEN_POINT,
   };
   return config;
 };
@@ -285,23 +354,54 @@ export const defaultStakedInterestSettings = (oracle: PublicKey) => {
   return settings;
 };
 
-// TODO remove when package updates
-export type InterestRateConfigRawWithOrigination = InterestRateConfigRaw & {
+export type InterestRateConfig1_6 = {
+  // // Curve Params
+  // optimalUtilizationRate: WrappedI80F48;
+  // plateauInterestRate: WrappedI80F48;
+  // maxInterestRate: WrappedI80F48;
+
+  // Fees
+  insuranceFeeFixedApr: WrappedI80F48;
+  insuranceIrFee: WrappedI80F48;
+  protocolFixedFeeApr: WrappedI80F48;
+  protocolIrFee: WrappedI80F48;
+
   protocolOriginationFee: WrappedI80F48;
+
+  zeroUtilRate: number;
+  hundredUtilRate: number;
+  points: RatePoint[];
+  curveType: number;
 };
 
-// TODO remove when package updates
-export type InterestRateConfigWithOrigination = InterestRateConfig & {
+// InterestRateConfigRaw & {
+//   protocolOriginationFee: WrappedI80F48;
+// };
+
+export type InterestRateConfigBN1_6 = {
+  // // Curve Params
+  // optimalUtilizationRate: BigNumber;
+  // plateauInterestRate: BigNumber;
+  // maxInterestRate: BigNumber;
+
+  // Fees
+  insuranceFeeFixedApr: BigNumber;
+  insuranceIrFee: BigNumber;
+  protocolFixedFeeApr: BigNumber;
+  protocolIrFee: BigNumber;
   protocolOriginationFee: BigNumber;
+
+  zeroUtilRate: number;
+  hundredUtilRate: number;
+  points: RatePoint[];
+  curveType: number;
 };
 
-// TODO remove when package updates
 export type OperationalStateRaw =
   | { paused: {} }
   | { operational: {} }
   | { reduceOnly: {} };
 
-// TODO remove when package updates
 export type BankConfig = {
   assetWeightInit: WrappedI80F48;
   assetWeightMaint: WrappedI80F48;
@@ -310,7 +410,7 @@ export type BankConfig = {
   liabilityWeightMain: WrappedI80F48;
 
   depositLimit: BN;
-  interestRateConfig: InterestRateConfigRawWithOrigination;
+  interestRateConfig: InterestRateConfig1_6;
 
   /** Paused = 0, Operational = 1, ReduceOnly = 2 */
   operationalState: OperationalStateRaw;
@@ -326,7 +426,6 @@ export type BankConfig = {
   oracleMaxConfidence: number;
 };
 
-// TODO remove when package updates
 export type BankConfigOptRaw = {
   assetWeightInit: WrappedI80F48 | null;
   assetWeightMaint: WrappedI80F48 | null;
@@ -340,7 +439,7 @@ export type BankConfigOptRaw = {
   assetTag: number | null;
   totalAssetValueInitLimit: BN | null;
 
-  interestRateConfig: InterestRateConfigRawWithOrigination | null;
+  interestRateConfig: InterestRateConfig1_6 | null;
   operationalState:
     | { paused: {} }
     | { operational: {} }
@@ -353,7 +452,6 @@ export type BankConfigOptRaw = {
   freezeSettings: boolean | null;
 };
 
-// TODO remove when package updates
 export type StakedSettingsConfig = {
   oracle: PublicKey;
 
