@@ -151,7 +151,6 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
-                let lst_supply = lst_mint.supply;
                 let stake_state = try_from_slice_unchecked::<StakeStateV2>(&ais[2].data.borrow())?;
                 let (_, stake) = match stake_state {
                     StakeStateV2::Stake(meta, stake, _) => (meta, stake),
@@ -190,6 +189,9 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let mut feed = PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
+
+                let lst_supply = lst_mint.supply;
+                check!(lst_supply > 0, MarginfiError::ZeroSupplyInStakePool);
 
                 let adjusted_price = (feed.price.price as i128)
                     .checked_mul(sol_pool_adjusted_balance as i128)
