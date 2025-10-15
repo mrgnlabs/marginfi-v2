@@ -1,7 +1,7 @@
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::SECONDS_PER_YEAR,
-    types::{InterestRateConfig, InterestRateConfigOpt, MarginfiGroup},
+    types::{InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, RatePoint},
 };
 
 use crate::{
@@ -36,6 +36,10 @@ impl InterestRateConfigImpl for InterestRateConfig {
             add_program_fees: group_bank_config.program_fees,
             program_fee_fixed: group.fee_state_cache.program_fee_fixed.into(),
             program_fee_rate: group.fee_state_cache.program_fee_rate.into(),
+            zero_util_rate: self.zero_util_rate,
+            hundred_util_rate: self.hundred_util_rate,
+            points: self.points,
+            curve_type: self.curve_type,
         }
     }
 
@@ -76,6 +80,7 @@ impl InterestRateConfigImpl for InterestRateConfig {
             self.protocol_origination_fee,
             ir_config.protocol_origination_fee
         );
+        set_if_some!(self.curve_type, ir_config.curve_type);
     }
 }
 
@@ -98,6 +103,10 @@ pub struct InterestRateCalc {
     program_fee_rate: I80F48,
 
     add_program_fees: bool,
+    zero_util_rate: u32,
+    hundred_util_rate: u32,
+    points: [RatePoint; 5],
+    curve_type: u8,
 }
 
 impl InterestRateCalc {
@@ -118,7 +127,11 @@ impl InterestRateCalc {
         let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
         let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate_apr = self.interest_rate_curve(utilization_ratio)?;
+        let base_rate_apr = if self.curve_type == 1 {
+            self.interest_rate_multipoint_curve(utilization_ratio)?
+        } else {
+            self.interest_rate_curve(utilization_ratio)?
+        };
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
         let lending_rate_apr = base_rate_apr.checked_mul(utilization_ratio)?;
@@ -170,6 +183,78 @@ impl InterestRateCalc {
                 .checked_mul(max_ir - plateau_ir)?
                 .checked_add(plateau_ir)
         }
+    }
+
+    #[inline]
+    fn interest_rate_multipoint_curve(&self, ur: I80F48) -> Option<I80F48> {
+        let zero_rate = Self::rate_from_u32(self.zero_util_rate);
+        let hundred_rate = Self::rate_from_u32(self.hundred_util_rate);
+
+        let mut prev_util = I80F48::ZERO;
+        let mut prev_rate = zero_rate;
+        let clamped_ur = if ur < I80F48::ZERO {
+            I80F48::ZERO
+        } else if ur > I80F48::ONE {
+            I80F48::ONE
+        } else {
+            ur
+        };
+
+        for point in self.points.iter().filter(|point| point.util() != 0) {
+            let point_util = Self::util_from_u32(point.util());
+            let point_rate = Self::rate_from_u32(point.rate());
+
+            if clamped_ur <= point_util {
+                return Self::lerp(prev_util, prev_rate, point_util, point_rate, clamped_ur);
+            }
+
+            prev_util = point_util;
+            prev_rate = point_rate;
+        }
+
+        Self::lerp(prev_util, prev_rate, I80F48::ONE, hundred_rate, clamped_ur)
+    }
+
+    #[inline]
+    fn lerp(
+        start_util: I80F48,
+        start_rate: I80F48,
+        end_util: I80F48,
+        end_rate: I80F48,
+        target_util: I80F48,
+    ) -> Option<I80F48> {
+        if end_util <= start_util {
+            return Some(start_rate);
+        }
+
+        let clamped_target = if target_util < start_util {
+            start_util
+        } else if target_util > end_util {
+            end_util
+        } else {
+            target_util
+        };
+        let delta_util = end_util.checked_sub(start_util)?;
+        if delta_util.is_zero() {
+            return Some(start_rate);
+        }
+
+        let offset = clamped_target.checked_sub(start_util)?;
+        let proportion = offset.checked_div(delta_util)?;
+        let delta_rate = end_rate - start_rate;
+        let scaled_delta = delta_rate.checked_mul(proportion)?;
+        start_rate.checked_add(scaled_delta)
+    }
+
+    #[inline]
+    fn rate_from_u32(rate: u32) -> I80F48 {
+        let ratio = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
+        ratio * I80F48::from_num(10)
+    }
+
+    #[inline]
+    fn util_from_u32(util: u32) -> I80F48 {
+        I80F48::from_num(util) / I80F48::from_num(u32::MAX)
     }
 
     pub fn get_fees(&self) -> Fees {
@@ -348,7 +433,7 @@ mod tests {
     use fixed_macro::types::I80F48;
     use marginfi_type_crate::{
         constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
-        types::{Bank, BankConfig, InterestRateConfig},
+        types::{Bank, BankConfig, InterestRateConfig, RatePoint},
     };
     use solana_sdk::clock::Clock;
     #[cfg(not(feature = "client"))]
@@ -421,6 +506,66 @@ mod tests {
             I80F48!(3),
             I80F48!(0.001)
         );
+    }
+
+    fn apr_to_u32(apr: f64) -> u32 {
+        ((apr / 10.0) * (u32::MAX as f64)).round() as u32
+    }
+
+    fn util_to_u32(util: f64) -> u32 {
+        (util * (u32::MAX as f64)).round() as u32
+    }
+
+    fn sample_multipoint_calc() -> InterestRateCalc {
+        InterestRateCalc {
+            optimal_utilization_rate: I80F48!(0.5),
+            plateau_interest_rate: I80F48!(0.2),
+            max_interest_rate: I80F48!(1.0),
+            insurance_fixed_fee: I80F48::ZERO,
+            insurance_rate_fee: I80F48::ZERO,
+            protocol_fixed_fee: I80F48::ZERO,
+            protocol_rate_fee: I80F48::ZERO,
+            program_fee_fixed: I80F48::ZERO,
+            program_fee_rate: I80F48::ZERO,
+            add_program_fees: false,
+            zero_util_rate: apr_to_u32(0.05),
+            hundred_util_rate: apr_to_u32(0.40),
+            points: [
+                RatePoint::new(apr_to_u32(0.10), util_to_u32(0.20)),
+                RatePoint::new(apr_to_u32(0.15), util_to_u32(0.60)),
+                RatePoint::default(),
+                RatePoint::default(),
+                RatePoint::default(),
+            ],
+            curve_type: 1,
+        }
+    }
+
+    #[test]
+    fn multipoint_curve_matches_zero_util_rate() {
+        let calc = sample_multipoint_calc();
+        let rate = calc
+            .interest_rate_multipoint_curve(I80F48::ZERO)
+            .expect("zero util rate");
+        assert_eq_with_tolerance!(rate, I80F48!(0.05), I80F48!(0.0001));
+    }
+
+    #[test]
+    fn multipoint_curve_interpolates_between_points() {
+        let calc = sample_multipoint_calc();
+        let rate = calc
+            .interest_rate_multipoint_curve(I80F48!(0.4))
+            .expect("interpolated rate");
+        assert_eq_with_tolerance!(rate, I80F48!(0.125), I80F48!(0.0001));
+    }
+
+    #[test]
+    fn calc_interest_rate_uses_multipoint_curve() {
+        let calc = sample_multipoint_calc();
+        let ComputedInterestRates { base_rate_apr, .. } = calc
+            .calc_interest_rate(I80F48!(0.4))
+            .expect("computed rate");
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.125), I80F48!(0.0001));
     }
 
     #[test]
