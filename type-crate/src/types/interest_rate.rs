@@ -43,7 +43,16 @@ pub struct InterestRateConfig {
     /// * points where util = 0 are unused
     pub points: [RatePoint; 5],
 
-    pub _padding1: [[u8; 32]; 2],
+    /// Determines which interest rate curve implementation is active.
+    /// 0 = legacy three point curve, 1 = multi-point curve.
+    pub curve_type: u8,
+
+    pub _padding1: [[u8; 32]; 1],
+    pub _padding2: [[u8; 16]; 1],
+    pub _padding3: [[u8; 8]; 1],
+    pub _padding4: [[u8; 4]; 1],
+    pub _padding5: [[u8; 2]; 1],
+    pub _padding6: [[u8; 1]; 1],
 }
 
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -56,6 +65,20 @@ pub struct RatePoint {
     /// The utilization rate where `rate` applies
     /// * a %, as u32, out of 100%, e.g. 50% = .5 * u32::MAX
     util: u32,
+}
+
+impl RatePoint {
+    pub const fn new(rate: u32, util: u32) -> Self {
+        Self { rate, util }
+    }
+
+    pub const fn rate(&self) -> u32 {
+        self.rate
+    }
+
+    pub const fn util(&self) -> u32 {
+        self.util
+    }
 }
 
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -85,6 +108,9 @@ pub struct InterestRateConfigOpt {
     ///   point, and so forth.
     /// * points where util = 0 are unused
     pub points: Option<[RatePoint; 5]>,
+    /// Determines which interest rate curve implementation is active.
+    /// 0 = legacy three point curve, 1 = multi-point curve.
+    pub curve_type: Option<u8>,
 }
 
 #[repr(C)]
@@ -117,6 +143,10 @@ pub struct InterestRateConfigCompact {
     ///   point, and so forth.
     /// * points where util = 0 are unused
     pub points: [RatePoint; 5],
+    /// Determines which interest rate curve implementation is active.
+    /// 0 = legacy three point curve, 1 = multi-point curve.
+    pub curve_type: u8,
+    pub _padding0: [u8; 7],
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
@@ -133,7 +163,13 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             zero_util_rate: ir_config.zero_util_rate,
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
-            _padding1: [[0; 32]; 2],
+            curve_type: ir_config.curve_type,
+            _padding1: [[0; 32]; 1],
+            _padding2: [[0; 16]; 1],
+            _padding3: [[0; 8]; 1],
+            _padding4: [[0; 4]; 1],
+            _padding5: [[0; 2]; 1],
+            _padding6: [[0; 1]; 1],
         }
     }
 }
@@ -152,6 +188,8 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             zero_util_rate: ir_config.zero_util_rate,
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
+            curve_type: ir_config.curve_type,
+            _padding0: [0; 7],
         }
     }
 }
