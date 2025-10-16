@@ -186,6 +186,8 @@ pub enum MarginfiError {
     LiquidationPremiumTooHigh,
     #[msg("Start and end liquidation and flashloan must be top-level instructions")] // 6091
     NotAllowedInCPI,
+    #[msg("Stake pool supply is zero: cannot compute price")] // 6092
+    ZeroSupplyInStakePool,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -330,6 +332,7 @@ impl From<u32> for MarginfiError {
             6089 => MarginfiError::ForbiddenIx,
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
+            6092 => MarginfiError::ZeroSupplyInStakePool,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,
@@ -379,6 +382,7 @@ impl MarginfiError {
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
                 | MarginfiError::OracleMaxConfidenceExceeded
+                | MarginfiError::ZeroSupplyInStakePool
         )
     }
 
