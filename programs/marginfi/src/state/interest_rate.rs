@@ -306,7 +306,7 @@ impl InterestRateCalc {
 
     #[inline]
     fn rate_from_u32(rate: u32) -> I80F48 {
-        let ratio:I80F48 = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
+        let ratio: I80F48 = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
         ratio * I80F48::from_num(10)
     }
 
@@ -576,9 +576,9 @@ mod tests {
 
     fn sample_multipoint_calc() -> InterestRateCalc {
         InterestRateCalc {
-            optimal_utilization_rate: I80F48!(0.5),
-            plateau_interest_rate: I80F48!(0.2),
-            max_interest_rate: I80F48!(1.0),
+            optimal_utilization_rate: I80F48::ZERO,
+            plateau_interest_rate: I80F48::ZERO,
+            max_interest_rate: I80F48::ZERO,
             insurance_fixed_fee: I80F48::ZERO,
             insurance_rate_fee: I80F48::ZERO,
             protocol_fixed_fee: I80F48::ZERO,
@@ -589,8 +589,8 @@ mod tests {
             zero_util_rate: apr_to_u32(0.05),
             hundred_util_rate: apr_to_u32(0.40),
             points: [
-                RatePoint::new(apr_to_u32(0.10), util_to_u32(0.20)),
-                RatePoint::new(apr_to_u32(0.15), util_to_u32(0.60)),
+                RatePoint::new(util_to_u32(0.20), apr_to_u32(0.10)),
+                RatePoint::new(util_to_u32(0.60), apr_to_u32(0.15)),
                 RatePoint::default(),
                 RatePoint::default(),
                 RatePoint::default(),
