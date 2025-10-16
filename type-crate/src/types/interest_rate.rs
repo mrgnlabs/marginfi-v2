@@ -64,17 +64,17 @@ pub struct InterestRateConfig {
 #[derive(Clone, Copy, Default, Zeroable, Pod, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct RatePoint {
-    /// The base rate that applies
-    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
-    pub rate: u32,
     /// The utilization rate where `rate` applies
     /// * a %, as u32, out of 100%, e.g. 50% = .5 * u32::MAX
     pub util: u32,
+    /// The base rate that applies
+    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
+    pub rate: u32,
 }
 
 impl RatePoint {
-    pub const fn new(rate: u32, util: u32) -> Self {
-        Self { rate, util }
+    pub const fn new(util: u32, rate: u32) -> Self {
+        Self { util, rate }
     }
 
     pub const fn rate(&self) -> u32 {
@@ -86,8 +86,8 @@ impl RatePoint {
     }
 }
 
-/// Build a correctly sized slice of RatePoints from some arbitrary number of RatePoints. 
-/// * Performs no validation. 
+/// Build a correctly sized slice of RatePoints from some arbitrary number of RatePoints.
+/// * Performs no validation.
 /// * If < CURVE_POINTS size, pads with zeros. If >, takes just the first CURVE_POINTS.
 pub fn make_points(points: &[RatePoint]) -> [RatePoint; CURVE_POINTS] {
     let mut out = [RatePoint::default(); CURVE_POINTS];
@@ -95,6 +95,24 @@ pub fn make_points(points: &[RatePoint]) -> [RatePoint; CURVE_POINTS] {
         out[i] = *p;
     }
     out
+}
+
+/// Useful when converting an I80F48 (e.g. apr) into a percentage from 0-1000. Clamps to 1000% if
+/// exceeding that amount. Clamps to zero for negative inputs.
+pub fn p1000_to_u32(value: I80F48) -> u32 {
+    let max_percent: I80F48 = I80F48::from_num(10.0); // 1000%
+    let clamped: I80F48 = value.min(max_percent).max(I80F48::ZERO);
+    let ratio: I80F48 = clamped / max_percent;
+    (ratio * I80F48::from_num(u32::MAX)).to_num::<u32>()
+}
+
+/// Useful when converting an I80F48 (e.g. utilization rate) into a percentage from 0-100. Clamps to
+/// 100% if exceeding that amount. Clamps to zero for negative inputs.
+pub fn p100_to_u32(value: I80F48) -> u32 {
+    let max_percent: I80F48 = I80F48::from_num(1.0); // 1000%
+    let clamped: I80F48 = value.min(max_percent).max(I80F48::ZERO);
+    let ratio: I80F48 = clamped / max_percent;
+    (ratio * I80F48::from_num(u32::MAX)).to_num::<u32>()
 }
 
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]

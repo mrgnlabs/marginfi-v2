@@ -5,10 +5,12 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
 use marginfi::state::{
     bank::{BankImpl, BankVaultType},
-    bank_cache::{apr_to_u32, ComputedInterestRates},
+    bank_cache::ComputedInterestRates,
     interest_rate::InterestRateConfigImpl,
 };
-use marginfi_type_crate::types::{Bank, BankConfig, InterestRateConfig, MarginfiGroup};
+use marginfi_type_crate::types::{
+    p1000_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
+};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
@@ -125,12 +127,12 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, p1000_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        apr_to_u32(borrowing_rate_apr)
+        p1000_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, p1000_to_u32(lending_rate_apr));
 
     Ok(())
 }
@@ -287,12 +289,12 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, p1000_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        apr_to_u32(borrowing_rate_apr)
+        p1000_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, p1000_to_u32(lending_rate_apr));
 
     Ok(())
 }

@@ -50,6 +50,7 @@ impl InterestRateConfigImpl for InterestRateConfig {
 
     fn validate(&self) -> MarginfiResult {
         match self.curve_type {
+            // TODO deprecate in 1.7
             INTEREST_CURVE_LEGACY => self.validate_legacy()?,
             INTEREST_CURVE_SEVEN_POINT => self.validate_seven_point()?,
             _ => panic!("unsupported curve type"),
@@ -74,6 +75,10 @@ impl InterestRateConfigImpl for InterestRateConfig {
         Ok(())
     }
 
+    /// * the rate at zero is the lowest
+    /// * utils in points are in ascending order, and non-decreasing rates
+    /// * no "holes" in points, all padding is at the end of the slice
+    /// * the rate at 100% util is the highest
     fn validate_seven_point(&self) -> MarginfiResult {
         let zero = self.zero_util_rate;
         let hundred = self.hundred_util_rate;
@@ -179,9 +184,10 @@ impl InterestRateCalc {
         let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
         let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate_apr = if self.curve_type == 1 {
+        let base_rate_apr = if self.curve_type == INTEREST_CURVE_SEVEN_POINT {
             self.interest_rate_multipoint_curve(utilization_ratio)?
         } else {
+            // TODO deprecate in 1.7 (change to no-op with msg warning?)
             self.interest_rate_curve(utilization_ratio)?
         };
 
@@ -300,7 +306,7 @@ impl InterestRateCalc {
 
     #[inline]
     fn rate_from_u32(rate: u32) -> I80F48 {
-        let ratio = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
+        let ratio:I80F48 = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
         ratio * I80F48::from_num(10)
     }
 

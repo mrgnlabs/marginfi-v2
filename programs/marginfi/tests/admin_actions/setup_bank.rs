@@ -364,10 +364,6 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
 
     let config_bank_opt = BankConfigOpt {
         interest_rate_config: Some(InterestRateConfigOpt {
-            // TODO deprecate in 1.7
-            // optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
-            // plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
-            // max_interest_rate: Some(I80F48::from_num(1.44).into()),
             insurance_fee_fixed_apr: Some(I80F48::from_num(0.13).into()),
             insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
             protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
@@ -423,10 +419,6 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     }
 
     let _ = {
-        // TODO deprecate in 1.7
-        // check_bank_field!(interest_rate_config, optimal_utilization_rate);
-        // check_bank_field!(interest_rate_config, plateau_interest_rate);
-        // check_bank_field!(interest_rate_config, max_interest_rate);
         check_bank_field!(interest_rate_config, insurance_fee_fixed_apr);
         check_bank_field!(interest_rate_config, insurance_ir_fee);
         check_bank_field!(interest_rate_config, protocol_fixed_fee_apr);

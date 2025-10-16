@@ -372,6 +372,7 @@ pub fn group_add_bank(
         insurance_ir_fee,
         protocol_fixed_fee_apr: group_fixed_fee_apr,
         protocol_ir_fee: group_ir_fee,
+        // TODO fix to take the new curve params
         ..InterestRateConfig::default()
     };
 

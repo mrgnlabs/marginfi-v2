@@ -31,6 +31,7 @@ pub fn lending_pool_add_bank(
             bank_init_flat_sol_fee as u64,
         )?;
     }
+    msg!("config got: {:?}", bank_config.interest_rate_config.hundred_util_rate);
 
     let LendingPoolAddBank {
         bank_mint,

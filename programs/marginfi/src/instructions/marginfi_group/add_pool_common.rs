@@ -47,10 +47,9 @@ pub fn log_pool_info(bank: &Bank) {
         wrapped_i80f48_to_f64(interest.protocol_origination_fee)
     );
     msg!(
-        "Init: {:?} points: {:?}: max: {:?}",
+        "Rate at 0: {:?} points: {:?}: rate at 100: {:?}",
         interest.zero_util_rate,
-        // TODO validate this pretty-prints in a readable way or add a debug impl
         interest.points,
-        interest.max_interest_rate
+        interest.hundred_util_rate
     );
 }
