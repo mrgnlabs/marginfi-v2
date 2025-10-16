@@ -1,14 +1,8 @@
 import {
-  BankConfigOpt,
-  InterestRateConfig,
-  InterestRateConfigRaw,
-  OperationalState,
-  RiskTier,
   RiskTierRaw,
 } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
 
 import BN from "bn.js";
 
@@ -122,31 +116,6 @@ export const defaultBankConfig = () => {
 };
 
 /**
- * The same parameters as `defaultBankConfig`, and no change to oracle
- * @returns
- */
-export const defaultBankConfigOpt = () => {
-  let bankConfigOpt: BankConfigOpt = {
-    assetWeightInit: new BigNumber(1),
-    assetWeightMaint: new BigNumber(1),
-    liabilityWeightInit: new BigNumber(1),
-    liabilityWeightMaint: new BigNumber(1),
-    depositLimit: new BigNumber(1_000_000_000),
-    borrowLimit: new BigNumber(1_000_000_000),
-    riskTier: RiskTier.Collateral,
-    totalAssetValueInitLimit: new BigNumber(100_000_000_000),
-    interestRateConfig: defaultInterestRateConfig(),
-    operationalState: OperationalState.Operational,
-    // oracle: null,
-    oracleMaxAge: 240,
-    permissionlessBadDebtSettlement: null,
-    assetTag: ASSET_TAG_DEFAULT,
-  };
-
-  return bankConfigOpt;
-};
-
-/**
  * The same parameters as `defaultBankConfig`
  * @returns
  */
@@ -231,9 +200,10 @@ export const blankBankConfigOptRaw = () => {
 
 /**
  * The default interest config has
- * * optimalUtilizationRate = .5
- * * plateauInterestRate = .6
- * * maxInterestRate = 3
+ * * optimalUtilizationRate (point at .5, .6) = .5
+ * * plateauInterestRate (point at .5, .6) = .6
+ * * maxInterestRate (hundredUtilRate) = 3
+ * * starting rate (zeroUtilRate) = 0
  * * insuranceFeeFixedApr = .01
  * * insuranceIrFee = .02
  * * protocolFixedFeeApr = .03
@@ -243,9 +213,6 @@ export const blankBankConfigOptRaw = () => {
  */
 export const defaultInterestRateConfigRaw = () => {
   let config: InterestRateConfig1_6 = {
-    // optimalUtilizationRate: bigNumberToWrappedI80F48(0.5),
-    // plateauInterestRate: bigNumberToWrappedI80F48(0.6),
-    // maxInterestRate: bigNumberToWrappedI80F48(3),
     insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.01),
     insuranceIrFee: bigNumberToWrappedI80F48(0.02),
     protocolFixedFeeApr: bigNumberToWrappedI80F48(0.03),
@@ -255,6 +222,24 @@ export const defaultInterestRateConfigRaw = () => {
     hundredUtilRate: aprToU32(3),
     points: makeRatePoints([0.5], [0.6]),
     curveType: INTEREST_CURVE_SEVEN_POINT,
+  };
+  return config;
+};
+
+/**
+ * Same params as `defaultInterestRateConfigRaw`
+ * @returns 
+ */
+export const defaultInterestRateConfigOptRaw = () => {
+  let config: InterestRateConfigOpt1_6 = {
+    insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.01),
+    insuranceIrFee: bigNumberToWrappedI80F48(0.02),
+    protocolFixedFeeApr: bigNumberToWrappedI80F48(0.03),
+    protocolIrFee: bigNumberToWrappedI80F48(0.04),
+    protocolOriginationFee: bigNumberToWrappedI80F48(0.01),
+    zeroUtilRate: 0,
+    hundredUtilRate: aprToU32(3),
+    points: makeRatePoints([0.5], [0.6]),
   };
   return config;
 };
@@ -273,6 +258,9 @@ export const makeRatePoints = (util: number[], apr: number[]) => {
   // Validate input lengths
   if (util.length > 5 || apr.length > 5) {
     throw new Error("makeRatePoints: maximum of 5 points allowed");
+  }
+  if (util.length != apr.length) {
+    throw new Error("must be one rate per util.");
   }
 
   // Validate that utils are in ascending order
@@ -308,35 +296,18 @@ export type RatePoint = {
 };
 
 export const aprToU32 = (apr: number): number => {
+  if (apr < 0 || apr > 10) {
+    console.error("apr out of range, exp 0-1000% (0-10), will clamp: " + apr);
+  }
   const clamped = Math.max(0, Math.min(apr, 10));
   return Math.round((clamped / 10) * u32_MAX);
 };
 export const utilToU32 = (util: number): number => {
+  if (util < 0 || util > 1) {
+    console.error("util out of range, exp 0-100% (0-1), will clamp: " + util);
+  }
   const clamped = Math.max(0, Math.min(util, 1));
   return Math.round(clamped * u32_MAX);
-};
-
-/**
- * The same parameters as `defaultInterestRateConfigRaw`
- * @returns
- */
-export const defaultInterestRateConfig = () => {
-  let config: InterestRateConfigBN1_6 = {
-    // optimalUtilizationRate: new BigNumber(0.5),
-    // plateauInterestRate: new BigNumber(0.6),
-    // maxInterestRate: new BigNumber(3),
-    insuranceFeeFixedApr: new BigNumber(0),
-    insuranceIrFee: new BigNumber(0),
-    protocolFixedFeeApr: new BigNumber(0),
-    protocolIrFee: new BigNumber(0),
-    protocolOriginationFee: new BigNumber(0.1),
-
-    zeroUtilRate: 0,
-    hundredUtilRate: aprToU32(3),
-    points: makeRatePoints([0.5], [0.6]),
-    curveType: INTEREST_CURVE_SEVEN_POINT,
-  };
-  return config;
 };
 
 export const defaultStakedInterestSettings = (oracle: PublicKey) => {
@@ -355,11 +326,6 @@ export const defaultStakedInterestSettings = (oracle: PublicKey) => {
 };
 
 export type InterestRateConfig1_6 = {
-  // // Curve Params
-  // optimalUtilizationRate: WrappedI80F48;
-  // plateauInterestRate: WrappedI80F48;
-  // maxInterestRate: WrappedI80F48;
-
   // Fees
   insuranceFeeFixedApr: WrappedI80F48;
   insuranceIrFee: WrappedI80F48;
@@ -374,27 +340,18 @@ export type InterestRateConfig1_6 = {
   curveType: number;
 };
 
-// InterestRateConfigRaw & {
-//   protocolOriginationFee: WrappedI80F48;
-// };
-
-export type InterestRateConfigBN1_6 = {
-  // // Curve Params
-  // optimalUtilizationRate: BigNumber;
-  // plateauInterestRate: BigNumber;
-  // maxInterestRate: BigNumber;
-
+export type InterestRateConfigOpt1_6 = {
   // Fees
-  insuranceFeeFixedApr: BigNumber;
-  insuranceIrFee: BigNumber;
-  protocolFixedFeeApr: BigNumber;
-  protocolIrFee: BigNumber;
-  protocolOriginationFee: BigNumber;
+  insuranceFeeFixedApr: WrappedI80F48 | null;
+  insuranceIrFee: WrappedI80F48 | null;
+  protocolFixedFeeApr: WrappedI80F48 | null;
+  protocolIrFee: WrappedI80F48 | null;
 
-  zeroUtilRate: number;
-  hundredUtilRate: number;
-  points: RatePoint[];
-  curveType: number;
+  protocolOriginationFee: WrappedI80F48 | null;
+
+  zeroUtilRate: number | null;
+  hundredUtilRate: number | null;
+  points: RatePoint[] | null;
 };
 
 export type OperationalStateRaw =
@@ -439,7 +396,7 @@ export type BankConfigOptRaw = {
   assetTag: number | null;
   totalAssetValueInitLimit: BN | null;
 
-  interestRateConfig: InterestRateConfig1_6 | null;
+  interestRateConfig: InterestRateConfigOpt1_6 | null;
   operationalState:
     | { paused: {} }
     | { operational: {} }

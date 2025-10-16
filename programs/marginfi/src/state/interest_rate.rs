@@ -78,8 +78,7 @@ impl InterestRateConfigImpl for InterestRateConfig {
         let zero = self.zero_util_rate;
         let hundred = self.hundred_util_rate;
 
-        // Collect used points (util > 0). Enforce that any zero-util entries are trailing padding
-        // and that padding entries are (util=0, rate=0).
+        // Collect used points (util > 0), enforce trailing padding
         let mut used: Vec<RatePoint> = Vec::with_capacity(self.points.len());
         let mut seen_padding = false;
         for p in self.points.iter() {
@@ -90,18 +89,6 @@ impl InterestRateConfigImpl for InterestRateConfig {
             } else {
                 // No "holes": non-zero util after padding is not allowed.
                 check!(!seen_padding, MarginfiError::InvalidConfig);
-
-                // Util must be strictly between 0% and 100% (exclusive) since these are interior kinks.
-                check!(
-                    p.util > 0 && p.util < u32::MAX,
-                    MarginfiError::InvalidConfig
-                );
-
-                // Rates must lie within the global [zero, hundred] envelope.
-                check!(
-                    p.rate >= zero && p.rate <= hundred,
-                    MarginfiError::InvalidConfig
-                );
 
                 used.push(*p);
             }
@@ -116,7 +103,7 @@ impl InterestRateConfigImpl for InterestRateConfig {
             check!(prev.rate <= curr.rate, MarginfiError::InvalidConfig);
         }
 
-        // rate at zero < rate at 100%, and each point > 0 rate but < 100% rate
+        // rate at zero < rate at 100%, and for each point p, 0_rate <= p <= 100%_rate
         check!(
             zero <= hundred && used.iter().all(|p| zero <= p.rate && p.rate <= hundred),
             MarginfiError::InvalidConfig
@@ -126,12 +113,6 @@ impl InterestRateConfigImpl for InterestRateConfig {
     }
 
     fn update(&mut self, ir_config: &InterestRateConfigOpt) {
-        set_if_some!(
-            self.optimal_utilization_rate,
-            ir_config.optimal_utilization_rate
-        );
-        set_if_some!(self.plateau_interest_rate, ir_config.plateau_interest_rate);
-        set_if_some!(self.max_interest_rate, ir_config.max_interest_rate);
         set_if_some!(
             self.insurance_fee_fixed_apr,
             ir_config.insurance_fee_fixed_apr
@@ -146,8 +127,12 @@ impl InterestRateConfigImpl for InterestRateConfig {
             self.protocol_origination_fee,
             ir_config.protocol_origination_fee
         );
-        // TODO handle new fields, deprecate old fields
-        // set_if_some!(self.curve_type, ir_config.curve_type);
+        set_if_some!(self.zero_util_rate, ir_config.zero_util_rate);
+        set_if_some!(self.hundred_util_rate, ir_config.hundred_util_rate);
+        set_if_some!(self.points, ir_config.points);
+
+        // Note: If we ever support another curve type, this will become configurable.
+        self.curve_type = INTEREST_CURVE_SEVEN_POINT;
     }
 }
 

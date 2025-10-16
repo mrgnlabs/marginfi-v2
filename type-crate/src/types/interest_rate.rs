@@ -10,17 +10,18 @@ use super::WrappedI80F48;
 
 pub const INTEREST_CURVE_LEGACY: u8 = 0;
 pub const INTEREST_CURVE_SEVEN_POINT: u8 = 1;
+pub const CURVE_POINTS: usize = 5;
 
 assert_struct_size!(InterestRateConfig, 240);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Pod, Zeroable, Default)]
 pub struct InterestRateConfig {
-    // TODO deprecate
+    // TODO deprecate in 1.7
     pub optimal_utilization_rate: WrappedI80F48,
-    // TODO deprecate
+    // TODO deprecate in 1.7
     pub plateau_interest_rate: WrappedI80F48,
-    // TODO deprecate
+    // TODO deprecate in 1.7
     pub max_interest_rate: WrappedI80F48,
 
     // Fees
@@ -45,7 +46,7 @@ pub struct InterestRateConfig {
     /// * always in ascending order, e.g. points[0] = first kink point, points[1] = second kink
     ///   point, and so forth.
     /// * points where util = 0 are unused
-    pub points: [RatePoint; 5],
+    pub points: [RatePoint; CURVE_POINTS],
 
     /// Determines which interest rate curve implementation is active. 0 (INTEREST_CURVE_LEGACY) =
     /// legacy three point curve, 1 (INTEREST_CURVE_SEVEN_POINT) = multi-point curve.
@@ -85,22 +86,44 @@ impl RatePoint {
     }
 }
 
-// TODO deprecate
+/// Build a correctly sized slice of RatePoints from some arbitrary number of RatePoints. 
+/// * Performs no validation. 
+/// * If < CURVE_POINTS size, pads with zeros. If >, takes just the first CURVE_POINTS.
+pub fn make_points(points: &[RatePoint]) -> [RatePoint; CURVE_POINTS] {
+    let mut out = [RatePoint::default(); CURVE_POINTS];
+    for (i, p) in points.iter().take(CURVE_POINTS).enumerate() {
+        out[i] = *p;
+    }
+    out
+}
+
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigOpt {
-    // TODO deprecate
-    pub optimal_utilization_rate: Option<WrappedI80F48>,
-    // TODO deprecate
-    pub plateau_interest_rate: Option<WrappedI80F48>,
-    // TODO deprecate
-    pub max_interest_rate: Option<WrappedI80F48>,
-
+    // // TODO deprecate
+    // pub optimal_utilization_rate: Option<WrappedI80F48>,
+    // // TODO deprecate
+    // pub plateau_interest_rate: Option<WrappedI80F48>,
+    // // TODO deprecate
+    // pub max_interest_rate: Option<WrappedI80F48>,
     pub insurance_fee_fixed_apr: Option<WrappedI80F48>,
     pub insurance_ir_fee: Option<WrappedI80F48>,
     pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
     pub protocol_ir_fee: Option<WrappedI80F48>,
     pub protocol_origination_fee: Option<WrappedI80F48>,
+
+    /// The base rate at utilizatation = 0
+    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
+    pub zero_util_rate: Option<u32>,
+    /// The base rate at utilizatation = 100
+    /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
+    pub hundred_util_rate: Option<u32>,
+    /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
+    /// linear curve.
+    /// * always in ascending order, e.g. points[0] = first kink point, points[1] = second kink
+    ///   point, and so forth.
+    /// * points where util = 0 are unused
+    pub points: Option<[RatePoint; 5]>,
 }
 
 #[repr(C)]
