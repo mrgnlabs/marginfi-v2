@@ -254,7 +254,7 @@ lazy_static! {
 
             zero_util_rate: p1000_to_u32(I80F48!(0)),
             hundred_util_rate: p1000_to_u32(I80F48!(3)),
-            points: make_points(&vec![
+            points: make_points(&[
                 RatePoint::new(p100_to_u32(I80F48!(0.5)), p1000_to_u32(I80F48!(0.6))),
             ]),
             curve_type: INTEREST_CURVE_SEVEN_POINT,
@@ -285,7 +285,7 @@ lazy_static! {
 
             zero_util_rate: p1000_to_u32(I80F48!(0)),
             hundred_util_rate: p1000_to_u32(I80F48!(3)),
-            points: make_points(&vec![
+            points: make_points(&[
                 RatePoint::new(p100_to_u32(I80F48!(0.5)), p1000_to_u32(I80F48!(0.6))),
             ]),
             curve_type: INTEREST_CURVE_SEVEN_POINT,

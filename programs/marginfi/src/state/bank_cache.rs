@@ -24,12 +24,14 @@ mod tests {
 
     #[test]
     fn test_apr_to_u32_boundaries_and_midpoints() {
+        let neg_apr = I80F48::from_num(-2.0);
         let zero_apr = I80F48::from_num(0.0);
         let full_apr = I80F48::from_num(10.0); // 1000%
         let one_apr = I80F48::from_num(1.0); // 100%
         let five_apr = I80F48::from_num(5.0); // 500%
         let over_apr = I80F48::from_num(15.0); // over max
 
+        assert_eq!(p1000_to_u32(neg_apr), 0);
         assert_eq!(p1000_to_u32(zero_apr), 0);
         assert_eq!(p1000_to_u32(full_apr), u32::MAX);
         assert_eq!(p1000_to_u32(one_apr), u32::MAX / 10);

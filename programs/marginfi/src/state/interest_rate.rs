@@ -222,11 +222,10 @@ impl InterestRateCalc {
         })
     }
 
+    // TODO deprecate in 1.7
     /// Piecewise linear interest rate function.
     /// The curves approaches the `plateau_interest_rate` as the utilization ratio approaches the `optimal_utilization_rate`,
     /// once the utilization ratio exceeds the `optimal_utilization_rate`, the curve approaches the `max_interest_rate`.
-    ///
-    /// To be clear we don't particularly appreciate the piecewise linear nature of this "curve", but it is what it is.
     #[inline]
     fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
         let optimal_ur: I80F48 = self.optimal_utilization_rate;
@@ -243,13 +242,14 @@ impl InterestRateCalc {
         }
     }
 
-    /// Locates ur on a piecewise linear interest rate function with seven points: (0, Y1), (X2-5,
-    /// Y2-5), (100, Y6)
+    /// Locates ur on a piecewise linear interest rate function with seven points:
+    /// * Points defined as 1: (0, Y1), 2-6: (X2-6, Y2-6), 7: (100, Y7), where 0 < X2-6 < 100
     #[inline]
     fn interest_rate_multipoint_curve(&self, ur: I80F48) -> Option<I80F48> {
         let zero_rate: I80F48 = Self::rate_from_u32(self.zero_util_rate);
-        let hundred_rate = Self::rate_from_u32(self.hundred_util_rate);
+        let hundred_rate: I80F48 = Self::rate_from_u32(self.hundred_util_rate);
 
+        // The first point is at (0, zero_rate)
         let mut prev_util: I80F48 = I80F48::ZERO;
         let mut prev_rate: I80F48 = zero_rate;
         // Sanity check: clamp the UR in case we somehow exceeded 100% or went negative
