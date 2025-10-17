@@ -9,18 +9,21 @@ use marginfi::state::{
     interest_rate::InterestRateConfigImpl,
 };
 use marginfi_type_crate::types::{
-    p1000_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
+    make_points, p1000_to_u32, p100_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
+    RatePoint,
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
-    let optimal_utilization_rate = I80F48!(0.9);
-    let plateau_interest_rate = I80F48!(0.9);
     let interest_rate_config = InterestRateConfig {
-        optimal_utilization_rate: optimal_utilization_rate.into(),
-        plateau_interest_rate: plateau_interest_rate.into(),
+        zero_util_rate: 0,
+        points: make_points(&vec![RatePoint::new(
+            p100_to_u32(I80F48!(0.9)),
+            p1000_to_u32(I80F48!(0.9)),
+        )]),
+        // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
     };
     let test_f = TestFixture::new(Some(TestSettings {
@@ -139,15 +142,17 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> {
-    let optimal_utilization_rate = I80F48!(0.9);
-    let plateau_interest_rate = I80F48!(1);
-    let protocol_fixed_fee_apr = I80F48!(0.01);
-    let insurance_fee_fixed_apr = I80F48!(0.01);
+    let protocol_fixed_fee_apr: I80F48 = I80F48!(0.01);
+    let insurance_fee_fixed_apr: I80F48 = I80F48!(0.01);
     let interest_rate_config = InterestRateConfig {
-        optimal_utilization_rate: optimal_utilization_rate.into(),
-        plateau_interest_rate: plateau_interest_rate.into(),
         protocol_fixed_fee_apr: protocol_fixed_fee_apr.into(),
         insurance_fee_fixed_apr: insurance_fee_fixed_apr.into(),
+        zero_util_rate: 0,
+        points: make_points(&vec![RatePoint::new(
+            p100_to_u32(I80F48!(0.9)),
+            p1000_to_u32(I80F48!(1)),
+        )]),
+        // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
     };
     let test_f = TestFixture::new(Some(TestSettings {

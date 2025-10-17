@@ -181,10 +181,10 @@ impl InterestRateCalc {
             protocol_fee_fixed,
         } = self.get_fees();
 
-        let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
-        let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
+        let fee_ir: I80F48 = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
+        let fee_fixed: I80F48 = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate_apr = if self.curve_type == INTEREST_CURVE_SEVEN_POINT {
+        let base_rate_apr: I80F48 = if self.curve_type == INTEREST_CURVE_SEVEN_POINT {
             self.interest_rate_multipoint_curve(utilization_ratio)?
         } else {
             // TODO deprecate in 1.7 (change to no-op with msg warning?)
@@ -192,18 +192,19 @@ impl InterestRateCalc {
         };
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
-        let lending_rate_apr = base_rate_apr.checked_mul(utilization_ratio)?;
+        let lending_rate_apr: I80F48 = base_rate_apr.checked_mul(utilization_ratio)?;
 
         // Borrowing rate is adjusted for fees.
         // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
-        let borrowing_rate_apr = base_rate_apr
+        let borrowing_rate_apr: I80F48 = base_rate_apr
             .checked_mul(I80F48::ONE.checked_add(fee_ir)?)?
             .checked_add(fee_fixed)?;
 
-        let group_fee_apr = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
-        let insurance_fee_apr =
+        let group_fee_apr: I80F48 = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
+        let insurance_fee_apr: I80F48 =
             calc_fee_rate(base_rate_apr, insurance_fee_rate, insurance_fee_fixed)?;
-        let protocol_fee_apr = calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
+        let protocol_fee_apr: I80F48 =
+            calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
 
         assert!(lending_rate_apr >= I80F48::ZERO);
         assert!(borrowing_rate_apr >= I80F48::ZERO);
@@ -211,7 +212,6 @@ impl InterestRateCalc {
         assert!(insurance_fee_apr >= I80F48::ZERO);
         assert!(protocol_fee_apr >= I80F48::ZERO);
 
-        // TODO: Add liquidation discount check
         Some(ComputedInterestRates {
             base_rate_apr,
             lending_rate_apr,
@@ -243,65 +243,76 @@ impl InterestRateCalc {
         }
     }
 
+    /// Locates ur on a piecewise linear interest rate function with seven points: (0, Y1), (X2-5,
+    /// Y2-5), (100, Y6)
     #[inline]
     fn interest_rate_multipoint_curve(&self, ur: I80F48) -> Option<I80F48> {
-        let zero_rate = Self::rate_from_u32(self.zero_util_rate);
+        let zero_rate: I80F48 = Self::rate_from_u32(self.zero_util_rate);
         let hundred_rate = Self::rate_from_u32(self.hundred_util_rate);
 
-        let mut prev_util = I80F48::ZERO;
-        let mut prev_rate = zero_rate;
-        let clamped_ur = if ur < I80F48::ZERO {
-            I80F48::ZERO
-        } else if ur > I80F48::ONE {
-            I80F48::ONE
-        } else {
-            ur
-        };
+        let mut prev_util: I80F48 = I80F48::ZERO;
+        let mut prev_rate: I80F48 = zero_rate;
+        // Sanity check: clamp the UR in case we somehow exceeded 100% or went negative
+        let ur: I80F48 = ur.max(I80F48::ZERO).min(I80F48::ONE);
 
         for point in self.points.iter().filter(|point| point.util() != 0) {
-            let point_util = Self::util_from_u32(point.util());
-            let point_rate = Self::rate_from_u32(point.rate());
+            let point_util: I80F48 = Self::util_from_u32(point.util());
+            let point_rate: I80F48 = Self::rate_from_u32(point.rate());
 
-            if clamped_ur <= point_util {
-                return Self::lerp(prev_util, prev_rate, point_util, point_rate, clamped_ur);
+            if ur <= point_util {
+                return Self::lerp(prev_util, prev_rate, point_util, point_rate, ur);
             }
 
             prev_util = point_util;
             prev_rate = point_rate;
         }
 
-        Self::lerp(prev_util, prev_rate, I80F48::ONE, hundred_rate, clamped_ur)
+        Self::lerp(prev_util, prev_rate, I80F48::ONE, hundred_rate, ur)
     }
 
+    /// Given two points (start_x, start_y) and (end_x, end_y), and a target x between start_x and
+    /// end_x, linearly interpolates y at the given x.
+    ///
+    /// * returns start_y if end_x <= start_x or target < start_x
+    /// * returns end_y if target > end_x
+    /// * None if end_y < start_y. Note: this means curves where the rate decreases as the
+    ///   utilization goes up are unsupported, though there's no reason you would generally want to
+    ///   do that anyways.
     #[inline]
     fn lerp(
-        start_util: I80F48,
-        start_rate: I80F48,
-        end_util: I80F48,
-        end_rate: I80F48,
-        target_util: I80F48,
+        start_x: I80F48,
+        start_y: I80F48,
+        end_x: I80F48,
+        end_y: I80F48,
+        target_x: I80F48,
     ) -> Option<I80F48> {
-        if end_util <= start_util {
-            return Some(start_rate);
+        if end_x <= start_x {
+            return Some(start_y);
+        }
+        if target_x < start_x {
+            return Some(start_y);
+        }
+        if target_x > end_x {
+            return Some(end_y);
+        }
+        if end_y < start_y {
+            return None;
         }
 
-        let clamped_target = if target_util < start_util {
-            start_util
-        } else if target_util > end_util {
-            end_util
-        } else {
-            target_util
-        };
-        let delta_util = end_util.checked_sub(start_util)?;
-        if delta_util.is_zero() {
-            return Some(start_rate);
+        let delta_x: I80F48 = end_x - start_x;
+        if delta_x.is_zero() {
+            return Some(start_y);
         }
 
-        let offset = clamped_target.checked_sub(start_util)?;
-        let proportion = offset.checked_div(delta_util)?;
-        let delta_rate = end_rate - start_rate;
-        let scaled_delta = delta_rate.checked_mul(proportion)?;
-        start_rate.checked_add(scaled_delta)
+        // Safe: start_x < target_x
+        let offset: I80F48 = target_x - start_x;
+        // Safe: delta_x nonzero
+        let proportion: I80F48 = offset / delta_x;
+        // Safe: end_y > start_y
+        let delta_y: I80F48 = end_y - start_y;
+        let scaled_delta: I80F48 = delta_y.checked_mul(proportion)?;
+        // Safe: start_y + scaled_delta < end_y
+        Some(start_y + scaled_delta)
     }
 
     #[inline]
@@ -362,11 +373,11 @@ fn calc_accrued_interest_payment_per_period(
     time_delta: u64,
     value: I80F48,
 ) -> Option<I80F48> {
-    let ir_per_period = apr
+    let ir_per_period: I80F48 = apr
         .checked_mul(time_delta.into())?
         .checked_div(SECONDS_PER_YEAR)?;
 
-    let new_value = value.checked_mul(I80F48::ONE.checked_add(ir_per_period)?)?;
+    let new_value: I80F48 = value.checked_mul(I80F48::ONE.checked_add(ir_per_period)?)?;
 
     Some(new_value)
 }
@@ -378,7 +389,7 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
         return Some(I80F48::ZERO);
     }
 
-    let interest_payment = value
+    let interest_payment: I80F48 = value
         .checked_mul(apr)?
         .checked_mul(time_delta.into())?
         .checked_div(SECONDS_PER_YEAR)?;
@@ -422,7 +433,7 @@ pub fn calc_interest_rate_accrual_state_changes(
     liability_share_value: I80F48,
 ) -> Option<InterestRateStateChanges> {
     // If the cache is empty, we need to calculate the interest rates
-    let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
+    let utilization_rate: I80F48 = total_liabilities_amount.checked_div(total_assets_amount)?;
     debug!(
         "Utilization rate: {}, time delta {}s",
         utilization_rate, time_delta
