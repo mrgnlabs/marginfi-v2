@@ -13,6 +13,7 @@ use {
             find_bank_vault_pda, find_fee_state_pda, load_observation_account_metas,
             process_transaction, EXP_10_I80F48,
         },
+        RatePointArg,
     },
     anchor_client::{
         anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas},
@@ -39,8 +40,9 @@ use {
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
         },
         types::{
-            BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
+            make_points, BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
+            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, RatePoint,
+            WrappedI80F48, CURVE_POINTS, INTEREST_CURVE_SEVEN_POINT,
         },
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
@@ -325,9 +327,9 @@ pub fn group_add_bank(
     liability_weight_maint: f64,
     deposit_limit_ui: u64,
     borrow_limit_ui: u64,
-    optimal_utilization_rate: f64,
-    plateau_interest_rate: f64,
-    max_interest_rate: f64,
+    zero_util_rate: u32,
+    hundred_util_rate: u32,
+    points: Vec<RatePointArg>,
     insurance_fee_fixed_apr: f64,
     insurance_ir_fee: f64,
     group_fixed_fee_apr: f64,
@@ -348,9 +350,9 @@ pub fn group_add_bank(
     let liability_weight_init: WrappedI80F48 = I80F48::from_num(liability_weight_init).into();
     let liability_weight_maint: WrappedI80F48 = I80F48::from_num(liability_weight_maint).into();
 
-    let optimal_utilization_rate: WrappedI80F48 = I80F48::from_num(optimal_utilization_rate).into();
-    let plateau_interest_rate: WrappedI80F48 = I80F48::from_num(plateau_interest_rate).into();
-    let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
+    let optimal_utilization_rate: WrappedI80F48 = I80F48::ZERO.into();
+    let plateau_interest_rate: WrappedI80F48 = I80F48::ZERO.into();
+    let max_interest_rate: WrappedI80F48 = I80F48::ZERO.into();
     let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
     let group_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(group_fixed_fee_apr).into();
@@ -364,6 +366,15 @@ pub fn group_add_bank(
     let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
     let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
+    let pts_raw: Vec<RatePoint> = points
+        .iter()
+        .map(|p| RatePoint {
+            util: p.util,
+            rate: p.rate,
+        })
+        .collect();
+    let points: [RatePoint; CURVE_POINTS] = make_points(&pts_raw);
+
     let interest_rate_config = InterestRateConfig {
         optimal_utilization_rate,
         plateau_interest_rate,
@@ -372,6 +383,10 @@ pub fn group_add_bank(
         insurance_ir_fee,
         protocol_fixed_fee_apr: group_fixed_fee_apr,
         protocol_ir_fee: group_ir_fee,
+        zero_util_rate,
+        hundred_util_rate,
+        points,
+        curve_type: INTEREST_CURVE_SEVEN_POINT,
         ..InterestRateConfig::default()
     };
 

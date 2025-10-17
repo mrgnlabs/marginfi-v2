@@ -47,6 +47,7 @@ import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   defaultBankConfig,
   I80F48_ZERO,
+  makeRatePoints,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import {
@@ -215,8 +216,8 @@ export const genericMultiBankTestSetup = async (
  * * deposit/borrow limit = 100_000_000_000_000
  * * protocolOriginationFee = 0
  * * all fees = 0
- * * Plataeu rate = 20%
- * * Optimal rate = 80%
+ * * Plataeu rate = 20% (one point .8, .2)
+ * * Optimal rate = 80% (one point .8, .2)
  * * asset tag over-rides if provided.
  * * otherwise uses `defaultBankConfig()`
  * @param throwawayGroup
@@ -246,9 +247,7 @@ async function addGenericBank(
   config.borrowLimit = new BN(100_000_000_000_000);
   // We don't want origination fees messing with debt here
   config.interestRateConfig.protocolOriginationFee = I80F48_ZERO;
-  config.interestRateConfig.plateauInterestRate = bigNumberToWrappedI80F48(0.2);
-  config.interestRateConfig.optimalUtilizationRate =
-    bigNumberToWrappedI80F48(0.8);
+  config.interestRateConfig.points = makeRatePoints([0.8], [0.2]);
   if (assetTag) {
     config.assetTag = assetTag;
   }

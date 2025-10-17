@@ -305,7 +305,7 @@ describe("Emode liquidation", () => {
 
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
-        units: 260_000,
+        units: 360_000,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
@@ -415,7 +415,7 @@ describe("Emode liquidation", () => {
 
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
-        units: 260_000,
+        units: 360_000,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,

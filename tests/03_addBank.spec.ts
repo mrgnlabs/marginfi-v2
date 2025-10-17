@@ -23,11 +23,15 @@ import {
   assertKeysEqual,
 } from "./utils/genericTests";
 import {
+  aprToU32,
   ASSET_TAG_DEFAULT,
   CLOSE_ENABLED_FLAG,
   defaultBankConfig,
+  INTEREST_CURVE_SEVEN_POINT,
+  makeRatePoints,
   ORACLE_SETUP_PYTH_PUSH,
   PYTH_PULL_MIGRATED,
+  utilToU32,
 } from "./utils/types";
 import {
   deriveLiquidityVaultAuthority,
@@ -155,9 +159,10 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertBNEqual(config.depositLimit, 100_000_000_000);
 
     const tolerance = 0.000001;
-    assertI80F48Approx(interest.optimalUtilizationRate, 0.5, tolerance);
-    assertI80F48Approx(interest.plateauInterestRate, 0.6, tolerance);
-    assertI80F48Approx(interest.maxInterestRate, 3, tolerance);
+    // Note: Zero since 1.6 replaced the legacy curve system
+    assertI80F48Equal(interest.optimalUtilizationRate, 0);
+    assertI80F48Equal(interest.plateauInterestRate, 0);
+    assertI80F48Equal(interest.maxInterestRate, 0);
 
     assertI80F48Approx(interest.insuranceFeeFixedApr, 0.01, tolerance);
     assertI80F48Approx(interest.insuranceIrFee, 0.02, tolerance);
@@ -165,7 +170,29 @@ describe("Lending pool add bank (add bank to group)", () => {
     assertI80F48Approx(interest.protocolIrFee, 0.04, tolerance);
     assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
 
-    assertI80F48Approx(interest.protocolOriginationFee, 0.01, tolerance);
+    assert.equal(interest.zeroUtilRate, 0);
+    // Note: all U32 conversions can suffer from a tiny amount of rounding error
+    assert.approximately(interest.hundredUtilRate, aprToU32(3), 2);
+
+    const expPoints = makeRatePoints([0.5], [0.6]);
+    // const expUtilU32 = utilToU32(expPoints[0].util);
+    // const expAprU32 = aprToU32(expPoints[0].rate);
+    // console.log("exp: "+ expUtilU32);
+    assert.approximately(interest.points[0].util, expPoints[0].util, 2);
+    assert.approximately(interest.points[0].rate, expPoints[0].rate, 2);
+    // Rest is padding
+    for (let i = 1; i < 5; i++) {
+      const p = interest.points[i];
+      if (interest.points[i].util === 0 && interest.points[i].rate === 0) {
+        assert.equal(p.util, 0);
+        assert.equal(p.rate, 0);
+      } else {
+        assert.ok(false, "expected padding");
+      }
+    }
+
+    // Curve selector
+    assert.equal(interest.curveType, INTEREST_CURVE_SEVEN_POINT);
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { pythPushOracle: {} });

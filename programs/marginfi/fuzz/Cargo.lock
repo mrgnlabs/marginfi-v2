@@ -2514,6 +2514,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kamino-mocks"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "bytemuck",
+ "fixed",
+ "fixed-macro",
+ "marginfi-type-crate",
+ "static_assertions",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2750,7 +2762,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2761,6 +2773,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "id-crate",
+ "kamino-mocks",
  "lazy_static",
  "marginfi-type-crate",
  "pyth-solana-receiver-sdk",
@@ -2804,7 +2817,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi-type-crate"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anchor-lang",
  "bs58",
@@ -2812,6 +2825,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "id-crate",
+ "solana-instruction",
  "static_assertions",
 ]
 

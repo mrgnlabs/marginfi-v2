@@ -18,8 +18,8 @@ use marginfi_type_crate::{
         PYTH_PUSH_MIGRATED_DEPRECATED,
     },
     types::{
-        Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiGroup,
-        OracleSetup, StakedSettings,
+        make_points, Bank, BankConfigCompact, BankOperationalState, InterestRateConfig,
+        MarginfiGroup, OracleSetup, RatePoint, StakedSettings, INTEREST_CURVE_SEVEN_POINT,
     },
 };
 
@@ -54,11 +54,19 @@ pub fn lending_pool_add_bank_permissionless(
 
     // Note: Some placeholder values are non-zero to handle downstream validation checks.
     let default_ir_config = InterestRateConfig {
-        optimal_utilization_rate: I80F48!(0.4).into(),
-        plateau_interest_rate: I80F48!(0.4).into(),
+        // TODO deprecate in 1.7
+        optimal_utilization_rate: I80F48!(0).into(),
+        plateau_interest_rate: I80F48!(0).into(),
+        max_interest_rate: I80F48!(0).into(),
+
         protocol_fixed_fee_apr: I80F48!(0.01).into(),
-        max_interest_rate: I80F48!(3).into(),
         insurance_ir_fee: I80F48!(0.1).into(),
+
+        zero_util_rate: 0,
+        hundred_util_rate: 1234567,
+        points: make_points(&[RatePoint::new(12345, 123456)]),
+        curve_type: INTEREST_CURVE_SEVEN_POINT,
+
         ..Default::default()
     };
 

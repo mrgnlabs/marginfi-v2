@@ -30,12 +30,14 @@ import {
   assertKeysEqual,
 } from "./utils/genericTests";
 import {
+  aprToU32,
   ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   ASSET_TAG_STAKED,
   CLOSE_ENABLED_FLAG,
   defaultBankConfig,
   defaultStakedInterestSettings,
+  makeRatePoints,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import { assert } from "chai";
@@ -504,16 +506,37 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Approx(config.liabilityWeightMaint, 1.25);
     assertBNEqual(config.depositLimit, settingsAcc.depositLimit);
 
-    assertI80F48Approx(interest.optimalUtilizationRate, 0.4);
-    assertI80F48Approx(interest.plateauInterestRate, 0.4);
-    assertI80F48Approx(interest.maxInterestRate, 3);
+    assertI80F48Equal(interest.optimalUtilizationRate, 0);
+    assertI80F48Equal(interest.plateauInterestRate, 0);
+    assertI80F48Equal(interest.maxInterestRate, 0);
 
     assertI80F48Equal(interest.insuranceFeeFixedApr, 0);
     assertI80F48Approx(interest.insuranceIrFee, 0.1);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.01);
     assertI80F48Equal(interest.protocolIrFee, 0);
-
     assertI80F48Equal(interest.protocolOriginationFee, 0);
+
+    assert.equal(interest.zeroUtilRate, 0);
+    // Note: all U32 conversions can suffer from a tiny amount of rounding error
+    assert.equal(interest.hundredUtilRate, 1234567);
+
+    const expPoints = makeRatePoints([], []);
+    expPoints[0] = { util: 12345, rate: 123456 };
+    // const expUtilU32 = utilToU32(expPoints[0].util);
+    // const expAprU32 = aprToU32(expPoints[0].rate);
+    // console.log("exp: "+ expUtilU32);
+    assert.equal(interest.points[0].util, expPoints[0].util);
+    assert.equal(interest.points[0].rate, expPoints[0].rate);
+    // Rest is padding
+    for (let i = 1; i < 5; i++) {
+      const p = interest.points[i];
+      if (interest.points[i].util === 0 && interest.points[i].rate === 0) {
+        assert.equal(p.util, 0);
+        assert.equal(p.rate, 0);
+      } else {
+        assert.ok(false, "expected padding");
+      }
+    }
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { stakedWithPythPush: {} });

@@ -18,8 +18,6 @@ use marginfi_type_crate::{
 /// Add a bank to the lending pool
 ///
 /// Admin only
-///
-/// TODO: Allow for different oracle configurations
 pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
     bank_config: BankConfigCompact,
