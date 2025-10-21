@@ -502,7 +502,10 @@ mod tests {
     use fixed_macro::types::I80F48;
     use marginfi_type_crate::{
         constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
-        types::{Bank, BankConfig, InterestRateConfig, RatePoint, INTEREST_CURVE_SEVEN_POINT},
+        types::{
+            make_points, p1000_to_u32, p100_to_u32, Bank, BankConfig, InterestRateConfig,
+            RatePoint, INTEREST_CURVE_SEVEN_POINT,
+        },
     };
     use solana_sdk::clock::Clock;
     #[cfg(not(feature = "client"))]
@@ -1120,15 +1123,15 @@ mod tests {
         // Halfway (target = MAX/2) -> expect MAX/2
         let out =
             InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 2));
-        let tolerance: I80F48 = I80F48::from(u64::MAX) * I80F48!(0.00001);
+        let u64_tolerance: I80F48 = I80F48::from(u64::MAX) * I80F48!(0.00001);
         assert!(out.is_some());
-        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 2), tolerance);
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 2), u64_tolerance);
 
         // Quarter (target = MAX/4) -> expect MAX/4
         let out =
             InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 4));
         assert!(out.is_some());
-        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 4), tolerance);
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 4), u64_tolerance);
     }
 
     #[test]
@@ -1144,5 +1147,127 @@ mod tests {
 
         assert!(out.is_some());
         assert_eq!(out.unwrap(), I80F48::MAX);
+    }
+
+    /// A basic multi-point curve
+    fn mk_calc(
+        zero_rate_0_to_10: f32,
+        hundred_rate_0_to_10: f32,
+        interior: &[(f32, f32)],
+    ) -> InterestRateCalc {
+        let pts: Vec<RatePoint> = interior
+            .iter()
+            .map(|(u, r)| {
+                RatePoint::new(
+                    p100_to_u32(I80F48::from_num(*u)),
+                    p1000_to_u32(I80F48::from_num(*r)),
+                )
+            })
+            .collect();
+
+        InterestRateCalc {
+            optimal_utilization_rate: I80F48::ZERO,
+            plateau_interest_rate: I80F48::ZERO,
+            max_interest_rate: I80F48::ZERO,
+            insurance_fixed_fee: I80F48::ZERO,
+            insurance_rate_fee: I80F48::ZERO,
+            protocol_fixed_fee: I80F48::ZERO,
+            protocol_rate_fee: I80F48::ZERO,
+            program_fee_fixed: I80F48::ZERO,
+            program_fee_rate: I80F48::ZERO,
+            add_program_fees: false,
+
+            zero_util_rate: p1000_to_u32(I80F48::from_num(zero_rate_0_to_10)),
+            hundred_util_rate: p1000_to_u32(I80F48::from_num(hundred_rate_0_to_10)),
+            points: make_points(&pts),
+            curve_type: 0,
+        }
+    }
+
+    // Note: Tolerance is pretty crappy (relatively speaking) because of u32 math, but this isn't
+    // especially important since the different between 1% base rate and 1.000001 is trivial
+    const TOLERANCE: I80F48 = I80F48!(0.000001);
+
+    #[test]
+    fn mpc_clamps_ur_below_zero_to_zero_rate() {
+        // zero=1.5, hundred=9.0, no interior points
+        let calc = mk_calc(1.5, 9.0, &[]);
+        // negative ur should clamp to 0.0
+        let ur: I80F48 = I80F48!(0) - I80F48!(0.25);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(ur).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(1.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_clamps_ur_above_one_to_hundred_rate() {
+        let calc = mk_calc(0.5, 8.25, &[]);
+        // ur > 1 clamps to 1.0 → hundred rate
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(1.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(8.25), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_on_point_returns_point_rate_exactly() {
+        // zero=1.0; points at 0.25→2.5 and 0.5→5.0
+        let calc = mk_calc(1.0, 9.0, &[(0.25, 2.5), (0.5, 5.0)]);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(2.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_between_zero_and_first_point_interpolates() {
+        // (0, 1.0) to (0.4, 5.0); ur=0.2 → halfway → 3.0
+        let calc = mk_calc(1.0, 9.0, &[(0.4, 5.0)]);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.2)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(3.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_between_internal_points_interpolates() {
+        // points: (0.25,2.0), (0.5,6.0), (0.75,8.0)
+        let calc = mk_calc(0.5, 9.5, &[(0.25, 2.0), (0.5, 6.0), (0.75, 8.0)]);
+        // halfway between 0.25 and 0.5 → 4.0
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.375)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(4.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_after_last_point_to_one_interpolates_to_hundred_rate() {
+        // last interior point at 0.9 with rate 9.0; hundred=10.0
+        let calc = mk_calc(1.0, 10.0, &[(0.3, 2.0), (0.6, 6.0), (0.9, 9.0)]);
+        // ur=0.95 → halfway from 9.0 to 10.0 → 9.5
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.95)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(9.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_decreasing_segment_returns_none() {
+        // decreasing between (0.5,6.0) → (0.75, 4.0)
+        let calc = mk_calc(1.0, 9.0, &[(0.25, 2.0), (0.5, 6.0), (0.75, 4.0)]);
+        let out = calc.interest_rate_multipoint_curve(I80F48!(0.6));
+        assert!(
+            out.is_none(),
+            "expected None for decreasing segment, got {out:?}"
+        );
+    }
+
+    // Note: this state is invalid, but should be handled just in case...
+    #[test]
+    fn mpc_zero_util_points_are_ignored() {
+        // First point has util=0 (ignored). Effective first segment: (0,1.0) → (0.5,5.0)
+        let calc = mk_calc(1.0, 9.0, &[(0.0, 8.0), (0.5, 5.0)]);
+        // ur=0.25 → halfway between 1.0 and 5.0 → 3.0
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(3.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_exactly_zero_and_one_match_endpoints() {
+        let calc = mk_calc(1.2, 7.8, &[(0.25, 2.0), (0.5, 6.0)]);
+        let at_zero: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.0)).unwrap();
+        assert_eq_with_tolerance!(at_zero, I80F48!(1.2), TOLERANCE);
+
+        let at_one: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(1.0)).unwrap();
+        assert_eq_with_tolerance!(at_one, I80F48!(7.8), TOLERANCE);
     }
 }
