@@ -987,4 +987,162 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn lerp_returns_start_y_when_end_x_le_start_x() {
+        // end_x < start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(1.0),
+            I80F48!(2.0),
+            I80F48!(0.5),
+            I80F48!(5.0),
+            I80F48!(0.75),
+        );
+        assert_eq!(out, Some(I80F48!(2.0)));
+
+        // end_x == start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(1.0),
+            I80F48!(2.0),
+            I80F48!(1.0),
+            I80F48!(5.0),
+            I80F48!(1.0),
+        );
+        assert_eq!(out, Some(I80F48!(2.0)));
+    }
+
+    #[test]
+    fn lerp_returns_start_y_when_target_before_start() {
+        // target_x < start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.2),
+            I80F48!(1.5),
+            I80F48!(0.8),
+            I80F48!(3.0),
+            I80F48!(0.1),
+        );
+        assert_eq!(out, Some(I80F48!(1.5)));
+    }
+
+    #[test]
+    fn lerp_returns_end_y_when_target_after_end() {
+        // target_x > end_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(0.0),
+            I80F48!(1.0),
+            I80F48!(4.0),
+            I80F48!(1.5),
+        );
+        assert_eq!(out, Some(I80F48!(4.0)));
+    }
+
+    // NOTE: we don't support decreasing curves because that would be silly for our use-case. There
+    // is no circumstance (we think) where interest should decline as utilization increases.
+    #[test]
+    fn lerp_returns_none_when_end_y_less_than_start_y_and_target_in_range() {
+        // target_x in (start_x, end_x) but end_y < start_y => None
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(5.0),
+            I80F48!(1.0),
+            I80F48!(3.0),
+            I80F48!(0.5),
+        );
+        assert_eq!(out, None);
+    }
+
+    #[test]
+    fn lerp_interpolates_linearly_basic_cases() {
+        // Simple 0 -> 1 over x in [0,1]
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(0.0),
+            I80F48!(1.0),
+            I80F48!(1.0),
+            I80F48!(0.25),
+        );
+        assert_eq!(out, Some(I80F48!(0.25)));
+
+        // Halfway
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(6.0),
+            I80F48!(5.0),
+        );
+        // 2 + (6 - 2) / 2
+        assert_eq!(out, Some(I80F48!(4.0)));
+
+        // Non-zero start X, non-zero start Y, non-unit span
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(1.0),
+            I80F48!(6.0),
+            I80F48!(3.0),
+            I80F48!(3.0),
+        );
+        // y goes 1.0 -> 3.0 as x goes 2.0 -> 6.0; at x=3.0 (25% along), y=1.5
+        assert_eq!(out, Some(I80F48!(1.5)));
+    }
+
+    #[test]
+    fn lerp_interpolates_at_range_boundaries() {
+        // target == start_x returns start_y
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(5.0),
+            I80F48!(13.0),
+            I80F48!(2.0),
+        );
+        assert_eq!(out, Some(I80F48!(10.0)));
+
+        // target == end_x returns end_y
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(5.0),
+            I80F48!(13.0),
+            I80F48!(5.0),
+        );
+        assert_eq!(out, Some(I80F48!(13.0)));
+    }
+
+    #[test]
+    fn lerp_large_numbers_u64_max_span() {
+        let start_x = I80F48::from(0u64);
+        let end_x = I80F48::from(u64::MAX);
+        let start_y = I80F48::from(0u64);
+        let end_y = I80F48::from(u64::MAX);
+
+        // Halfway (target = MAX/2) -> expect MAX/2
+        let out =
+            InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 2));
+        let tolerance: I80F48 = I80F48::from(u64::MAX) * I80F48!(0.00001);
+        assert!(out.is_some());
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 2), tolerance);
+
+        // Quarter (target = MAX/4) -> expect MAX/4
+        let out =
+            InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 4));
+        assert!(out.is_some());
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 4), tolerance);
+    }
+
+    #[test]
+    fn lerp_large_numbers_i80f48_max_span() {
+        let start_x: I80F48 = I80F48!(0.0);
+        let end_x: I80F48 = I80F48!(1.0);
+        let target: I80F48 = I80F48!(1.0);
+        // slightly below max
+        let start_y: I80F48 = I80F48::MAX - I80F48!(12345678); // slightly below max
+        let end_y: I80F48 = I80F48::MAX;
+
+        let out = InterestRateCalc::lerp(start_x, start_y, end_x, end_y, target);
+
+        assert!(out.is_some());
+        assert_eq!(out.unwrap(), I80F48::MAX);
+    }
 }
