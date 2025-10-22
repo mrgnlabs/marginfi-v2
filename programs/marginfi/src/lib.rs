@@ -547,7 +547,7 @@ pub mod marginfi {
         marginfi_account::admin_super_withdraw(ctx)
     }
 
-    // TODO deperecate in 1.7
+    // TODO deprecate in 1.7
     /// (Permissionless) Convert a bank from the legacy curve setup to the new setup, with no effect
     /// on how interest accrues.
     pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
