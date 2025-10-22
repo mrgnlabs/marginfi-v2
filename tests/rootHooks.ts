@@ -129,15 +129,13 @@ export const GAPPY3_SAMPLE = new PublicKey(
 export const GAPPY4_SAMPLE = new PublicKey(
   "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 );
-/** A pyth pull account created before 0.1.4. Uses seed 789 on group
- * `MARGINFI_GROUP_SEED_1234000000p2` Note that some accounts the bank normally creates don't exist
- * (e.g. the insurance vault, etc) which makes certain ixes unusable.*/
-export const PRE_MIGRATION_BANK_SAMPLE = new PublicKey(
-  "A5qx1NMxfb3zywMuuo276KntUQk2zA3r3q6ZNwVBbMZC"
+/** The production BONK bank, with owner artificially swapped for the localnet program. */
+export const LEGACY_BANK_SAMPLE = new PublicKey(
+  "DeyH7QxWvnbbaVB4zFrf4hoq7Q8z1ZT14co42BGwGtfM"
 );
-/** The liquidity vault for `PRE_MIGRATION_BANK`. */
-export const PRE_MIGRATION_BANK_LIQ_VAULT = new PublicKey(
-  "CMTyrgnFkmC6ZUpKivZ2MAatqCq7tMFL4iWWzHrYABBt"
+/** The production group (LEGACY_BANK_SAMPLE's group) */
+export const MAINNET_GROUP = new PublicKey(
+  "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"
 );
 
 /** Banks in the emode test suite use this seed */
@@ -153,8 +151,8 @@ let copyKeys: PublicKey[] = [
   PYTH_ORACLE_SAMPLE,
   GAPPY3_SAMPLE,
   GAPPY4_SAMPLE,
-  PRE_MIGRATION_BANK_SAMPLE,
-  PRE_MIGRATION_BANK_LIQ_VAULT,
+  LEGACY_BANK_SAMPLE,
+  MAINNET_GROUP,
 ];
 
 export let kaminoAccounts: Map<string, PublicKey>;

@@ -2,20 +2,14 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::types::{
-    make_points, p1000_to_u32, p100_to_u32, Bank, MarginfiGroup, RatePoint,
-    INTEREST_CURVE_SEVEN_POINT,
+    make_points, p1000_to_u32, p100_to_u32, Bank, RatePoint, INTEREST_CURVE_SEVEN_POINT,
 };
 
 use crate::{state::bank_config::BankConfigImpl, utils::wrapped_i80f48_to_f64};
 
 #[derive(Accounts)]
 pub struct MigrateCurve<'info> {
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        mut,
-        has_one = group
-    )]
+    #[account(mut)]
     pub bank: AccountLoader<'info, Bank>,
 }
 

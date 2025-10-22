@@ -1,23 +1,31 @@
-import { Transaction } from "@solana/web3.js";
+import { SystemProgram, Transaction } from "@solana/web3.js";
 import { Clock } from "solana-bankrun";
 import { assert } from "chai";
 import BigNumber from "bignumber.js";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import {
-  PRE_MIGRATION_BANK_SAMPLE,
+  LEGACY_BANK_SAMPLE,
   bankrunContext,
   bankrunProgram,
   banksClient,
+  groupAdmin,
   users,
+  verbose,
 } from "./rootHooks";
 import { accrueInterest, migrateCurve } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { getEpochAndSlot } from "./utils/stake-utils";
-import { INTEREST_CURVE_SEVEN_POINT, aprToU32, utilToU32 } from "./utils/types";
+import {
+  INTEREST_CURVE_LEGACY,
+  INTEREST_CURVE_SEVEN_POINT,
+  aprToU32,
+  utilToU32,
+} from "./utils/types";
 import { assertI80F48Equal } from "./utils/genericTests";
+import { processBankrunTransaction } from "./utils/tools";
 
-const INTERVAL_SECONDS = 6 * 60 * 60; // six hours
-const SLOT_DURATION_SECONDS = 2.5; // approximate solana slot duration used in other tests
+const INTERVAL_SECONDS = 6 * 60 * 60;
+const SLOT_DURATION_SECONDS = 0.4;
 
 const toBigNumber = (value: any): BigNumber => wrappedI80F48toBigNumber(value);
 
@@ -38,21 +46,41 @@ const advanceTime = async (seconds: number) => {
 const sendLegacyAccrual = async () => {
   const user = users[0];
   const tx = new Transaction();
-  tx.add(await accrueInterest(user.mrgnBankrunProgram, { bank: PRE_MIGRATION_BANK_SAMPLE }));
-  tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-  tx.feePayer = user.wallet.publicKey;
-  tx.sign(user.wallet);
-  await banksClient.processTransaction(tx);
+  tx.add(
+    await accrueInterest(user.mrgnBankrunProgram, {
+      bank: LEGACY_BANK_SAMPLE,
+    }),
+    // dummy tx to trick bankrun
+    SystemProgram.transfer({
+      fromPubkey: user.wallet.publicKey,
+      toPubkey: groupAdmin.wallet.publicKey,
+      lamports: Math.round(Math.random() * 10000),
+    })
+  );
+  await processBankrunTransaction(
+    bankrunContext,
+    tx,
+    [user.wallet],
+    false,
+    true
+  );
 };
 
 const sendMigration = async () => {
   const user = users[0];
   const tx = new Transaction();
-  tx.add(await migrateCurve(user.mrgnBankrunProgram, { bank: PRE_MIGRATION_BANK_SAMPLE }));
-  tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-  tx.feePayer = user.wallet.publicKey;
-  tx.sign(user.wallet);
-  await banksClient.processTransaction(tx);
+  tx.add(
+    await migrateCurve(user.mrgnBankrunProgram, {
+      bank: LEGACY_BANK_SAMPLE,
+    })
+  );
+  await processBankrunTransaction(
+    bankrunContext,
+    tx,
+    [user.wallet],
+    false,
+    true
+  );
 };
 
 describe("Legacy bank curve migration", () => {
@@ -67,18 +95,27 @@ describe("Legacy bank curve migration", () => {
   let maxRateBefore: number;
 
   it("captures the legacy curve configuration", async () => {
-    const bankBefore = await bankrunProgram.account.bank.fetch(PRE_MIGRATION_BANK_SAMPLE);
+    const bankBefore = await bankrunProgram.account.bank.fetch(
+      LEGACY_BANK_SAMPLE
+    );
     const ircBefore = bankBefore.config.interestRateConfig;
 
-    assert.notEqual(ircBefore.curveType, INTEREST_CURVE_SEVEN_POINT);
+    assert.equal(ircBefore.curveType, INTEREST_CURVE_LEGACY);
 
     optimalBefore = toBigNumber(ircBefore.optimalUtilizationRate).toNumber();
     plateauBefore = toBigNumber(ircBefore.plateauInterestRate).toNumber();
     maxRateBefore = toBigNumber(ircBefore.maxInterestRate).toNumber();
 
-    assert.isAbove(optimalBefore, 0, "expected a non-zero optimal utilization rate before migration");
-    assert.isAbove(plateauBefore, 0, "expected a non-zero plateau interest rate before migration");
-    assert.isAbove(maxRateBefore, 0, "expected a non-zero max interest rate before migration");
+    if (verbose) {
+      console.log("Rates before");
+      console.log(" optimal: " + optimalBefore);
+      console.log(" plat: " + plateauBefore);
+      console.log(" max: " + maxRateBefore);
+    }
+
+    assert.isAbove(optimalBefore, 0);
+    assert.isAbove(plateauBefore, 0);
+    assert.isAbove(maxRateBefore, 0);
 
     initialLiabilityShareValue = toBigNumber(bankBefore.liabilityShareValue);
   });
@@ -86,9 +123,11 @@ describe("Legacy bank curve migration", () => {
   it("accrues interest using the legacy curve", async () => {
     await sendLegacyAccrual();
     const bankAfterWarmup = await bankrunProgram.account.bank.fetch(
-      PRE_MIGRATION_BANK_SAMPLE
+      LEGACY_BANK_SAMPLE
     );
-    postWarmupLiabilityShareValue = toBigNumber(bankAfterWarmup.liabilityShareValue);
+    postWarmupLiabilityShareValue = toBigNumber(
+      bankAfterWarmup.liabilityShareValue
+    );
     assert.isTrue(
       postWarmupLiabilityShareValue.gte(initialLiabilityShareValue),
       "liability share value should not decrease after accrual"
@@ -99,19 +138,26 @@ describe("Legacy bank curve migration", () => {
     await advanceTime(INTERVAL_SECONDS);
     await sendLegacyAccrual();
     const bankAfterLegacyInterval = await bankrunProgram.account.bank.fetch(
-      PRE_MIGRATION_BANK_SAMPLE
+      LEGACY_BANK_SAMPLE
     );
-    postLegacyLiabilityShareValue = toBigNumber(bankAfterLegacyInterval.liabilityShareValue);
-    const legacyDelta = postLegacyLiabilityShareValue.minus(postWarmupLiabilityShareValue);
-    assert.isTrue(legacyDelta.gt(0), "expected positive interest accrual before migration");
+    postLegacyLiabilityShareValue = toBigNumber(
+      bankAfterLegacyInterval.liabilityShareValue
+    );
+    const legacyDelta = postLegacyLiabilityShareValue.minus(
+      postWarmupLiabilityShareValue
+    );
+    console.log("delta: " + legacyDelta);
+    assert.isAbove(Number(legacyDelta), 0);
   });
 
   it("migrates the curve and validates the configuration", async () => {
     await sendMigration();
     const bankAfterMigration = await bankrunProgram.account.bank.fetch(
-      PRE_MIGRATION_BANK_SAMPLE
+      LEGACY_BANK_SAMPLE
     );
-    postMigrationLiabilityShareValue = toBigNumber(bankAfterMigration.liabilityShareValue);
+    postMigrationLiabilityShareValue = toBigNumber(
+      bankAfterMigration.liabilityShareValue
+    );
 
     const ircAfter = bankAfterMigration.config.interestRateConfig;
 
@@ -146,16 +192,25 @@ describe("Legacy bank curve migration", () => {
   });
 
   it("accrues interest with the migrated curve at a similar rate", async () => {
-    const legacyDelta = postLegacyLiabilityShareValue.minus(postWarmupLiabilityShareValue);
+    const legacyDelta = postLegacyLiabilityShareValue.minus(
+      postWarmupLiabilityShareValue
+    );
     await advanceTime(INTERVAL_SECONDS);
     await sendLegacyAccrual();
     const bankAfterNewInterval = await bankrunProgram.account.bank.fetch(
-      PRE_MIGRATION_BANK_SAMPLE
+      LEGACY_BANK_SAMPLE
     );
-    postNewLiabilityShareValue = toBigNumber(bankAfterNewInterval.liabilityShareValue);
-    const migratedDelta = postNewLiabilityShareValue.minus(postMigrationLiabilityShareValue);
+    postNewLiabilityShareValue = toBigNumber(
+      bankAfterNewInterval.liabilityShareValue
+    );
+    const migratedDelta = postNewLiabilityShareValue.minus(
+      postMigrationLiabilityShareValue
+    );
 
-    assert.isTrue(migratedDelta.gt(0), "expected positive interest accrual after migration");
+    assert.isTrue(
+      migratedDelta.gt(0),
+      "expected positive interest accrual after migration"
+    );
 
     const averageDelta = legacyDelta.plus(migratedDelta).dividedBy(2);
     const tolerance = averageDelta.abs().multipliedBy(0.05);
