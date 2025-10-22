@@ -2,50 +2,74 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::types::{
-    make_points, p1000_to_u32, p100_to_u32, Bank, RatePoint, INTEREST_CURVE_SEVEN_POINT,
+    make_points, p1000_to_u32, p100_to_u32, Bank, MarginfiGroup, RatePoint,
+    INTEREST_CURVE_SEVEN_POINT,
 };
+
+use crate::{state::bank_config::BankConfigImpl, utils::wrapped_i80f48_to_f64};
 
 #[derive(Accounts)]
 pub struct MigrateCurve<'info> {
-    #[account(mut)]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        has_one = group
+    )]
     pub bank: AccountLoader<'info, Bank>,
 }
 
 pub fn migrate_curve(ctx: Context<MigrateCurve>) -> Result<()> {
-    let mut bank = ctx.accounts.bank.load_mut()?;
-    let irc = &mut bank.config.interest_rate_config;
-
-    if irc.curve_type == INTEREST_CURVE_SEVEN_POINT {
-        msg!("Already migrated, doing nothing");
-        return Ok(());
+    {
+        msg!("Migrating bank {:?}", &ctx.accounts.bank.key());
+        let bank = ctx.accounts.bank.load()?;
+        bank.config.validate()?;
+        let irc = &bank.config.interest_rate_config;
+        msg!(
+            "Rate was optimal: {:?} max: {:?} plat: {:?}",
+            wrapped_i80f48_to_f64(irc.optimal_utilization_rate),
+            wrapped_i80f48_to_f64(irc.max_interest_rate),
+            wrapped_i80f48_to_f64(irc.plateau_interest_rate)
+        );
     }
 
-    irc.zero_util_rate = 0;
+    let mut bank = ctx.accounts.bank.load_mut()?;
+    {
+        let irc = &mut bank.config.interest_rate_config;
 
-    let hundred_rate: I80F48 = irc.max_interest_rate.into();
-    irc.hundred_util_rate = p1000_to_u32(hundred_rate);
+        if irc.curve_type == INTEREST_CURVE_SEVEN_POINT {
+            msg!("Already migrated, doing nothing");
+            return Ok(());
+        }
 
-    let util: I80F48 = irc.optimal_utilization_rate.into();
-    let rate: I80F48 = irc.plateau_interest_rate.into();
-    let point = RatePoint {
-        util: p100_to_u32(util),
-        rate: p1000_to_u32(rate),
-    };
-    irc.points = make_points(&[point]);
-    irc.curve_type = INTEREST_CURVE_SEVEN_POINT;
+        irc.zero_util_rate = 0;
 
-    // Zero out the old fields so they can be recycled
-    irc.plateau_interest_rate = I80F48::ZERO.into();
-    irc.max_interest_rate = I80F48::ZERO.into();
-    irc.optimal_utilization_rate = I80F48::ZERO.into();
+        let hundred_rate: I80F48 = irc.max_interest_rate.into();
+        irc.hundred_util_rate = p1000_to_u32(hundred_rate);
 
-    let interest = bank.config.interest_rate_config;
-    msg!(
-        "Migration complete. Rate at 0: {:?} points: {:?} rate at 100: {:?}",
-        interest.zero_util_rate,
-        interest.points,
-        interest.hundred_util_rate
-    );
+        let util: I80F48 = irc.optimal_utilization_rate.into();
+        let rate: I80F48 = irc.plateau_interest_rate.into();
+        let point = RatePoint {
+            util: p100_to_u32(util),
+            rate: p1000_to_u32(rate),
+        };
+        irc.points = make_points(&[point]);
+        irc.curve_type = INTEREST_CURVE_SEVEN_POINT;
+
+        // Zero out the old fields so they can be recycled
+        irc.plateau_interest_rate = I80F48::ZERO.into();
+        irc.max_interest_rate = I80F48::ZERO.into();
+        irc.optimal_utilization_rate = I80F48::ZERO.into();
+
+        msg!(
+            "Migration complete. Rate at 0: {:?} points: {:?} rate at 100: {:?}",
+            irc.zero_util_rate,
+            irc.points,
+            irc.hundred_util_rate
+        );
+    }
+
+    bank.config.validate()?;
 
     Ok(())
 }
