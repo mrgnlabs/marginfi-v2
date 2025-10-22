@@ -47,7 +47,7 @@ pub fn log_pool_info(bank: &Bank) {
         wrapped_i80f48_to_f64(interest.protocol_origination_fee)
     );
     msg!(
-        "Rate at 0: {:?} points: {:?}: rate at 100: {:?}",
+        "Rate at 0: {:?} points: {:?} rate at 100: {:?}",
         interest.zero_util_rate,
         interest.points,
         interest.hundred_util_rate

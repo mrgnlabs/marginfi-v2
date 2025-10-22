@@ -54,11 +54,6 @@ pub fn lending_pool_add_bank_permissionless(
 
     // Note: Some placeholder values are non-zero to handle downstream validation checks.
     let default_ir_config = InterestRateConfig {
-        // TODO deprecate in 1.7
-        optimal_utilization_rate: I80F48!(0).into(),
-        plateau_interest_rate: I80F48!(0).into(),
-        max_interest_rate: I80F48!(0).into(),
-
         protocol_fixed_fee_apr: I80F48!(0.01).into(),
         insurance_ir_fee: I80F48!(0.1).into(),
 

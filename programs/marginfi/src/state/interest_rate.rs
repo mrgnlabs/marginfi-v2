@@ -290,10 +290,10 @@ impl InterestRateCalc {
             return Some(start_y);
         }
         if target_x < start_x {
-            return Some(start_y);
+            return None;
         }
         if target_x > end_x {
-            return Some(end_y);
+            return None;
         }
         if end_y < start_y {
             return None;
@@ -1015,7 +1015,7 @@ mod tests {
     }
 
     #[test]
-    fn lerp_returns_start_y_when_target_before_start() {
+    fn lerp_none_when_target_before_start() {
         // target_x < start_x
         let out = InterestRateCalc::lerp(
             I80F48!(0.2),
@@ -1024,11 +1024,11 @@ mod tests {
             I80F48!(3.0),
             I80F48!(0.1),
         );
-        assert_eq!(out, Some(I80F48!(1.5)));
+        assert!(out.is_none());
     }
 
     #[test]
-    fn lerp_returns_end_y_when_target_after_end() {
+    fn lerp_none_when_target_after_end() {
         // target_x > end_x
         let out = InterestRateCalc::lerp(
             I80F48!(0.0),
@@ -1037,7 +1037,7 @@ mod tests {
             I80F48!(4.0),
             I80F48!(1.5),
         );
-        assert_eq!(out, Some(I80F48!(4.0)));
+        assert!(out.is_none());
     }
 
     // NOTE: we don't support decreasing curves because that would be silly for our use-case. There

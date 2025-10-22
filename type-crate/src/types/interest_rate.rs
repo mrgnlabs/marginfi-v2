@@ -35,10 +35,10 @@ pub struct InterestRateConfig {
     pub protocol_ir_fee: WrappedI80F48,
     pub protocol_origination_fee: WrappedI80F48,
 
-    /// The base rate at utilizatation = 0
+    /// The base rate at utilization = 0
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub zero_util_rate: u32,
-    /// The base rate at utilizatation = 100
+    /// The base rate at utilization = 100
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub hundred_util_rate: u32,
     /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
@@ -118,22 +118,16 @@ pub fn p100_to_u32(value: I80F48) -> u32 {
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigOpt {
-    // // TODO deprecate
-    // pub optimal_utilization_rate: Option<WrappedI80F48>,
-    // // TODO deprecate
-    // pub plateau_interest_rate: Option<WrappedI80F48>,
-    // // TODO deprecate
-    // pub max_interest_rate: Option<WrappedI80F48>,
     pub insurance_fee_fixed_apr: Option<WrappedI80F48>,
     pub insurance_ir_fee: Option<WrappedI80F48>,
     pub protocol_fixed_fee_apr: Option<WrappedI80F48>,
     pub protocol_ir_fee: Option<WrappedI80F48>,
     pub protocol_origination_fee: Option<WrappedI80F48>,
 
-    /// The base rate at utilizatation = 0
+    /// The base rate at utilization = 0
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub zero_util_rate: Option<u32>,
-    /// The base rate at utilizatation = 100
+    /// The base rate at utilization = 100
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub hundred_util_rate: Option<u32>,
     /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
@@ -148,13 +142,6 @@ pub struct InterestRateConfigOpt {
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigCompact {
-    // // TODO deprecate
-    // pub optimal_utilization_rate: WrappedI80F48,
-    // // TODO deprecate
-    // pub plateau_interest_rate: WrappedI80F48,
-    // // TODO deprecate
-    // pub max_interest_rate: WrappedI80F48,
-
     // Fees
     pub insurance_fee_fixed_apr: WrappedI80F48,
     pub insurance_ir_fee: WrappedI80F48,
@@ -162,10 +149,10 @@ pub struct InterestRateConfigCompact {
     pub protocol_ir_fee: WrappedI80F48,
     pub protocol_origination_fee: WrappedI80F48,
 
-    /// The base rate at utilizatation = 0
+    /// The base rate at utilization = 0
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub zero_util_rate: u32,
-    /// The base rate at utilizatation = 100
+    /// The base rate at utilization = 100
     /// * a %, as u32, out of 1000%, e.g. 100% = 0.1 * u32::MAX
     pub hundred_util_rate: u32,
     /// The base rate at various points between 0 and 100%, exclusive. Essentially a piece-wise
