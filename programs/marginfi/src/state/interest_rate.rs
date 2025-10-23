@@ -1,3 +1,5 @@
+use anchor_lang::err;
+use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::SECONDS_PER_YEAR,
@@ -86,14 +88,20 @@ impl InterestRateConfigImpl for InterestRateConfig {
         // Collect used points (util > 0), enforce trailing padding
         let mut used: Vec<RatePoint> = Vec::with_capacity(self.points.len());
         let mut seen_padding = false;
-        for p in self.points.iter() {
+        for (i, p) in self.points.iter().enumerate() {
             if p.util == 0 {
                 // Padding: must be (0,0); once seen, all following must be padding as well.
-                check!(p.rate == 0, MarginfiError::InvalidConfig);
+                if p.rate != 0 {
+                    msg!("Expected padding (zero rate) at {:?}", i);
+                    return err!(MarginfiError::InvalidConfig);
+                }
                 seen_padding = true;
             } else {
                 // No "holes": non-zero util after padding is not allowed.
-                check!(!seen_padding, MarginfiError::InvalidConfig);
+                if seen_padding {
+                    msg!("Expected padding at {:?} (no holes permitted)", i);
+                    return err!(MarginfiError::InvalidConfig);
+                }
 
                 used.push(*p);
             }
@@ -104,15 +112,29 @@ impl InterestRateConfigImpl for InterestRateConfig {
             let prev = &used[i - 1];
             let curr = &used[i];
 
-            check!(prev.util < curr.util, MarginfiError::InvalidConfig);
-            check!(prev.rate <= curr.rate, MarginfiError::InvalidConfig);
+            if prev.util >= curr.util {
+                msg!("util not ascending between {:?} {:?}", i - 1, i);
+                msg!("utils: {:?} {:?}", prev.util, curr.util);
+                return err!(MarginfiError::InvalidConfig);
+            }
+            if prev.rate > curr.rate {
+                msg!("rate is decreasing between {:?} {:?}", i - 1, i);
+                msg!("rates: {:?} {:?}", prev.rate, curr.rate);
+                return err!(MarginfiError::InvalidConfig);
+            }
         }
 
         // rate at zero < rate at 100%, and for each point p, 0_rate <= p <= 100%_rate
-        check!(
-            zero <= hundred && used.iter().all(|p| zero <= p.rate && p.rate <= hundred),
-            MarginfiError::InvalidConfig
-        );
+        let zero_lte_hundred = zero <= hundred;
+        if !zero_lte_hundred {
+            msg!("The zero rate is higher than the hundred rate");
+            return err!(MarginfiError::InvalidConfig);
+        }
+        let p_between_zero_hundred = used.iter().all(|p| zero <= p.rate && p.rate <= hundred);
+        if !p_between_zero_hundred {
+            msg!("A point is not between 0 and 100 rates");
+            return err!(MarginfiError::InvalidConfig);
+        }
 
         Ok(())
     }
@@ -184,11 +206,11 @@ impl InterestRateCalc {
         let fee_ir: I80F48 = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
         let fee_fixed: I80F48 = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate_apr: I80F48 = if self.curve_type == INTEREST_CURVE_SEVEN_POINT {
-            self.interest_rate_multipoint_curve(utilization_ratio)?
-        } else {
+        let base_rate_apr: I80F48 = match self.curve_type {
             // TODO deprecate in 1.7 (change to no-op with msg warning?)
-            self.interest_rate_curve(utilization_ratio)?
+            INTEREST_CURVE_LEGACY => self.interest_rate_curve(utilization_ratio)?,
+            INTEREST_CURVE_SEVEN_POINT => self.interest_rate_multipoint_curve(utilization_ratio)?,
+            _ => panic!("unsupported curve type"),
         };
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
@@ -503,7 +525,7 @@ mod tests {
     use marginfi_type_crate::{
         constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
         types::{
-            make_points, p1000_to_u32, p100_to_u32, Bank, BankConfig, InterestRateConfig,
+            centi_to_u32, make_points, milli_to_u32, Bank, BankConfig, InterestRateConfig,
             RatePoint, INTEREST_CURVE_SEVEN_POINT,
         },
     };
@@ -1159,8 +1181,8 @@ mod tests {
             .iter()
             .map(|(u, r)| {
                 RatePoint::new(
-                    p100_to_u32(I80F48::from_num(*u)),
-                    p1000_to_u32(I80F48::from_num(*r)),
+                    centi_to_u32(I80F48::from_num(*u)),
+                    milli_to_u32(I80F48::from_num(*r)),
                 )
             })
             .collect();
@@ -1177,8 +1199,8 @@ mod tests {
             program_fee_rate: I80F48::ZERO,
             add_program_fees: false,
 
-            zero_util_rate: p1000_to_u32(I80F48::from_num(zero_rate_0_to_10)),
-            hundred_util_rate: p1000_to_u32(I80F48::from_num(hundred_rate_0_to_10)),
+            zero_util_rate: milli_to_u32(I80F48::from_num(zero_rate_0_to_10)),
+            hundred_util_rate: milli_to_u32(I80F48::from_num(hundred_rate_0_to_10)),
             points: make_points(&pts),
             curve_type: 0,
         }
@@ -1269,5 +1291,165 @@ mod tests {
 
         let at_one: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(1.0)).unwrap();
         assert_eq_with_tolerance!(at_one, I80F48!(7.8), TOLERANCE);
+    }
+
+    // Small helper to make a RatePoint with %util (0–100) and %rate (0–1000)
+    fn rp(util_pct_0to100: f64, rate_pct_0to1000: f64) -> RatePoint {
+        RatePoint::new(
+            centi_to_u32(I80F48::from_num(util_pct_0to100)),
+            milli_to_u32(I80F48::from_num(rate_pct_0to1000)),
+        )
+    }
+
+    fn cfg(
+        zero_rate_pct_0to1000: f64,
+        hundred_rate_pct_0to1000: f64,
+        pts: &[RatePoint],
+    ) -> InterestRateConfig {
+        InterestRateConfig {
+            zero_util_rate: milli_to_u32(I80F48::from_num(zero_rate_pct_0to1000)),
+            hundred_util_rate: milli_to_u32(I80F48::from_num(hundred_rate_pct_0to1000)),
+            points: make_points(pts),
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn v7c_valid_curve_happy_path() {
+        // zero < hundred, utils strictly increasing, rates non-decreasing, and all points within [zero, hundred].
+        let c = cfg(0.5, 6.0, &[rp(0.20, 1.0), rp(0.40, 2.0), rp(0.60, 3.0)]);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_all_padding_is_ok() {
+        // No points, just linear between 0 and 100
+        let c = cfg(0.1, 1.0, &[]);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_padding_must_be_zero_rate() {
+        // A padding entry (util==0) with non-zero rate is invalid.
+        let bad = rp(0.0, 0.5);
+        // rp(0, 0.5) makes util==0 and rate>0
+        let c = cfg(0.1, 1.0, &[bad]);
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_no_holes_after_padding() {
+        // Once padding is seen, no later non-zero util is allowed.
+        let c = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.2),
+                rp(0.0, 0.0),  // padding begins
+                rp(0.30, 0.3), // hole after padding -> invalid
+            ],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_utils_must_strictly_increase() {
+        // Equal utils => invalid
+        let c_equal = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.2),
+                rp(0.20, 0.25), // same util
+            ],
+        );
+        assert!(c_equal.validate_seven_point().is_err());
+
+        // Decreasing util => invalid
+        let c_dec = cfg(0.1, 1.0, &[rp(40.0, 0.4), rp(30.0, 0.45)]);
+        assert!(c_dec.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_rates_must_be_nondecreasing() {
+        // A later point with a lower rate is invalid.
+        let c = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.4),
+                rp(0.40, 0.3), // decreased
+            ],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_zero_rate_must_be_leq_hundred_rate() {
+        // zero > hundred => invalid even if points look fine
+        let c = cfg(
+            5.0,
+            1.0, // smaller than zero rate
+            &[rp(0.20, 3.0), rp(0.40, 4.0)],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_point_rates_must_lie_within_zero_and_hundred() {
+        // Point less than zero rate
+        let c_low = cfg(
+            1.0,
+            5.0,
+            &[
+                rp(0.20, 0.5), // below zero rate (1.0)
+            ],
+        );
+        assert!(c_low.validate_seven_point().is_err());
+
+        // Point greater than hundred rate
+        let c_high = cfg(
+            1.0,
+            5.0,
+            &[
+                rp(0.20, 6.0), // above hundred rate (5.0)
+            ],
+        );
+        assert!(c_high.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_extra_points_are_truncated_by_make_points() {
+        let too_many_points = vec![
+            rp(0.1, 0.5),
+            rp(0.11, 0.6),
+            rp(0.12, 0.7),
+            rp(0.13, 0.8),
+            rp(0.14, 0.9),
+            rp(0.15, 1.0),
+            rp(0.16, 1.1),
+            rp(0.17, 1.2),
+            rp(0.18, 1.3),
+        ];
+        let c = cfg(0.3, 2.0, &too_many_points);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_trailing_padding_ok() {
+        // Valid used points, followed by explicit (util=0, rate=0) padding, still ok (but not
+        // neccessary, make_points creates the padding)
+        let c = cfg(
+            0.2,
+            2.0,
+            &[
+                rp(0.25, 0.4),
+                rp(0.50, 0.8),
+                rp(0.75, 1.6),
+                rp(0.0, 0.0), // explicit padding (still ok)
+            ],
+        );
+        assert!(c.validate_seven_point().is_ok());
     }
 }

@@ -9,7 +9,7 @@ use marginfi::state::{
     interest_rate::InterestRateConfigImpl,
 };
 use marginfi_type_crate::types::{
-    make_points, p1000_to_u32, p100_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
+    centi_to_u32, make_points, milli_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
     RatePoint,
 };
 use pretty_assertions::assert_eq;
@@ -20,8 +20,8 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
     let interest_rate_config = InterestRateConfig {
         zero_util_rate: 0,
         points: make_points(&vec![RatePoint::new(
-            p100_to_u32(I80F48!(0.9)),
-            p1000_to_u32(I80F48!(0.9)),
+            centi_to_u32(I80F48!(0.9)),
+            milli_to_u32(I80F48!(0.9)),
         )]),
         // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
@@ -130,12 +130,12 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, p1000_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, milli_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        p1000_to_u32(borrowing_rate_apr)
+        milli_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, p1000_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, milli_to_u32(lending_rate_apr));
 
     Ok(())
 }
@@ -149,8 +149,8 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         insurance_fee_fixed_apr: insurance_fee_fixed_apr.into(),
         zero_util_rate: 0,
         points: make_points(&vec![RatePoint::new(
-            p100_to_u32(I80F48!(0.9)),
-            p1000_to_u32(I80F48!(1)),
+            centi_to_u32(I80F48!(0.9)),
+            milli_to_u32(I80F48!(1)),
         )]),
         // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
@@ -294,12 +294,12 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, p1000_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, milli_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        p1000_to_u32(borrowing_rate_apr)
+        milli_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, p1000_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, milli_to_u32(lending_rate_apr));
 
     Ok(())
 }

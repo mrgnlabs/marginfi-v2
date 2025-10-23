@@ -99,7 +99,7 @@ pub fn make_points(points: &[RatePoint]) -> [RatePoint; CURVE_POINTS] {
 
 /// Useful when converting an I80F48 (e.g. apr) into a percentage from 0-1000. Clamps to 1000% if
 /// exceeding that amount. Clamps to zero for negative inputs.
-pub fn p1000_to_u32(value: I80F48) -> u32 {
+pub fn milli_to_u32(value: I80F48) -> u32 {
     let max_percent: I80F48 = I80F48::from_num(10.0); // 1000%
     let clamped: I80F48 = value.min(max_percent).max(I80F48::ZERO);
     let ratio: I80F48 = clamped / max_percent;
@@ -108,7 +108,7 @@ pub fn p1000_to_u32(value: I80F48) -> u32 {
 
 /// Useful when converting an I80F48 (e.g. utilization rate) into a percentage from 0-100. Clamps to
 /// 100% if exceeding that amount. Clamps to zero for negative inputs.
-pub fn p100_to_u32(value: I80F48) -> u32 {
+pub fn centi_to_u32(value: I80F48) -> u32 {
     let max_percent: I80F48 = I80F48::from_num(1.0); // 1000%
     let clamped: I80F48 = value.min(max_percent).max(I80F48::ZERO);
     let ratio: I80F48 = clamped / max_percent;
@@ -161,11 +161,6 @@ pub struct InterestRateConfigCompact {
     ///   point, and so forth.
     /// * points where util = 0 are unused
     pub points: [RatePoint; 5],
-
-    /// Determines which interest rate curve implementation is active.
-    /// 0 = legacy three point curve, 1 = multi-point curve.
-    pub curve_type: u8,
-    // Note: Remember when adding fields in the future that there is 7 bytes of padding here!
 }
 
 impl From<InterestRateConfigCompact> for InterestRateConfig {
@@ -182,7 +177,7 @@ impl From<InterestRateConfigCompact> for InterestRateConfig {
             zero_util_rate: ir_config.zero_util_rate,
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
-            curve_type: ir_config.curve_type,
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
             _pad0: [0; 7],
             _padding1: [0; 32],
             _padding2: [0; 16],
@@ -202,7 +197,6 @@ impl From<InterestRateConfig> for InterestRateConfigCompact {
             zero_util_rate: ir_config.zero_util_rate,
             hundred_util_rate: ir_config.hundred_util_rate,
             points: ir_config.points,
-            curve_type: ir_config.curve_type,
         }
     }
 }

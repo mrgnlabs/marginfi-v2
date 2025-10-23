@@ -8,7 +8,7 @@ use bincode::deserialize;
 use marginfi_type_crate::{
     constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
     types::{
-        make_points, p1000_to_u32, p100_to_u32, BankConfig, BankOperationalState,
+        centi_to_u32, make_points, milli_to_u32, BankConfig, BankOperationalState,
         InterestRateConfig, OracleSetup, RatePoint, RiskTier, INTEREST_CURVE_SEVEN_POINT,
     },
 };
@@ -252,10 +252,10 @@ lazy_static! {
             protocol_fixed_fee_apr: I80F48!(0).into(),
             protocol_origination_fee: I80F48!(0).into(),
 
-            zero_util_rate: p1000_to_u32(I80F48!(0)),
-            hundred_util_rate: p1000_to_u32(I80F48!(3)),
+            zero_util_rate: milli_to_u32(I80F48!(0)),
+            hundred_util_rate: milli_to_u32(I80F48!(3)),
             points: make_points(&[
-                RatePoint::new(p100_to_u32(I80F48!(0.5)), p1000_to_u32(I80F48!(0.6))),
+                RatePoint::new(centi_to_u32(I80F48!(0.5)), milli_to_u32(I80F48!(0.6))),
             ]),
             curve_type: INTEREST_CURVE_SEVEN_POINT,
             ..Default::default()
@@ -283,10 +283,10 @@ lazy_static! {
             protocol_fixed_fee_apr: I80F48!(0).into(),
             protocol_origination_fee: I80F48!(0).into(),
 
-            zero_util_rate: p1000_to_u32(I80F48!(0)),
-            hundred_util_rate: p1000_to_u32(I80F48!(3)),
+            zero_util_rate: milli_to_u32(I80F48!(0)),
+            hundred_util_rate: milli_to_u32(I80F48!(3)),
             points: make_points(&[
-                RatePoint::new(p100_to_u32(I80F48!(0.5)), p1000_to_u32(I80F48!(0.6))),
+                RatePoint::new(centi_to_u32(I80F48!(0.5)), milli_to_u32(I80F48!(0.6))),
             ]),
             curve_type: INTEREST_CURVE_SEVEN_POINT,
             ..Default::default()
