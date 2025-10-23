@@ -538,14 +538,6 @@ pub mod marginfi {
         marginfi_group::panic_unpause_permissionless(ctx)
     }
 
-    /// (Arena admin) used to withdraw funds from arena liquidity pools to sunset them. Only
-    /// hard-coded arena banks can call this function.
-    pub fn admin_super_withdraw<'info>(
-        ctx: Context<'_, '_, 'info, 'info, AdminSuperWithdraw<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::admin_super_withdraw(ctx)
-    }
-
     // Kamino integration instructions
 
     /// (permissionless) Initialize a Kamino obligation for a marginfi bank
