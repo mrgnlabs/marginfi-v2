@@ -2,7 +2,7 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::types::{
-    make_points, p1000_to_u32, p100_to_u32, Bank, RatePoint, INTEREST_CURVE_SEVEN_POINT,
+    centi_to_u32, make_points, milli_to_u32, Bank, RatePoint, INTEREST_CURVE_SEVEN_POINT,
 };
 
 use crate::{state::bank_config::BankConfigImpl, utils::wrapped_i80f48_to_f64};
@@ -39,13 +39,13 @@ pub fn migrate_curve(ctx: Context<MigrateCurve>) -> Result<()> {
         irc.zero_util_rate = 0;
 
         let hundred_rate: I80F48 = irc.max_interest_rate.into();
-        irc.hundred_util_rate = p1000_to_u32(hundred_rate);
+        irc.hundred_util_rate = milli_to_u32(hundred_rate);
 
         let util: I80F48 = irc.optimal_utilization_rate.into();
         let rate: I80F48 = irc.plateau_interest_rate.into();
         let point = RatePoint {
-            util: p100_to_u32(util),
-            rate: p1000_to_u32(rate),
+            util: centi_to_u32(util),
+            rate: milli_to_u32(rate),
         };
         irc.points = make_points(&[point]);
         irc.curve_type = INTEREST_CURVE_SEVEN_POINT;
