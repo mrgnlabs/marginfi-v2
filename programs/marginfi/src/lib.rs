@@ -544,8 +544,8 @@ pub mod marginfi {
     pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
         marginfi_group::migrate_curve(ctx)
     }
-  
-    // Kamino integration instructions
+
+    /****** Kamino integration instructions *****/
 
     /// (permissionless) Initialize a Kamino obligation for a marginfi bank
     /// * amount - In token, in native decimals. Must be >10 (i.e. 10 lamports, not 10 tokens). Lost
