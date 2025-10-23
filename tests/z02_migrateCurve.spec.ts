@@ -206,6 +206,8 @@ describe("Legacy bank curve migration", () => {
     const deltaDifference = legacyDelta.minus(migratedDelta).abs();
     if (verbose) {
       console.log("diff between legacy/migrated: " + deltaDifference);
+      // Note: Migrated is consistently higher, but the delta is <1%. Lenders will enjoy this tiny
+      // windfall due to rounding magic!
       if (legacyDelta.minus(migratedDelta).isPositive()) {
         console.log("legacy was higher");
       } else {
