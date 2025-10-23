@@ -123,12 +123,8 @@ address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 filename = "tests/fixtures/gappy_user4.json"
 
 [[test.validator.account]]
-address = "A5qx1NMxfb3zywMuuo276KntUQk2zA3r3q6ZNwVBbMZC"
-filename = "tests/fixtures/pre_migration_bank1.json"
-
-[[test.validator.account]]
-address = "CMTyrgnFkmC6ZUpKivZ2MAatqCq7tMFL4iWWzHrYABBt"
-filename = "tests/fixtures/pre_migration_bank1_vault.json"
+address = "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"
+filename = "tests/fixtures/mainnet_group.json"
 
 
 # To update:

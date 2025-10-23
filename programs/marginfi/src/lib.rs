@@ -538,12 +538,20 @@ pub mod marginfi {
         marginfi_group::panic_unpause_permissionless(ctx)
     }
 
+    // TODO deprecate after arena withdraw complete
     /// (Arena admin) used to withdraw funds from arena liquidity pools to sunset them. Only
     /// hard-coded arena banks can call this function.
     pub fn admin_super_withdraw<'info>(
         ctx: Context<'_, '_, 'info, 'info, AdminSuperWithdraw<'info>>,
     ) -> MarginfiResult {
         marginfi_account::admin_super_withdraw(ctx)
+    }
+
+    // TODO deprecate in 1.7
+    /// (Permissionless) Convert a bank from the legacy curve setup to the new setup, with no effect
+    /// on how interest accrues.
+    pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
+        marginfi_group::migrate_curve(ctx)
     }
 
     // Kamino integration instructions
