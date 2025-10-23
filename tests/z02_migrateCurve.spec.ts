@@ -24,7 +24,8 @@ import {
 import { assertI80F48Equal } from "./utils/genericTests";
 import { processBankrunTransaction } from "./utils/tools";
 
-const INTERVAL_SECONDS = 6 * 60 * 60;
+// one day
+const INTERVAL_SECONDS = 24 * 60 * 60;
 const SLOT_DURATION_SECONDS = 0.4;
 
 const toBigNumber = (value: any): BigNumber => wrappedI80F48toBigNumber(value);
@@ -120,6 +121,7 @@ describe("Legacy bank curve migration", () => {
     initialLiabilityShareValue = toBigNumber(bankBefore.liabilityShareValue);
   });
 
+  // Note: we accrue a "warmup" first so we can have a fixed amount of time elapse in the next step
   it("accrues interest using the legacy curve", async () => {
     await sendLegacyAccrual();
     const bankAfterWarmup = await bankrunProgram.account.bank.fetch(
@@ -129,8 +131,7 @@ describe("Legacy bank curve migration", () => {
       bankAfterWarmup.liabilityShareValue
     );
     assert.isTrue(
-      postWarmupLiabilityShareValue.gte(initialLiabilityShareValue),
-      "liability share value should not decrease after accrual"
+      postWarmupLiabilityShareValue.gte(initialLiabilityShareValue)
     );
   });
 
@@ -146,8 +147,10 @@ describe("Legacy bank curve migration", () => {
     const legacyDelta = postLegacyLiabilityShareValue.minus(
       postWarmupLiabilityShareValue
     );
-    console.log("delta: " + legacyDelta);
-    assert.isAbove(Number(legacyDelta), 0);
+    if (verbose) {
+      console.log("delta: " + legacyDelta);
+    }
+    assert.isTrue(legacyDelta.gt(0));
   });
 
   it("migrates the curve and validates the configuration", async () => {
@@ -171,24 +174,9 @@ describe("Legacy bank curve migration", () => {
     const expectedPlateauRate = aprToU32(plateauBefore);
     const expectedHundredRate = aprToU32(maxRateBefore);
 
-    assert.approximately(
-      ircAfter.points[0].util,
-      expectedUtil,
-      5,
-      "first kink utilization should match migrated legacy optimal utilization"
-    );
-    assert.approximately(
-      ircAfter.points[0].rate,
-      expectedPlateauRate,
-      5,
-      "first kink rate should match migrated legacy plateau rate"
-    );
-    assert.approximately(
-      ircAfter.hundredUtilRate,
-      expectedHundredRate,
-      5,
-      "hundred percent utilization rate should match migrated legacy max interest rate"
-    );
+    assert.approximately(ircAfter.points[0].util, expectedUtil, 5);
+    assert.approximately(ircAfter.points[0].rate, expectedPlateauRate, 5);
+    assert.approximately(ircAfter.hundredUtilRate, expectedHundredRate, 5);
   });
 
   it("accrues interest with the migrated curve at a similar rate", async () => {
@@ -206,19 +194,25 @@ describe("Legacy bank curve migration", () => {
     const migratedDelta = postNewLiabilityShareValue.minus(
       postMigrationLiabilityShareValue
     );
+    if (verbose) {
+      console.log("delta: " + migratedDelta);
+    }
 
-    assert.isTrue(
-      migratedDelta.gt(0),
-      "expected positive interest accrual after migration"
-    );
+    assert.isTrue(migratedDelta.gt(0));
 
-    const averageDelta = legacyDelta.plus(migratedDelta).dividedBy(2);
-    const tolerance = averageDelta.abs().multipliedBy(0.05);
+    const tolerance = legacyDelta
+      .multipliedBy(0.01)
+      .plus(new BigNumber("1e-12"));
     const deltaDifference = legacyDelta.minus(migratedDelta).abs();
+    if (verbose) {
+      console.log("diff between legacy/migrated: " + deltaDifference);
+      if (legacyDelta.minus(migratedDelta).isPositive()) {
+        console.log("legacy was higher");
+      } else {
+        console.log("migrated was higher");
+      }
+    }
 
-    assert.isTrue(
-      deltaDifference.lte(tolerance.plus(new BigNumber("1e-12"))),
-      "interest accrued after migration should remain within 5% of the legacy curve"
-    );
+    assert.isTrue(deltaDifference.lte(tolerance));
   });
 });
