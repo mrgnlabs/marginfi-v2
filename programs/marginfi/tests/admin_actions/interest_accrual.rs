@@ -5,20 +5,25 @@ use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, native, prelude::*};
 use marginfi::state::{
     bank::{BankImpl, BankVaultType},
-    bank_cache::{apr_to_u32, ComputedInterestRates},
+    bank_cache::ComputedInterestRates,
     interest_rate::InterestRateConfigImpl,
 };
-use marginfi_type_crate::types::{Bank, BankConfig, InterestRateConfig, MarginfiGroup};
+use marginfi_type_crate::types::{
+    centi_to_u32, make_points, milli_to_u32, Bank, BankConfig, InterestRateConfig, MarginfiGroup,
+    RatePoint,
+};
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> {
-    let optimal_utilization_rate = I80F48!(0.9);
-    let plateau_interest_rate = I80F48!(0.9);
     let interest_rate_config = InterestRateConfig {
-        optimal_utilization_rate: optimal_utilization_rate.into(),
-        plateau_interest_rate: plateau_interest_rate.into(),
+        zero_util_rate: 0,
+        points: make_points(&vec![RatePoint::new(
+            centi_to_u32(I80F48!(0.9)),
+            milli_to_u32(I80F48!(0.9)),
+        )]),
+        // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
     };
     let test_f = TestFixture::new(Some(TestSettings {
@@ -125,27 +130,29 @@ async fn marginfi_group_accrue_interest_rates_success_1() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, milli_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        apr_to_u32(borrowing_rate_apr)
+        milli_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, milli_to_u32(lending_rate_apr));
 
     Ok(())
 }
 
 #[tokio::test]
 async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> {
-    let optimal_utilization_rate = I80F48!(0.9);
-    let plateau_interest_rate = I80F48!(1);
-    let protocol_fixed_fee_apr = I80F48!(0.01);
-    let insurance_fee_fixed_apr = I80F48!(0.01);
+    let protocol_fixed_fee_apr: I80F48 = I80F48!(0.01);
+    let insurance_fee_fixed_apr: I80F48 = I80F48!(0.01);
     let interest_rate_config = InterestRateConfig {
-        optimal_utilization_rate: optimal_utilization_rate.into(),
-        plateau_interest_rate: plateau_interest_rate.into(),
         protocol_fixed_fee_apr: protocol_fixed_fee_apr.into(),
         insurance_fee_fixed_apr: insurance_fee_fixed_apr.into(),
+        zero_util_rate: 0,
+        points: make_points(&vec![RatePoint::new(
+            centi_to_u32(I80F48!(0.9)),
+            milli_to_u32(I80F48!(1)),
+        )]),
+        // Note: hundred_util_rate - doesn't matter, we are testing within a point
         ..*DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG
     };
     let test_f = TestFixture::new(Some(TestSettings {
@@ -287,12 +294,12 @@ async fn marginfi_group_accrue_interest_rates_success_2() -> anyhow::Result<()> 
         .calc_interest_rate(ur)
         .unwrap();
 
-    assert_eq!(usdc_bank.cache.base_rate, apr_to_u32(base_rate_apr));
+    assert_eq!(usdc_bank.cache.base_rate, milli_to_u32(base_rate_apr));
     assert_eq!(
         usdc_bank.cache.borrowing_rate,
-        apr_to_u32(borrowing_rate_apr)
+        milli_to_u32(borrowing_rate_apr)
     );
-    assert_eq!(usdc_bank.cache.lending_rate, apr_to_u32(lending_rate_apr));
+    assert_eq!(usdc_bank.cache.lending_rate, milli_to_u32(lending_rate_apr));
 
     Ok(())
 }

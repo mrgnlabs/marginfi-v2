@@ -10,9 +10,13 @@ use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
 use bank_accounts::{get_bank_map, BankAccounts};
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{errors::MarginfiError, instructions::LendingPoolAddBankBumps};
 use marginfi::{instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType};
+use marginfi_type_crate::types::{
+    centi_to_u32, make_points, milli_to_u32, RatePoint, INTEREST_CURVE_SEVEN_POINT,
+};
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
     types::{
@@ -270,13 +274,23 @@ impl<'state> MarginfiFuzzContext<'state> {
                     deposit_limit: initial_bank_config.deposit_limit,
                     borrow_limit: initial_bank_config.borrow_limit,
                     interest_rate_config: InterestRateConfig {
-                        optimal_utilization_rate: I80F48!(0.5).into(),
-                        plateau_interest_rate: I80F48!(0.5).into(),
-                        max_interest_rate: I80F48!(4).into(),
+                        optimal_utilization_rate: I80F48::ZERO.into(),
+                        plateau_interest_rate: I80F48::ZERO.into(),
+                        max_interest_rate: I80F48::ZERO.into(),
+
                         insurance_fee_fixed_apr: I80F48!(0.01).into(),
                         insurance_ir_fee: I80F48!(0.05).into(),
                         protocol_fixed_fee_apr: I80F48!(0.01).into(),
                         protocol_ir_fee: I80F48!(0.1).into(),
+                        protocol_origination_fee: I80F48::ZERO.into(),
+
+                        zero_util_rate: 0,
+                        hundred_util_rate: milli_to_u32(I80F48!(4)),
+                        points: make_points(&vec![RatePoint::new(
+                            centi_to_u32(I80F48!(0.5)),
+                            milli_to_u32(I80F48!(0.5)),
+                        )]),
+                        curve_type: INTEREST_CURVE_SEVEN_POINT,
                         ..Default::default()
                     }
                     .into(),

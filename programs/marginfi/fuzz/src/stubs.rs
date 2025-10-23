@@ -57,8 +57,7 @@ impl program_stubs::SyscallStubs for TestSyscallStubs {
                 if meta.pubkey == *account_info.key {
                     let mut new_account_info = account_info.clone();
                     for seeds in signers_seeds.iter() {
-                        let signer =
-                            Pubkey::create_program_address(seeds, &marginfi::ID).unwrap();
+                        let signer = Pubkey::create_program_address(seeds, &marginfi::ID).unwrap();
                         if *account_info.key == signer {
                             new_account_info.is_signer = true;
                         }

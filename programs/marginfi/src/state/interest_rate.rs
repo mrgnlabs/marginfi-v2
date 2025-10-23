@@ -1,7 +1,12 @@
+use anchor_lang::err;
+use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::SECONDS_PER_YEAR,
-    types::{InterestRateConfig, InterestRateConfigOpt, MarginfiGroup},
+    types::{
+        InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, RatePoint, INTEREST_CURVE_LEGACY,
+        INTEREST_CURVE_SEVEN_POINT,
+    },
 };
 
 use crate::{
@@ -13,6 +18,8 @@ use crate::{
 };
 
 pub trait InterestRateConfigImpl {
+    fn validate_seven_point(&self) -> MarginfiResult;
+    fn validate_legacy(&self) -> MarginfiResult;
     fn create_interest_rate_calculator(&self, group: &MarginfiGroup) -> InterestRateCalc;
     fn validate(&self) -> MarginfiResult;
     fn update(&mut self, ir_config: &InterestRateConfigOpt);
@@ -36,10 +43,25 @@ impl InterestRateConfigImpl for InterestRateConfig {
             add_program_fees: group_bank_config.program_fees,
             program_fee_fixed: group.fee_state_cache.program_fee_fixed.into(),
             program_fee_rate: group.fee_state_cache.program_fee_rate.into(),
+            zero_util_rate: self.zero_util_rate,
+            hundred_util_rate: self.hundred_util_rate,
+            points: self.points,
+            curve_type: self.curve_type,
         }
     }
 
     fn validate(&self) -> MarginfiResult {
+        match self.curve_type {
+            // TODO deprecate in 1.7
+            INTEREST_CURVE_LEGACY => self.validate_legacy()?,
+            INTEREST_CURVE_SEVEN_POINT => self.validate_seven_point()?,
+            _ => panic!("unsupported curve type"),
+        }
+
+        Ok(())
+    }
+
+    fn validate_legacy(&self) -> MarginfiResult {
         let optimal_ur: I80F48 = self.optimal_utilization_rate.into();
         let plateau_ir: I80F48 = self.plateau_interest_rate.into();
         let max_ir: I80F48 = self.max_interest_rate.into();
@@ -55,13 +77,69 @@ impl InterestRateConfigImpl for InterestRateConfig {
         Ok(())
     }
 
+    /// * the rate at zero is the lowest
+    /// * utils in points are in ascending order, and non-decreasing rates
+    /// * no "holes" in points, all padding is at the end of the slice
+    /// * the rate at 100% util is the highest
+    fn validate_seven_point(&self) -> MarginfiResult {
+        let zero = self.zero_util_rate;
+        let hundred = self.hundred_util_rate;
+
+        // Collect used points (util > 0), enforce trailing padding
+        let mut used: Vec<RatePoint> = Vec::with_capacity(self.points.len());
+        let mut seen_padding = false;
+        for (i, p) in self.points.iter().enumerate() {
+            if p.util == 0 {
+                // Padding: must be (0,0); once seen, all following must be padding as well.
+                if p.rate != 0 {
+                    msg!("Expected padding (zero rate) at {:?}", i);
+                    return err!(MarginfiError::InvalidConfig);
+                }
+                seen_padding = true;
+            } else {
+                // No "holes": non-zero util after padding is not allowed.
+                if seen_padding {
+                    msg!("Expected padding at {:?} (no holes permitted)", i);
+                    return err!(MarginfiError::InvalidConfig);
+                }
+
+                used.push(*p);
+            }
+        }
+
+        // Points must be strictly increasing in util, and non-decreasing in rate
+        for i in 1..used.len() {
+            let prev = &used[i - 1];
+            let curr = &used[i];
+
+            if prev.util >= curr.util {
+                msg!("util not ascending between {:?} {:?}", i - 1, i);
+                msg!("utils: {:?} {:?}", prev.util, curr.util);
+                return err!(MarginfiError::InvalidConfig);
+            }
+            if prev.rate > curr.rate {
+                msg!("rate is decreasing between {:?} {:?}", i - 1, i);
+                msg!("rates: {:?} {:?}", prev.rate, curr.rate);
+                return err!(MarginfiError::InvalidConfig);
+            }
+        }
+
+        // rate at zero < rate at 100%, and for each point p, 0_rate <= p <= 100%_rate
+        let zero_lte_hundred = zero <= hundred;
+        if !zero_lte_hundred {
+            msg!("The zero rate is higher than the hundred rate");
+            return err!(MarginfiError::InvalidConfig);
+        }
+        let p_between_zero_hundred = used.iter().all(|p| zero <= p.rate && p.rate <= hundred);
+        if !p_between_zero_hundred {
+            msg!("A point is not between 0 and 100 rates");
+            return err!(MarginfiError::InvalidConfig);
+        }
+
+        Ok(())
+    }
+
     fn update(&mut self, ir_config: &InterestRateConfigOpt) {
-        set_if_some!(
-            self.optimal_utilization_rate,
-            ir_config.optimal_utilization_rate
-        );
-        set_if_some!(self.plateau_interest_rate, ir_config.plateau_interest_rate);
-        set_if_some!(self.max_interest_rate, ir_config.max_interest_rate);
         set_if_some!(
             self.insurance_fee_fixed_apr,
             ir_config.insurance_fee_fixed_apr
@@ -76,6 +154,12 @@ impl InterestRateConfigImpl for InterestRateConfig {
             self.protocol_origination_fee,
             ir_config.protocol_origination_fee
         );
+        set_if_some!(self.zero_util_rate, ir_config.zero_util_rate);
+        set_if_some!(self.hundred_util_rate, ir_config.hundred_util_rate);
+        set_if_some!(self.points, ir_config.points);
+
+        // Note: If we ever support another curve type, this will become configurable.
+        self.curve_type = INTEREST_CURVE_SEVEN_POINT;
     }
 }
 
@@ -98,6 +182,10 @@ pub struct InterestRateCalc {
     program_fee_rate: I80F48,
 
     add_program_fees: bool,
+    zero_util_rate: u32,
+    hundred_util_rate: u32,
+    points: [RatePoint; 5],
+    curve_type: u8,
 }
 
 impl InterestRateCalc {
@@ -115,24 +203,30 @@ impl InterestRateCalc {
             protocol_fee_fixed,
         } = self.get_fees();
 
-        let fee_ir = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
-        let fee_fixed = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
+        let fee_ir: I80F48 = insurance_fee_rate + group_fee_rate + protocol_fee_rate;
+        let fee_fixed: I80F48 = insurance_fee_fixed + group_fee_fixed + protocol_fee_fixed;
 
-        let base_rate_apr = self.interest_rate_curve(utilization_ratio)?;
+        let base_rate_apr: I80F48 = match self.curve_type {
+            // TODO deprecate in 1.7 (change to no-op with msg warning?)
+            INTEREST_CURVE_LEGACY => self.interest_rate_curve(utilization_ratio)?,
+            INTEREST_CURVE_SEVEN_POINT => self.interest_rate_multipoint_curve(utilization_ratio)?,
+            _ => panic!("unsupported curve type"),
+        };
 
         // Lending rate is adjusted for utilization ratio to symmetrize payments between borrowers and depositors.
-        let lending_rate_apr = base_rate_apr.checked_mul(utilization_ratio)?;
+        let lending_rate_apr: I80F48 = base_rate_apr.checked_mul(utilization_ratio)?;
 
         // Borrowing rate is adjusted for fees.
         // borrowing_rate = base_rate + base_rate * rate_fee + total_fixed_fee_apr
-        let borrowing_rate_apr = base_rate_apr
+        let borrowing_rate_apr: I80F48 = base_rate_apr
             .checked_mul(I80F48::ONE.checked_add(fee_ir)?)?
             .checked_add(fee_fixed)?;
 
-        let group_fee_apr = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
-        let insurance_fee_apr =
+        let group_fee_apr: I80F48 = calc_fee_rate(base_rate_apr, group_fee_rate, group_fee_fixed)?;
+        let insurance_fee_apr: I80F48 =
             calc_fee_rate(base_rate_apr, insurance_fee_rate, insurance_fee_fixed)?;
-        let protocol_fee_apr = calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
+        let protocol_fee_apr: I80F48 =
+            calc_fee_rate(base_rate_apr, protocol_fee_rate, protocol_fee_fixed)?;
 
         assert!(lending_rate_apr >= I80F48::ZERO);
         assert!(borrowing_rate_apr >= I80F48::ZERO);
@@ -140,7 +234,6 @@ impl InterestRateCalc {
         assert!(insurance_fee_apr >= I80F48::ZERO);
         assert!(protocol_fee_apr >= I80F48::ZERO);
 
-        // TODO: Add liquidation discount check
         Some(ComputedInterestRates {
             base_rate_apr,
             lending_rate_apr,
@@ -151,11 +244,10 @@ impl InterestRateCalc {
         })
     }
 
+    // TODO deprecate in 1.7
     /// Piecewise linear interest rate function.
     /// The curves approaches the `plateau_interest_rate` as the utilization ratio approaches the `optimal_utilization_rate`,
     /// once the utilization ratio exceeds the `optimal_utilization_rate`, the curve approaches the `max_interest_rate`.
-    ///
-    /// To be clear we don't particularly appreciate the piecewise linear nature of this "curve", but it is what it is.
     #[inline]
     fn interest_rate_curve(&self, ur: I80F48) -> Option<I80F48> {
         let optimal_ur: I80F48 = self.optimal_utilization_rate;
@@ -170,6 +262,90 @@ impl InterestRateCalc {
                 .checked_mul(max_ir - plateau_ir)?
                 .checked_add(plateau_ir)
         }
+    }
+
+    /// Locates ur on a piecewise linear interest rate function with seven points:
+    /// * Points defined as 1: (0, Y1), 2-6: (X2-6, Y2-6), 7: (100, Y7), where 0 < X2-6 < 100
+    #[inline]
+    fn interest_rate_multipoint_curve(&self, ur: I80F48) -> Option<I80F48> {
+        let zero_rate: I80F48 = Self::rate_from_u32(self.zero_util_rate);
+        let hundred_rate: I80F48 = Self::rate_from_u32(self.hundred_util_rate);
+
+        // The first point is at (0, zero_rate)
+        let mut prev_util: I80F48 = I80F48::ZERO;
+        let mut prev_rate: I80F48 = zero_rate;
+        // Sanity check: clamp the UR in case we somehow exceeded 100% or went negative
+        let ur: I80F48 = ur.max(I80F48::ZERO).min(I80F48::ONE);
+
+        for point in self.points.iter().filter(|point| point.util() != 0) {
+            let point_util: I80F48 = Self::util_from_u32(point.util());
+            let point_rate: I80F48 = Self::rate_from_u32(point.rate());
+
+            if ur <= point_util {
+                return Self::lerp(prev_util, prev_rate, point_util, point_rate, ur);
+            }
+
+            prev_util = point_util;
+            prev_rate = point_rate;
+        }
+
+        Self::lerp(prev_util, prev_rate, I80F48::ONE, hundred_rate, ur)
+    }
+
+    /// Given two points (start_x, start_y) and (end_x, end_y), and a target x between start_x and
+    /// end_x, linearly interpolates y at the given x.
+    ///
+    /// * returns start_y if end_x <= start_x or target < start_x
+    /// * returns end_y if target > end_x
+    /// * None if end_y < start_y. Note: this means curves where the rate decreases as the
+    ///   utilization goes up are unsupported, though there's no reason you would generally want to
+    ///   do that anyways.
+    #[inline]
+    fn lerp(
+        start_x: I80F48,
+        start_y: I80F48,
+        end_x: I80F48,
+        end_y: I80F48,
+        target_x: I80F48,
+    ) -> Option<I80F48> {
+        if end_x <= start_x {
+            return Some(start_y);
+        }
+        if target_x < start_x {
+            return None;
+        }
+        if target_x > end_x {
+            return None;
+        }
+        if end_y < start_y {
+            return None;
+        }
+
+        let delta_x: I80F48 = end_x - start_x;
+        if delta_x.is_zero() {
+            return Some(start_y);
+        }
+
+        // Safe: start_x < target_x
+        let offset: I80F48 = target_x - start_x;
+        // Safe: delta_x nonzero
+        let proportion: I80F48 = offset / delta_x;
+        // Safe: end_y > start_y
+        let delta_y: I80F48 = end_y - start_y;
+        let scaled_delta: I80F48 = delta_y.checked_mul(proportion)?;
+        // Safe: start_y + scaled_delta < end_y
+        Some(start_y + scaled_delta)
+    }
+
+    #[inline]
+    fn rate_from_u32(rate: u32) -> I80F48 {
+        let ratio: I80F48 = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
+        ratio * I80F48::from_num(10)
+    }
+
+    #[inline]
+    fn util_from_u32(util: u32) -> I80F48 {
+        I80F48::from_num(util) / I80F48::from_num(u32::MAX)
     }
 
     pub fn get_fees(&self) -> Fees {
@@ -219,11 +395,11 @@ fn calc_accrued_interest_payment_per_period(
     time_delta: u64,
     value: I80F48,
 ) -> Option<I80F48> {
-    let ir_per_period = apr
+    let ir_per_period: I80F48 = apr
         .checked_mul(time_delta.into())?
         .checked_div(SECONDS_PER_YEAR)?;
 
-    let new_value = value.checked_mul(I80F48::ONE.checked_add(ir_per_period)?)?;
+    let new_value: I80F48 = value.checked_mul(I80F48::ONE.checked_add(ir_per_period)?)?;
 
     Some(new_value)
 }
@@ -235,7 +411,7 @@ fn calc_interest_payment_for_period(apr: I80F48, time_delta: u64, value: I80F48)
         return Some(I80F48::ZERO);
     }
 
-    let interest_payment = value
+    let interest_payment: I80F48 = value
         .checked_mul(apr)?
         .checked_mul(time_delta.into())?
         .checked_div(SECONDS_PER_YEAR)?;
@@ -279,7 +455,7 @@ pub fn calc_interest_rate_accrual_state_changes(
     liability_share_value: I80F48,
 ) -> Option<InterestRateStateChanges> {
     // If the cache is empty, we need to calculate the interest rates
-    let utilization_rate = total_liabilities_amount.checked_div(total_assets_amount)?;
+    let utilization_rate: I80F48 = total_liabilities_amount.checked_div(total_assets_amount)?;
     debug!(
         "Utilization rate: {}, time delta {}s",
         utilization_rate, time_delta
@@ -348,7 +524,10 @@ mod tests {
     use fixed_macro::types::I80F48;
     use marginfi_type_crate::{
         constants::{PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT},
-        types::{Bank, BankConfig, InterestRateConfig},
+        types::{
+            centi_to_u32, make_points, milli_to_u32, Bank, BankConfig, InterestRateConfig,
+            RatePoint, INTEREST_CURVE_SEVEN_POINT,
+        },
     };
     use solana_sdk::clock::Clock;
     #[cfg(not(feature = "client"))]
@@ -421,6 +600,66 @@ mod tests {
             I80F48!(3),
             I80F48!(0.001)
         );
+    }
+
+    fn apr_to_u32(apr: f64) -> u32 {
+        ((apr / 10.0) * (u32::MAX as f64)).round() as u32
+    }
+
+    fn util_to_u32(util: f64) -> u32 {
+        (util * (u32::MAX as f64)).round() as u32
+    }
+
+    fn sample_multipoint_calc() -> InterestRateCalc {
+        InterestRateCalc {
+            optimal_utilization_rate: I80F48::ZERO,
+            plateau_interest_rate: I80F48::ZERO,
+            max_interest_rate: I80F48::ZERO,
+            insurance_fixed_fee: I80F48::ZERO,
+            insurance_rate_fee: I80F48::ZERO,
+            protocol_fixed_fee: I80F48::ZERO,
+            protocol_rate_fee: I80F48::ZERO,
+            program_fee_fixed: I80F48::ZERO,
+            program_fee_rate: I80F48::ZERO,
+            add_program_fees: false,
+            zero_util_rate: apr_to_u32(0.05),
+            hundred_util_rate: apr_to_u32(0.40),
+            points: [
+                RatePoint::new(util_to_u32(0.20), apr_to_u32(0.10)),
+                RatePoint::new(util_to_u32(0.60), apr_to_u32(0.15)),
+                RatePoint::default(),
+                RatePoint::default(),
+                RatePoint::default(),
+            ],
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
+        }
+    }
+
+    #[test]
+    fn multipoint_curve_matches_zero_util_rate() {
+        let calc = sample_multipoint_calc();
+        let rate = calc
+            .interest_rate_multipoint_curve(I80F48::ZERO)
+            .expect("zero util rate");
+        assert_eq_with_tolerance!(rate, I80F48!(0.05), I80F48!(0.0001));
+    }
+
+    #[test]
+    fn multipoint_curve_interpolates_between_points() {
+        let calc = sample_multipoint_calc();
+        let rate = calc
+            .interest_rate_multipoint_curve(I80F48!(0.4))
+            .expect("interpolated rate");
+        assert_eq_with_tolerance!(rate, I80F48!(0.125), I80F48!(0.0001));
+    }
+
+    #[test]
+    fn calc_interest_rate_uses_multipoint_curve() {
+        let calc = sample_multipoint_calc();
+        let ComputedInterestRates { base_rate_apr, .. } = calc
+            .calc_interest_rate(I80F48!(0.4))
+            .expect("computed rate");
+        assert_eq_with_tolerance!(base_rate_apr, I80F48!(0.125), I80F48!(0.0001));
     }
 
     #[test]
@@ -772,5 +1011,445 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn lerp_returns_start_y_when_end_x_le_start_x() {
+        // end_x < start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(1.0),
+            I80F48!(2.0),
+            I80F48!(0.5),
+            I80F48!(5.0),
+            I80F48!(0.75),
+        );
+        assert_eq!(out, Some(I80F48!(2.0)));
+
+        // end_x == start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(1.0),
+            I80F48!(2.0),
+            I80F48!(1.0),
+            I80F48!(5.0),
+            I80F48!(1.0),
+        );
+        assert_eq!(out, Some(I80F48!(2.0)));
+    }
+
+    #[test]
+    fn lerp_none_when_target_before_start() {
+        // target_x < start_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.2),
+            I80F48!(1.5),
+            I80F48!(0.8),
+            I80F48!(3.0),
+            I80F48!(0.1),
+        );
+        assert!(out.is_none());
+    }
+
+    #[test]
+    fn lerp_none_when_target_after_end() {
+        // target_x > end_x
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(0.0),
+            I80F48!(1.0),
+            I80F48!(4.0),
+            I80F48!(1.5),
+        );
+        assert!(out.is_none());
+    }
+
+    // NOTE: we don't support decreasing curves because that would be silly for our use-case. There
+    // is no circumstance (we think) where interest should decline as utilization increases.
+    #[test]
+    fn lerp_returns_none_when_end_y_less_than_start_y_and_target_in_range() {
+        // target_x in (start_x, end_x) but end_y < start_y => None
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(5.0),
+            I80F48!(1.0),
+            I80F48!(3.0),
+            I80F48!(0.5),
+        );
+        assert_eq!(out, None);
+    }
+
+    #[test]
+    fn lerp_interpolates_linearly_basic_cases() {
+        // Simple 0 -> 1 over x in [0,1]
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(0.0),
+            I80F48!(1.0),
+            I80F48!(1.0),
+            I80F48!(0.25),
+        );
+        assert_eq!(out, Some(I80F48!(0.25)));
+
+        // Halfway
+        let out = InterestRateCalc::lerp(
+            I80F48!(0.0),
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(6.0),
+            I80F48!(5.0),
+        );
+        // 2 + (6 - 2) / 2
+        assert_eq!(out, Some(I80F48!(4.0)));
+
+        // Non-zero start X, non-zero start Y, non-unit span
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(1.0),
+            I80F48!(6.0),
+            I80F48!(3.0),
+            I80F48!(3.0),
+        );
+        // y goes 1.0 -> 3.0 as x goes 2.0 -> 6.0; at x=3.0 (25% along), y=1.5
+        assert_eq!(out, Some(I80F48!(1.5)));
+    }
+
+    #[test]
+    fn lerp_interpolates_at_range_boundaries() {
+        // target == start_x returns start_y
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(5.0),
+            I80F48!(13.0),
+            I80F48!(2.0),
+        );
+        assert_eq!(out, Some(I80F48!(10.0)));
+
+        // target == end_x returns end_y
+        let out = InterestRateCalc::lerp(
+            I80F48!(2.0),
+            I80F48!(10.0),
+            I80F48!(5.0),
+            I80F48!(13.0),
+            I80F48!(5.0),
+        );
+        assert_eq!(out, Some(I80F48!(13.0)));
+    }
+
+    #[test]
+    fn lerp_large_numbers_u64_max_span() {
+        let start_x = I80F48::from(0u64);
+        let end_x = I80F48::from(u64::MAX);
+        let start_y = I80F48::from(0u64);
+        let end_y = I80F48::from(u64::MAX);
+
+        // Halfway (target = MAX/2) -> expect MAX/2
+        let out =
+            InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 2));
+        let u64_tolerance: I80F48 = I80F48::from(u64::MAX) * I80F48!(0.00001);
+        assert!(out.is_some());
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 2), u64_tolerance);
+
+        // Quarter (target = MAX/4) -> expect MAX/4
+        let out =
+            InterestRateCalc::lerp(start_x, start_y, end_x, end_y, I80F48::from(u64::MAX / 4));
+        assert!(out.is_some());
+        assert_eq_with_tolerance!(out.unwrap(), I80F48::from(u64::MAX / 4), u64_tolerance);
+    }
+
+    #[test]
+    fn lerp_large_numbers_i80f48_max_span() {
+        let start_x: I80F48 = I80F48!(0.0);
+        let end_x: I80F48 = I80F48!(1.0);
+        let target: I80F48 = I80F48!(1.0);
+        // slightly below max
+        let start_y: I80F48 = I80F48::MAX - I80F48!(12345678); // slightly below max
+        let end_y: I80F48 = I80F48::MAX;
+
+        let out = InterestRateCalc::lerp(start_x, start_y, end_x, end_y, target);
+
+        assert!(out.is_some());
+        assert_eq!(out.unwrap(), I80F48::MAX);
+    }
+
+    /// A basic multi-point curve
+    fn mk_calc(
+        zero_rate_0_to_10: f32,
+        hundred_rate_0_to_10: f32,
+        interior: &[(f32, f32)],
+    ) -> InterestRateCalc {
+        let pts: Vec<RatePoint> = interior
+            .iter()
+            .map(|(u, r)| {
+                RatePoint::new(
+                    centi_to_u32(I80F48::from_num(*u)),
+                    milli_to_u32(I80F48::from_num(*r)),
+                )
+            })
+            .collect();
+
+        InterestRateCalc {
+            optimal_utilization_rate: I80F48::ZERO,
+            plateau_interest_rate: I80F48::ZERO,
+            max_interest_rate: I80F48::ZERO,
+            insurance_fixed_fee: I80F48::ZERO,
+            insurance_rate_fee: I80F48::ZERO,
+            protocol_fixed_fee: I80F48::ZERO,
+            protocol_rate_fee: I80F48::ZERO,
+            program_fee_fixed: I80F48::ZERO,
+            program_fee_rate: I80F48::ZERO,
+            add_program_fees: false,
+
+            zero_util_rate: milli_to_u32(I80F48::from_num(zero_rate_0_to_10)),
+            hundred_util_rate: milli_to_u32(I80F48::from_num(hundred_rate_0_to_10)),
+            points: make_points(&pts),
+            curve_type: 0,
+        }
+    }
+
+    // Note: Tolerance is pretty crappy (relatively speaking) because of u32 math, but this isn't
+    // especially important since the different between 1% base rate and 1.000001 is trivial
+    const TOLERANCE: I80F48 = I80F48!(0.000001);
+
+    #[test]
+    fn mpc_clamps_ur_below_zero_to_zero_rate() {
+        // zero=1.5, hundred=9.0, no interior points
+        let calc = mk_calc(1.5, 9.0, &[]);
+        // negative ur should clamp to 0.0
+        let ur: I80F48 = I80F48!(0) - I80F48!(0.25);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(ur).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(1.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_clamps_ur_above_one_to_hundred_rate() {
+        let calc = mk_calc(0.5, 8.25, &[]);
+        // ur > 1 clamps to 1.0 → hundred rate
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(1.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(8.25), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_on_point_returns_point_rate_exactly() {
+        // zero=1.0; points at 0.25→2.5 and 0.5→5.0
+        let calc = mk_calc(1.0, 9.0, &[(0.25, 2.5), (0.5, 5.0)]);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(2.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_between_zero_and_first_point_interpolates() {
+        // (0, 1.0) to (0.4, 5.0); ur=0.2 → halfway → 3.0
+        let calc = mk_calc(1.0, 9.0, &[(0.4, 5.0)]);
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.2)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(3.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_between_internal_points_interpolates() {
+        // points: (0.25,2.0), (0.5,6.0), (0.75,8.0)
+        let calc = mk_calc(0.5, 9.5, &[(0.25, 2.0), (0.5, 6.0), (0.75, 8.0)]);
+        // halfway between 0.25 and 0.5 → 4.0
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.375)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(4.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_after_last_point_to_one_interpolates_to_hundred_rate() {
+        // last interior point at 0.9 with rate 9.0; hundred=10.0
+        let calc = mk_calc(1.0, 10.0, &[(0.3, 2.0), (0.6, 6.0), (0.9, 9.0)]);
+        // ur=0.95 → halfway from 9.0 to 10.0 → 9.5
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.95)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(9.5), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_decreasing_segment_returns_none() {
+        // decreasing between (0.5,6.0) → (0.75, 4.0)
+        let calc = mk_calc(1.0, 9.0, &[(0.25, 2.0), (0.5, 6.0), (0.75, 4.0)]);
+        let out = calc.interest_rate_multipoint_curve(I80F48!(0.6));
+        assert!(
+            out.is_none(),
+            "expected None for decreasing segment, got {out:?}"
+        );
+    }
+
+    // Note: this state is invalid, but should be handled just in case...
+    #[test]
+    fn mpc_zero_util_points_are_ignored() {
+        // First point has util=0 (ignored). Effective first segment: (0,1.0) → (0.5,5.0)
+        let calc = mk_calc(1.0, 9.0, &[(0.0, 8.0), (0.5, 5.0)]);
+        // ur=0.25 → halfway between 1.0 and 5.0 → 3.0
+        let out: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.25)).unwrap();
+        assert_eq_with_tolerance!(out, I80F48!(3.0), TOLERANCE);
+    }
+
+    #[test]
+    fn mpc_exactly_zero_and_one_match_endpoints() {
+        let calc = mk_calc(1.2, 7.8, &[(0.25, 2.0), (0.5, 6.0)]);
+        let at_zero: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(0.0)).unwrap();
+        assert_eq_with_tolerance!(at_zero, I80F48!(1.2), TOLERANCE);
+
+        let at_one: I80F48 = calc.interest_rate_multipoint_curve(I80F48!(1.0)).unwrap();
+        assert_eq_with_tolerance!(at_one, I80F48!(7.8), TOLERANCE);
+    }
+
+    // Small helper to make a RatePoint with %util (0–100) and %rate (0–1000)
+    fn rp(util_pct_0to100: f64, rate_pct_0to1000: f64) -> RatePoint {
+        RatePoint::new(
+            centi_to_u32(I80F48::from_num(util_pct_0to100)),
+            milli_to_u32(I80F48::from_num(rate_pct_0to1000)),
+        )
+    }
+
+    fn cfg(
+        zero_rate_pct_0to1000: f64,
+        hundred_rate_pct_0to1000: f64,
+        pts: &[RatePoint],
+    ) -> InterestRateConfig {
+        InterestRateConfig {
+            zero_util_rate: milli_to_u32(I80F48::from_num(zero_rate_pct_0to1000)),
+            hundred_util_rate: milli_to_u32(I80F48::from_num(hundred_rate_pct_0to1000)),
+            points: make_points(pts),
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn v7c_valid_curve_happy_path() {
+        // zero < hundred, utils strictly increasing, rates non-decreasing, and all points within [zero, hundred].
+        let c = cfg(0.5, 6.0, &[rp(0.20, 1.0), rp(0.40, 2.0), rp(0.60, 3.0)]);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_all_padding_is_ok() {
+        // No points, just linear between 0 and 100
+        let c = cfg(0.1, 1.0, &[]);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_padding_must_be_zero_rate() {
+        // A padding entry (util==0) with non-zero rate is invalid.
+        let bad = rp(0.0, 0.5);
+        // rp(0, 0.5) makes util==0 and rate>0
+        let c = cfg(0.1, 1.0, &[bad]);
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_no_holes_after_padding() {
+        // Once padding is seen, no later non-zero util is allowed.
+        let c = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.2),
+                rp(0.0, 0.0),  // padding begins
+                rp(0.30, 0.3), // hole after padding -> invalid
+            ],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_utils_must_strictly_increase() {
+        // Equal utils => invalid
+        let c_equal = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.2),
+                rp(0.20, 0.25), // same util
+            ],
+        );
+        assert!(c_equal.validate_seven_point().is_err());
+
+        // Decreasing util => invalid
+        let c_dec = cfg(0.1, 1.0, &[rp(40.0, 0.4), rp(30.0, 0.45)]);
+        assert!(c_dec.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_rates_must_be_nondecreasing() {
+        // A later point with a lower rate is invalid.
+        let c = cfg(
+            0.1,
+            1.0,
+            &[
+                rp(0.20, 0.4),
+                rp(0.40, 0.3), // decreased
+            ],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_zero_rate_must_be_leq_hundred_rate() {
+        // zero > hundred => invalid even if points look fine
+        let c = cfg(
+            5.0,
+            1.0, // smaller than zero rate
+            &[rp(0.20, 3.0), rp(0.40, 4.0)],
+        );
+        assert!(c.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_point_rates_must_lie_within_zero_and_hundred() {
+        // Point less than zero rate
+        let c_low = cfg(
+            1.0,
+            5.0,
+            &[
+                rp(0.20, 0.5), // below zero rate (1.0)
+            ],
+        );
+        assert!(c_low.validate_seven_point().is_err());
+
+        // Point greater than hundred rate
+        let c_high = cfg(
+            1.0,
+            5.0,
+            &[
+                rp(0.20, 6.0), // above hundred rate (5.0)
+            ],
+        );
+        assert!(c_high.validate_seven_point().is_err());
+    }
+
+    #[test]
+    fn v7c_extra_points_are_truncated_by_make_points() {
+        let too_many_points = vec![
+            rp(0.1, 0.5),
+            rp(0.11, 0.6),
+            rp(0.12, 0.7),
+            rp(0.13, 0.8),
+            rp(0.14, 0.9),
+            rp(0.15, 1.0),
+            rp(0.16, 1.1),
+            rp(0.17, 1.2),
+            rp(0.18, 1.3),
+        ];
+        let c = cfg(0.3, 2.0, &too_many_points);
+        assert!(c.validate_seven_point().is_ok());
+    }
+
+    #[test]
+    fn v7c_trailing_padding_ok() {
+        // Valid used points, followed by explicit (util=0, rate=0) padding, still ok (but not
+        // neccessary, make_points creates the padding)
+        let c = cfg(
+            0.2,
+            2.0,
+            &[
+                rp(0.25, 0.4),
+                rp(0.50, 0.8),
+                rp(0.75, 1.6),
+                rp(0.0, 0.0), // explicit padding (still ok)
+            ],
+        );
+        assert!(c.validate_seven_point().is_ok());
     }
 }

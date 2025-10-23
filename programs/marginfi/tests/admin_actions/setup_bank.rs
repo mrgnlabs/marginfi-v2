@@ -13,8 +13,8 @@ use marginfi::{
 use marginfi_type_crate::{
     constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
     types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
-        MarginfiGroup, OracleSetup, EMODE_ON,
+        make_points, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
+        MarginfiGroup, OracleSetup, RatePoint, EMODE_ON, INTEREST_CURVE_SEVEN_POINT,
     },
 };
 use pretty_assertions::assert_eq;
@@ -357,17 +357,21 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
 
     let bank = test_f.get_bank(&bank_mint);
     let old_bank = bank.load().await;
+    let exp_points = make_points(&vec![
+        RatePoint::new(1234, 56789),
+        RatePoint::new(2345, 67890),
+    ]);
 
     let config_bank_opt = BankConfigOpt {
         interest_rate_config: Some(InterestRateConfigOpt {
-            optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
-            plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
-            max_interest_rate: Some(I80F48::from_num(1.44).into()),
             insurance_fee_fixed_apr: Some(I80F48::from_num(0.13).into()),
             insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
             protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
             protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
             protocol_origination_fee: Some(I80F48::ZERO.into()),
+            zero_util_rate: Some(123),
+            hundred_util_rate: Some(1234567),
+            points: Some(exp_points),
         }),
         ..BankConfigOpt::default()
     };
@@ -397,33 +401,32 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {
-        ($field:tt, $subfield:tt) => {
+        // Note: some nested fields (e.g. optimal_utilization_rate) don't exist on the config struct
+        ($field:ident, $subfield:ident) => {
             assert_eq!(
                 bank.config.$field.$subfield,
                 $field
                     .as_ref()
-                    .map(|opt| opt
-                        .$subfield
-                        .clone()
-                        .unwrap_or(old_bank.config.$field.$subfield))
-                    .unwrap()
+                    .and_then(|opt| opt.$subfield.clone())
+                    .unwrap_or(old_bank.config.$field.$subfield)
             );
         };
 
-        ($field:tt) => {
+        // Top-level fields are always expected with the same name
+        ($field:ident) => {
             assert_eq!(bank.config.$field, $field.unwrap_or(old_bank.config.$field));
         };
     }
 
     let _ = {
-        check_bank_field!(interest_rate_config, optimal_utilization_rate);
-        check_bank_field!(interest_rate_config, plateau_interest_rate);
-        check_bank_field!(interest_rate_config, max_interest_rate);
         check_bank_field!(interest_rate_config, insurance_fee_fixed_apr);
         check_bank_field!(interest_rate_config, insurance_ir_fee);
         check_bank_field!(interest_rate_config, protocol_fixed_fee_apr);
         check_bank_field!(interest_rate_config, protocol_ir_fee);
         check_bank_field!(interest_rate_config, protocol_origination_fee);
+        check_bank_field!(interest_rate_config, zero_util_rate);
+        check_bank_field!(interest_rate_config, hundred_util_rate);
+        check_bank_field!(interest_rate_config, points);
 
         check_bank_field!(asset_weight_init);
         check_bank_field!(asset_weight_maint);
@@ -770,15 +773,24 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
     let bank = test_f.get_bank(&BankMint::Usdc);
     let old_bank = bank.load().await;
 
+    let exp_points = make_points(&vec![
+        RatePoint::new(1234, 56789),
+        RatePoint::new(2345, 67890),
+    ]);
+
     let ir_config = InterestRateConfigOpt {
-        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
-        plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
-        max_interest_rate: Some(I80F48::from_num(1.5).into()),
+        // TODO deprecate in 1.7
+        // optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        // plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
+        // max_interest_rate: Some(I80F48::from_num(1.5).into()),
         insurance_fee_fixed_apr: Some(I80F48::from_num(0.01).into()),
         insurance_ir_fee: Some(I80F48::from_num(0.02).into()),
         protocol_fixed_fee_apr: Some(I80F48::from_num(0.03).into()),
         protocol_ir_fee: Some(I80F48::from_num(0.04).into()),
         protocol_origination_fee: Some(I80F48::from_num(0.05).into()),
+        zero_util_rate: Some(123),
+        hundred_util_rate: Some(1234567),
+        points: Some(exp_points),
     };
 
     test_f
@@ -788,20 +800,23 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
 
     let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
 
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after
             .config
             .interest_rate_config
             .optimal_utilization_rate,
-        ir_config.optimal_utilization_rate.unwrap()
+        I80F48::ZERO.into()
     );
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after.config.interest_rate_config.plateau_interest_rate,
-        ir_config.plateau_interest_rate.unwrap()
+        I80F48::ZERO.into()
     );
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after.config.interest_rate_config.max_interest_rate,
-        ir_config.max_interest_rate.unwrap()
+        I80F48::ZERO.into()
     );
     assert_eq!(
         bank_after
@@ -832,7 +847,21 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
             .protocol_origination_fee,
         ir_config.protocol_origination_fee.unwrap()
     );
+    assert_eq!(
+        bank_after.config.interest_rate_config.zero_util_rate,
+        ir_config.zero_util_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.hundred_util_rate,
+        ir_config.hundred_util_rate.unwrap()
+    );
+    assert_eq!(bank_after.config.interest_rate_config.points, exp_points);
+    assert_eq!(
+        bank_after.config.interest_rate_config.curve_type,
+        INTEREST_CURVE_SEVEN_POINT
+    );
 
+    // No change
     assert_eq!(
         bank_after.config.deposit_limit,
         old_bank.config.deposit_limit
@@ -864,7 +893,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         .await?;
 
     let ir_config = InterestRateConfigOpt {
-        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        hundred_util_rate: Some(1234567),
         ..Default::default()
     };
 

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::processor::oracle::find_pyth_push_oracles_for_feed_id;
 use crate::{
     config::GlobalOptions,
@@ -9,9 +11,10 @@ use anyhow::Result;
 use clap::{clap_derive::ArgEnum, Parser};
 use fixed::types::I80F48;
 use marginfi_type_crate::types::{
-    Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState, InterestRateConfig,
-    InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup, RiskTier, WrappedI80F48,
-    ACCOUNT_FLAG_DEPRECATED, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+    make_points, Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState,
+    InterestRateConfig, InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup,
+    RatePoint, RiskTier, WrappedI80F48, ACCOUNT_FLAG_DEPRECATED,
+    ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED, CURVE_POINTS,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
@@ -114,11 +117,11 @@ pub enum GroupCommand {
         #[clap(long)]
         borrow_limit_ui: u64,
         #[clap(long)]
-        optimal_utilization_rate: f64,
+        zero_util_rate: u32,
         #[clap(long)]
-        plateau_interest_rate: f64,
+        hundred_util_rate: u32,
         #[clap(long)]
-        max_interest_rate: f64,
+        points: Vec<RatePointArg>,
         #[clap(long)]
         insurance_fee_fixed_apr: f64,
         #[clap(long)]
@@ -200,6 +203,45 @@ pub enum RiskTierArg {
     Isolated,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RatePointArg {
+    pub util: u32,
+    pub rate: u32,
+}
+
+impl FromStr for RatePointArg {
+    type Err = String;
+
+    /// Parse "util,rate" -> (u32, u32)
+    /// util: a %, as u32, out of 100%     (e.g., 50% = 0.5 * u32::MAX)
+    /// rate: a %, as u32, out of 1000%    (e.g., 100% = 0.1 * u32::MAX)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (lhs, rhs) = s
+            .split_once(',')
+            .ok_or_else(|| "expected format: util,rate".to_string())?;
+
+        let util = lhs
+            .trim()
+            .parse::<u32>()
+            .map_err(|e| format!("invalid util u32: {e}"))?;
+        let rate = rhs
+            .trim()
+            .parse::<u32>()
+            .map_err(|e| format!("invalid rate u32: {e}"))?;
+
+        Ok(RatePointArg { util, rate })
+    }
+}
+
+impl From<RatePointArg> for RatePoint {
+    fn from(p: RatePointArg) -> Self {
+        RatePoint {
+            util: p.util,
+            rate: p.rate,
+        }
+    }
+}
+
 impl From<RiskTierArg> for RiskTier {
     fn from(value: RiskTierArg) -> Self {
         match value {
@@ -256,12 +298,6 @@ pub enum BankCommand {
         #[clap(long, arg_enum)]
         operational_state: Option<BankOperationalStateArg>,
 
-        #[clap(long, help = "Optimal utilization rate")]
-        opr_ur: Option<f64>,
-        #[clap(long, help = "Plateau interest rate")]
-        p_ir: Option<f64>,
-        #[clap(long, help = "Max interest rate")]
-        m_ir: Option<f64>,
         #[clap(long, help = "Insurance fee fixed APR")]
         if_fa: Option<f64>,
         #[clap(long, help = "Insurance IR fee")]
@@ -272,6 +308,26 @@ pub enum BankCommand {
         pf_ir: Option<f64>,
         #[clap(long, help = "Protocol origination fee")]
         pf_or: Option<f64>,
+
+        #[clap(
+            long,
+            help = "Base rate at utilization=0; a % as u32 out of 1000% (100% = 0.1 * u32::MAX)"
+        )]
+        zero_util_rate: Option<u32>,
+
+        #[clap(
+            long,
+            help = "Base rate at utilization=100; a % as u32 out of 1000% (100% = 0.1 * u32::MAX)"
+        )]
+        hundred_util_rate: Option<u32>,
+
+        #[clap(
+            long = "point",
+            value_parser = RatePointArg::from_str,
+            help = "Kink point as 'util,rate'. util: u32 out of 100%; rate: u32 out of 1000%. Repeat up to 5 times in ascending util order."
+        )]
+        points: Vec<RatePointArg>,
+
         #[clap(long, arg_enum, help = "Bank risk tier")]
         risk_tier: Option<RiskTierArg>,
         #[clap(long, help = "0 = default, 1 = SOL, 2 = Staked SOL LST")]
@@ -620,9 +676,9 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             asset_weight_maint,
             liability_weight_init,
             liability_weight_maint,
-            optimal_utilization_rate,
-            plateau_interest_rate,
-            max_interest_rate,
+            zero_util_rate,
+            hundred_util_rate,
+            points,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
             group_fixed_fee_apr,
@@ -643,9 +699,9 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             liability_weight_maint,
             deposit_limit_ui,
             borrow_limit_ui,
-            optimal_utilization_rate,
-            plateau_interest_rate,
-            max_interest_rate,
+            zero_util_rate,
+            hundred_util_rate,
+            points,
             insurance_fee_fixed_apr,
             insurance_ir_fee,
             group_fixed_fee_apr,
@@ -746,14 +802,14 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             borrow_limit_ui,
             operational_state,
             bank_pk,
-            opr_ur,
-            p_ir,
-            m_ir,
             if_fa,
             if_ir,
             pf_fa,
             pf_ir,
             pf_or,
+            zero_util_rate,
+            hundred_util_rate,
+            points,
             risk_tier,
             asset_tag,
             usd_init_limit,
@@ -763,6 +819,13 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             freeze_settings,
         } => {
             let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
+            let points_opt: Option<[RatePoint; CURVE_POINTS]> = if points.is_empty() {
+                None
+            } else {
+                let pts: Vec<RatePoint> = points.iter().map(|p| (*p).into()).collect();
+                Some(make_points(&pts))
+            };
+
             processor::bank_configure(
                 config,
                 profile, //
@@ -782,14 +845,14 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     }),
                     operational_state: operational_state.map(|x| x.into()),
                     interest_rate_config: Some(InterestRateConfigOpt {
-                        optimal_utilization_rate: opr_ur.map(|x| I80F48::from_num(x).into()),
-                        plateau_interest_rate: p_ir.map(|x| I80F48::from_num(x).into()),
-                        max_interest_rate: m_ir.map(|x| I80F48::from_num(x).into()),
                         insurance_fee_fixed_apr: if_fa.map(|x| I80F48::from_num(x).into()),
                         insurance_ir_fee: if_ir.map(|x| I80F48::from_num(x).into()),
                         protocol_fixed_fee_apr: pf_fa.map(|x| I80F48::from_num(x).into()),
                         protocol_ir_fee: pf_ir.map(|x| I80F48::from_num(x).into()),
                         protocol_origination_fee: pf_or.map(|x| I80F48::from_num(x).into()),
+                        zero_util_rate,
+                        hundred_util_rate,
+                        points: points_opt,
                     }),
                     risk_tier: risk_tier.map(|x| x.into()),
                     asset_tag,

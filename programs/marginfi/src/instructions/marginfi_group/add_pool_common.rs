@@ -47,9 +47,9 @@ pub fn log_pool_info(bank: &Bank) {
         wrapped_i80f48_to_f64(interest.protocol_origination_fee)
     );
     msg!(
-        "Plateau: {:?} Optimal: {:?} Max: {:?}",
-        wrapped_i80f48_to_f64(interest.plateau_interest_rate),
-        wrapped_i80f48_to_f64(interest.optimal_utilization_rate),
-        wrapped_i80f48_to_f64(interest.max_interest_rate)
+        "Rate at 0: {:?} points: {:?} rate at 100: {:?}",
+        interest.zero_util_rate,
+        interest.points,
+        interest.hundred_util_rate
     );
 }

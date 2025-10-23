@@ -6,6 +6,7 @@ import { bankKeypairUsdc, groupAdmin, oracles, users } from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
+  assertI80F48Equal,
   assertKeysEqual,
   expectFailedTxWithError,
   expectFailedTxWithMessage,
@@ -13,12 +14,15 @@ import {
 import { assert } from "chai";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
+  aprToU32,
   ASSET_TAG_SOL,
   BankConfigOptRaw,
   CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
-  InterestRateConfigRawWithOrigination,
+  InterestRateConfig1_6,
+  InterestRateConfigOpt1_6,
+  makeRatePoints,
 } from "./utils/types";
 
 describe("Lending pool configure bank", () => {
@@ -26,15 +30,16 @@ describe("Lending pool configure bank", () => {
 
   it("(admin) Configure bank (USDC) - happy path", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    let interestRateConfig: InterestRateConfigRawWithOrigination = {
-      optimalUtilizationRate: bigNumberToWrappedI80F48(0.1),
-      plateauInterestRate: bigNumberToWrappedI80F48(0.2),
-      maxInterestRate: bigNumberToWrappedI80F48(4),
+    const expPoints = makeRatePoints([0.3, 0.4, 0.5], [1, 2, 3]);
+    let interestRateConfig: InterestRateConfigOpt1_6 = {
       insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.3),
       insuranceIrFee: bigNumberToWrappedI80F48(0.4),
       protocolFixedFeeApr: bigNumberToWrappedI80F48(0.5),
       protocolIrFee: bigNumberToWrappedI80F48(0.6),
       protocolOriginationFee: bigNumberToWrappedI80F48(0.7),
+      zeroUtilRate: aprToU32(0.1),
+      hundredUtilRate: aprToU32(4),
+      points: expPoints,
     };
 
     let bankConfigOpt: BankConfigOptRaw = {
@@ -54,7 +59,7 @@ describe("Lending pool configure bank", () => {
       oracleMaxAge: 150,
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
-      oracleMaxConfidence: 420000
+      oracleMaxConfidence: 420000,
     };
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -76,14 +81,33 @@ describe("Lending pool configure bank", () => {
     assertI80F48Approx(config.liabilityWeightMaint, 1.8);
     assertBNEqual(config.depositLimit, 5000);
 
-    assertI80F48Approx(interest.optimalUtilizationRate, 0.1);
-    assertI80F48Approx(interest.plateauInterestRate, 0.2);
-    assertI80F48Approx(interest.maxInterestRate, 4);
+    // Note: Zero since 1.6 replaced the legacy curve system
+    assertI80F48Equal(interest.optimalUtilizationRate, 0);
+    assertI80F48Equal(interest.plateauInterestRate, 0);
+    assertI80F48Equal(interest.maxInterestRate, 0);
+
     assertI80F48Approx(interest.insuranceFeeFixedApr, 0.3);
     assertI80F48Approx(interest.insuranceIrFee, 0.4);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.5);
     assertI80F48Approx(interest.protocolIrFee, 0.6);
     assertI80F48Approx(interest.protocolOriginationFee, 0.7);
+
+    assert.approximately(interest.zeroUtilRate, aprToU32(0.1), 2);
+    assert.approximately(interest.hundredUtilRate, aprToU32(4), 2);
+    for (let i = 0; i < 3; i++) {
+      assert.approximately(interest.points[i].util, expPoints[i].util, 2);
+      assert.approximately(interest.points[i].rate, expPoints[i].rate, 2);
+    }
+    // Rest is padding
+    for (let i = 3; i < 5; i++) {
+      const p = interest.points[i];
+      if (interest.points[i].util === 0 && interest.points[i].rate === 0) {
+        assert.equal(p.util, 0);
+        assert.equal(p.rate, 0);
+      } else {
+        assert.ok(false, "expected padding");
+      }
+    }
 
     assert.deepEqual(config.operationalState, { paused: {} });
     assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change

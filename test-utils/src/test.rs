@@ -7,7 +7,10 @@ use anchor_lang::prelude::*;
 use bincode::deserialize;
 use marginfi_type_crate::{
     constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
-    types::{BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier},
+    types::{
+        centi_to_u32, make_points, milli_to_u32, BankConfig, BankOperationalState,
+        InterestRateConfig, OracleSetup, RatePoint, RiskTier, INTEREST_CURVE_SEVEN_POINT,
+    },
 };
 use pyth_solana_receiver_sdk::price_update::{PriceUpdateV2, VerificationLevel};
 use solana_sdk::{account::AccountSharedData, entrypoint::ProgramResult};
@@ -238,15 +241,23 @@ pub fn create_oracle_key_array(pyth_oracle: Pubkey) -> [Pubkey; MAX_ORACLE_KEYS]
 lazy_static! {
     pub static ref DEFAULT_TEST_BANK_INTEREST_RATE_CONFIG: InterestRateConfig =
         InterestRateConfig {
+            // TODO deprecate in 1.7
+            optimal_utilization_rate: I80F48!(0.5).into(),
+            plateau_interest_rate: I80F48!(0.6).into(),
+            max_interest_rate: I80F48!(3).into(),
+
             insurance_fee_fixed_apr: I80F48!(0).into(),
             insurance_ir_fee: I80F48!(0).into(),
             protocol_ir_fee: I80F48!(0).into(),
             protocol_fixed_fee_apr: I80F48!(0).into(),
-
-            optimal_utilization_rate: I80F48!(0.5).into(),
-            plateau_interest_rate: I80F48!(0.6).into(),
-            max_interest_rate: I80F48!(3).into(),
             protocol_origination_fee: I80F48!(0).into(),
+
+            zero_util_rate: milli_to_u32(I80F48!(0)),
+            hundred_util_rate: milli_to_u32(I80F48!(3)),
+            points: make_points(&[
+                RatePoint::new(centi_to_u32(I80F48!(0.5)), milli_to_u32(I80F48!(0.6))),
+            ]),
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
             ..Default::default()
         };
     pub static ref DEFAULT_TEST_BANK_CONFIG: BankConfig = BankConfig {
@@ -261,15 +272,23 @@ lazy_static! {
         config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
 
         interest_rate_config: InterestRateConfig {
+            // TODO deprecate in 1.7
+            optimal_utilization_rate: I80F48!(0).into(),
+            plateau_interest_rate: I80F48!(0).into(),
+            max_interest_rate: I80F48!(0).into(),
+
             insurance_fee_fixed_apr: I80F48!(0).into(),
             insurance_ir_fee: I80F48!(0).into(),
             protocol_ir_fee: I80F48!(0).into(),
             protocol_fixed_fee_apr: I80F48!(0).into(),
-
-            optimal_utilization_rate: I80F48!(0.5).into(),
-            plateau_interest_rate: I80F48!(0.6).into(),
-            max_interest_rate: I80F48!(3).into(),
             protocol_origination_fee: I80F48!(0).into(),
+
+            zero_util_rate: milli_to_u32(I80F48!(0)),
+            hundred_util_rate: milli_to_u32(I80F48!(3)),
+            points: make_points(&[
+                RatePoint::new(centi_to_u32(I80F48!(0.5)), milli_to_u32(I80F48!(0.6))),
+            ]),
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
             ..Default::default()
         },
         oracle_max_age: 100,

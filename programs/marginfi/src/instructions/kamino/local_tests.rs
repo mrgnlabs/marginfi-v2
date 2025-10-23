@@ -273,7 +273,7 @@ mod tests {
         let bank = generic_reserve(200_000_000, 8, 1_000_000);
         // Find a raw that fits into I80F48 as an input but overflows during multiply
         let rb = ratio_bits(&bank);
-        const N: i128 = 1i128 << 48;
+        const _N: i128 = 1i128 << 48;
         let max_bits = I80F48::MAX.to_bits();
         // floor(MAX / ratio) in integer domain for raw
         let safe_raw = (max_bits / rb) as i128;
