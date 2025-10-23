@@ -15,7 +15,7 @@ use fixed_macro::types::I80F48;
 use marginfi::{errors::MarginfiError, instructions::LendingPoolAddBankBumps};
 use marginfi::{instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType};
 use marginfi_type_crate::types::{
-    make_points, p1000_to_u32, p100_to_u32, RatePoint, INTEREST_CURVE_SEVEN_POINT,
+    centi_to_u32, make_points, milli_to_u32, RatePoint, INTEREST_CURVE_SEVEN_POINT,
 };
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
@@ -285,10 +285,10 @@ impl<'state> MarginfiFuzzContext<'state> {
                         protocol_origination_fee: I80F48::ZERO.into(),
 
                         zero_util_rate: 0,
-                        hundred_util_rate: p1000_to_u32(I80F48!(4)),
+                        hundred_util_rate: milli_to_u32(I80F48!(4)),
                         points: make_points(&vec![RatePoint::new(
-                            p100_to_u32(I80F48!(0.5)),
-                            p1000_to_u32(I80F48!(0.5)),
+                            centi_to_u32(I80F48!(0.5)),
+                            milli_to_u32(I80F48!(0.5)),
                         )]),
                         curve_type: INTEREST_CURVE_SEVEN_POINT,
                         ..Default::default()

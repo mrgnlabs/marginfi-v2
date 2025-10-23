@@ -45,9 +45,7 @@ impl<'info> UserAccount<'info> {
             .lending_account
             .balances
             .iter()
-            .filter(|blc| {
-                !blc.is_empty(BalanceSide::Liabilities)
-            })
+            .filter(|blc| !blc.is_empty(BalanceSide::Liabilities))
             .collect::<Vec<_>>();
 
         asset_balances
