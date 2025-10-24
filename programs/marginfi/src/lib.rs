@@ -184,6 +184,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (admin only)
+    pub fn lending_pool_set_fixed_oracle_price(
+        ctx: Context<LendingPoolSetFixedOraclePrice>,
+        price: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
+    }
+
     /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,

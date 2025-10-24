@@ -122,7 +122,10 @@ pub struct Bank {
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B
+    /// Stored oracle price for `OracleSetup::Fixed`
+    pub fixed_price: WrappedI80F48,
+
+    pub _padding_1: [[u64; 2]; 14], // 8 * 2 * 14 = 224B
 }
 
 impl Bank {
@@ -171,6 +174,7 @@ pub enum OracleSetup {
     StakedWithPythPush,
     KaminoPythPush,
     KaminoSwitchboardPull,
+    Fixed,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -186,6 +190,7 @@ impl OracleSetup {
             5 => Some(Self::StakedWithPythPush),
             6 => Some(Self::KaminoPythPush),
             7 => Some(Self::KaminoSwitchboardPull),
+            8 => Some(Self::Fixed),
             _ => None,
         }
     }

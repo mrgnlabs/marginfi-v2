@@ -1242,20 +1242,31 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     use marginfi::state::price::{OraclePriceType, PriceBias};
 
     let bank: Bank = config.mfi_program.account(bank_pk)?;
-    let mut price_oracle_account = config
-        .mfi_program
-        .rpc()
-        .get_account(&bank.config.oracle_keys[0])?;
-    let price_oracle_ai =
-        (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
+    let opfa = match bank.config.oracle_setup {
+        OracleSetup::Fixed => OraclePriceFeedAdapter::try_from_bank_with_max_age(
+            &bank,
+            &[],
+            &Clock::default(),
+            u64::MAX,
+        )
+        .unwrap(),
+        _ => {
+            let mut price_oracle_account = config
+                .mfi_program
+                .rpc()
+                .get_account(&bank.config.oracle_keys[0])?;
+            let price_oracle_ai =
+                (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
 
-    let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
-        &bank.config,
-        &[price_oracle_ai],
-        &Clock::default(),
-        u64::MAX,
-    )
-    .unwrap();
+            OraclePriceFeedAdapter::try_from_bank_with_max_age(
+                &bank,
+                &[price_oracle_ai],
+                &Clock::default(),
+                u64::MAX,
+            )
+            .unwrap()
+        }
+    };
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
         opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, None)?,
@@ -1313,11 +1324,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
-        .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythPushOracle => true,
-            OracleSetup::SwitchboardPull => false,
-            _ => panic!("Unknown oracle setup"),
-        });
+        .partition(|(setup, _, _, _)| matches!(setup, OracleSetup::PythPushOracle));
 
     let pyth_feeds = pyth_feeds
         .into_iter()
@@ -1326,6 +1333,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
     let swb_feeds = swb_feeds
         .into_iter()
+        .filter(|(setup, _, _, _)| matches!(setup, OracleSetup::SwitchboardPull))
         .map(|(_, max_age, mint, key)| (max_age, mint, key))
         .collect::<Vec<_>>();
 

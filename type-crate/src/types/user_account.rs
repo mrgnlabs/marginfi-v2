@@ -152,7 +152,8 @@ pub struct Balance {
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
     pub last_update: u64,
-    pub _padding: [u64; 1],
+    pub remaining_accounts_override: u8,
+    pub _padding: [u8; 7],
 }
 
 impl Balance {
@@ -204,7 +205,8 @@ impl Balance {
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
             last_update: 0,
-            _padding: [0; 1],
+            remaining_accounts_override: 0,
+            _padding: [0; 7],
         }
     }
 }
