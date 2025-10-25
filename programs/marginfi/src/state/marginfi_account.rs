@@ -15,15 +15,19 @@ use marginfi_type_crate::{
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
-        LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+        LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
     },
 };
 use std::cmp::{max, min};
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
-    get_remaining_accounts_per_asset_tag(bank.config.asset_tag)
+    if bank.config.oracle_setup == OracleSetup::Fixed {
+        Ok(1)
+    } else {
+        get_remaining_accounts_per_asset_tag(bank.config.asset_tag)
+    }
 }
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
@@ -211,10 +215,8 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 );
                 let oracle_ais = &remaining_ais[oracle_ai_idx..end_idx];
 
-                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                    &bank.config,
-                    oracle_ais,
-                    &clock,
+                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank(
+                    &bank, oracle_ais, &clock,
                 ));
 
                 account_index += num_accounts;
@@ -1478,7 +1480,7 @@ mod test {
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),
                     last_update: 0,
-                    _padding: [0_u64],
+                    _padding: [0; 1],
                 }; 16],
                 _padding: [0; 8],
             },
