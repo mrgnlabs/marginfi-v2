@@ -668,7 +668,8 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._padding0, [0; 2]);
     // Note: legacy banks that have a 0 value here will use 10%
     assert_eq!(bank.config.oracle_max_confidence, 0);
-    assert_eq!(bank.config._padding1, [0; 32]);
+    assert_eq!(bank.config.fixed_price, I80F48::ZERO.into());
+    assert_eq!(bank.config._padding1, [0; 16]);
 
     assert_eq!(
         I80F48::from(bank.emissions_rate),
@@ -695,8 +696,7 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank._padding_0, [0; 16]);
     assert_eq!(bank.kamino_reserve, Pubkey::default());
     assert_eq!(bank.kamino_obligation, Pubkey::default());
-    assert_eq!(bank.fixed_price, I80F48!(0.0).into());
-    assert_eq!(bank._padding_1, [[0, 0]; 14]);
+    assert_eq!(bank._padding_1, [[0, 0]; 15]);
 
     Ok(())
 }

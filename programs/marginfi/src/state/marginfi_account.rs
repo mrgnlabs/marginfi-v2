@@ -32,11 +32,7 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
 fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
-    if balance.remaining_accounts_override != 0 {
-        Ok(balance.remaining_accounts_override as usize)
-    } else {
-        get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
-    }
+    get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
 }
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
@@ -918,8 +914,6 @@ impl<'a> BankAccountWrapper<'a> {
             .find(|balance| balance.is_active() && balance.bank_pk.eq(bank_pk))
             .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
 
-        balance.remaining_accounts_override = get_remaining_accounts_per_bank(bank)? as u8;
-
         Ok(Self { balance, bank })
     }
 
@@ -941,8 +935,6 @@ impl<'a> BankAccountWrapper<'a> {
                     .balances
                     .get_mut(balance_index)
                     .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
-
-                balance.remaining_accounts_override = get_remaining_accounts_per_bank(bank)? as u8;
 
                 Ok(Self { balance, bank })
             }
@@ -974,8 +966,7 @@ impl<'a> BankAccountWrapper<'a> {
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
                     last_update: Clock::get()?.unix_timestamp as u64,
-                    remaining_accounts_override: get_remaining_accounts_per_bank(bank)? as u8,
-                    _padding: [0; 7],
+                    _padding: [0; 1],
                 };
 
                 Ok(Self {
@@ -1489,8 +1480,7 @@ mod test {
                     liability_shares: WrappedI80F48::default(),
                     emissions_outstanding: WrappedI80F48::default(),
                     last_update: 0,
-                    remaining_accounts_override: 0,
-                    _padding: [0; 7],
+                    _padding: [0; 1],
                 }; 16],
                 _padding: [0; 8],
             },
@@ -1619,23 +1609,5 @@ mod test {
 
             assert!(emissions_new - emissions < I80F48::from_num(0.00000001));
         }
-    }
-
-    #[test]
-    fn test_remaining_accounts_override_respected() {
-        let mut balance = Balance::empty_deactivated();
-        balance.set_active(true);
-        balance.remaining_accounts_override = 1;
-        assert_eq!(get_remaining_accounts_per_balance(&balance).unwrap(), 1);
-
-        balance.remaining_accounts_override = 0;
-        assert_eq!(get_remaining_accounts_per_balance(&balance).unwrap(), 2);
-    }
-
-    #[test]
-    fn test_get_remaining_accounts_for_fixed_bank() {
-        let mut bank = Bank::default();
-        bank.config.oracle_setup = OracleSetup::Fixed;
-        assert_eq!(get_remaining_accounts_per_bank(&bank).unwrap(), 1);
     }
 }

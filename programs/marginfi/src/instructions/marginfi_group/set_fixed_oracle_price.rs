@@ -1,5 +1,6 @@
 use crate::events::{GroupEventHeader, LendingPoolBankSetFixedOraclePriceEvent};
 use crate::state::bank::BankImpl;
+use crate::state::bank_config::BankConfigImpl;
 use crate::{check, errors::MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -18,18 +19,20 @@ pub fn lending_pool_set_fixed_oracle_price(
         panic!("cannot change oracle settings on frozen banks");
     }
 
-    check!(
-        bank.config.oracle_setup == OracleSetup::Fixed,
-        MarginfiError::InvalidOracleSetup
-    );
+    bank.config.oracle_setup = OracleSetup::Fixed;
+    // Note: We leave the other keys in place to make it easier to restore Kamino/Staked/etc banks
+    // to their original state.
+    bank.config.oracle_keys[0] = Pubkey::default();
 
     let price_i80: I80F48 = price.into();
     check!(
-        price_i80 > I80F48::ZERO,
-        MarginfiError::FixedOraclePriceNotSet
+        price_i80 >= I80F48::ZERO,
+        MarginfiError::FixedOraclePriceNegative
     );
 
-    bank.fixed_price = price;
+    bank.config.fixed_price = price;
+
+    bank.config.validate_oracle_setup(&[], None, None, None)?;
 
     emit!(LendingPoolBankSetFixedOraclePriceEvent {
         header: GroupEventHeader {
@@ -45,11 +48,16 @@ pub fn lending_pool_set_fixed_oracle_price(
 
 #[derive(Accounts)]
 pub struct LendingPoolSetFixedOraclePrice<'info> {
-    #[account(has_one = admin)]
+    #[account(
+        has_one = admin
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub admin: Signer<'info>,
 
-    #[account(mut, has_one = group)]
+    #[account(
+        mut, 
+        has_one = group
+    )]
     pub bank: AccountLoader<'info, Bank>,
 }

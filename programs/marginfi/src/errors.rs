@@ -188,8 +188,8 @@ pub enum MarginfiError {
     NotAllowedInCPI,
     #[msg("Stake pool supply is zero: cannot compute price")] // 6092
     ZeroSupplyInStakePool,
-    #[msg("Fixed oracle price is not configured")] // 6093
-    FixedOraclePriceNotSet,
+    #[msg("Fixed oracle price must be zero or greater")] // 6093
+    FixedOraclePriceNegative,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -335,7 +335,7 @@ impl From<u32> for MarginfiError {
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
             6092 => MarginfiError::ZeroSupplyInStakePool,
-            6093 => MarginfiError::FixedOraclePriceNotSet,
+            6093 => MarginfiError::FixedOraclePriceNegative,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

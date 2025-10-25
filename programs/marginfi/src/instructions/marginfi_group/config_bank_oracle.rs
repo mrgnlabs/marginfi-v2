@@ -19,6 +19,9 @@ pub fn lending_pool_configure_bank_oracle(
     } else {
         let setup_type =
             OracleSetup::from_u8(setup).unwrap_or_else(|| panic!("unsupported oracle type"));
+        if setup_type == OracleSetup::Fixed {
+            panic!("Use set_fixed_oracle_price instead");
+        }
 
         bank.config.oracle_setup = setup_type;
         bank.config.oracle_keys[0] = oracle;
