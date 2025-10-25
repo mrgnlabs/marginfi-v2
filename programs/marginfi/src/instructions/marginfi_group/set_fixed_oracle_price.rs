@@ -21,7 +21,8 @@ pub fn lending_pool_set_fixed_oracle_price(
 
     bank.config.oracle_setup = OracleSetup::Fixed;
     // Note: We leave the other keys in place to make it easier to restore Kamino/Staked/etc banks
-    // to their original state.
+    // to their original state. This can leave fixed banks in a somewhat awkward-looking state where
+    // oracles[0] is empty and other slots are not.
     bank.config.oracle_keys[0] = Pubkey::default();
 
     let price_i80: I80F48 = price.into();
