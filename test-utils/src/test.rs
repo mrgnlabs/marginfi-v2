@@ -5,6 +5,7 @@ use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
     types::{
@@ -693,11 +694,16 @@ impl TestFixture {
                         (&sol_equivalent_mint_f, *DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG)
                     }
                 };
+                let price: I80F48 = I80F48::from_num(get_mint_price(bank.mint.clone()));
 
                 banks.insert(
                     bank.mint.clone(),
                     tester_group
-                        .try_lending_pool_add_bank(bank_mint, bank.config.unwrap_or(default_config))
+                        .try_lending_pool_add_bank(
+                            bank_mint,
+                            bank.config.unwrap_or(default_config),
+                            Some(price),
+                        )
                         .await
                         .unwrap(),
                 );

@@ -79,7 +79,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
 
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, bank_config, None)
             .await;
 
         let marginfi_group: MarginfiGroup = test_f
@@ -342,6 +342,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
+            None,
         )
         .await;
 
@@ -370,7 +371,7 @@ async fn configure_bank_to_fixed_oracle() -> anyhow::Result<()> {
     let price_wrapped = price_value.into();
 
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow_mut();
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {
@@ -619,7 +620,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, bank_config, None)
             .await;
         assert!(res.is_ok());
     }
@@ -631,7 +632,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(&another_mint, another_config)
+        .try_lending_pool_add_bank(&another_mint, another_config, None)
         .await;
 
     assert!(res.is_err());
@@ -685,7 +686,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, bank_config, None)
             .await;
         assert!(res.is_ok());
     }
