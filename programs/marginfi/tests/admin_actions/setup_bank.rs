@@ -20,6 +20,7 @@ use marginfi_type_crate::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
+use solana_sdk::signer::Signer;
 use solana_sdk::{
     clock::Clock, instruction::Instruction, pubkey::Pubkey, transaction::Transaction,
 };
@@ -422,7 +423,7 @@ async fn update_fixed_bank_price() -> anyhow::Result<()> {
     let new_price_wrapped = new_price_value.into();
 
     {
-        let mut ctx = test_f.context.borrow_mut();
+        let ctx = test_f.context.borrow();
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {

@@ -260,6 +260,22 @@ macro_rules! native {
         (($val) * 10_u64.pow(9) as f64) as u64
     };
 
+    ($val: expr, "FIXED") => {
+        $val * 10_u64.pow(6)
+    };
+
+    ($val: expr, "FIXED", f64) => {
+        (($val) * 10_u64.pow(6) as f64) as u64
+    };
+
+    ($val: expr, "FIXED_LOW") => {
+        $val * 10_u64.pow(9)
+    };
+
+    ($val: expr, "FIXED_LOW", f64) => {
+        (($val) * 10_u64.pow(9) as f64) as u64
+    };
+
     ($val: expr, $decimals: expr) => {
         $val * 10_u64.pow($decimals as u32)
     };
