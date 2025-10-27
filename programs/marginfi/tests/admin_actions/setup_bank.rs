@@ -1,4 +1,5 @@
 use anchor_lang::error::ErrorCode;
+use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
@@ -19,7 +20,9 @@ use marginfi_type_crate::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::{clock::Clock, pubkey::Pubkey};
+use solana_sdk::{
+    clock::Clock, instruction::Instruction, pubkey::Pubkey, transaction::Transaction,
+};
 use test_case::test_case;
 
 #[tokio::test]
@@ -343,6 +346,110 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushWrongAccountOwner);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_to_fixed_oracle() -> anyhow::Result<()> {
+    let test_settings = TestSettings {
+        banks: vec![TestBankSetting {
+            mint: BankMint::Usdc,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let test_f = TestFixture::new(Some(test_settings)).await;
+
+    let bank_f = test_f.get_bank(&BankMint::Usdc);
+    let bank_before = bank_f.load().await;
+    assert_ne!(bank_before.config.oracle_setup, OracleSetup::Fixed);
+
+    let price_value = I80F48!(3.5);
+    let price_wrapped = price_value.into();
+
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {
+                group: test_f.marginfi_group.key,
+                admin: ctx.payer.pubkey(),
+                bank: bank_f.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolSetFixedOraclePrice {
+                price: price_wrapped,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    let bank_after = bank_f.load().await;
+    assert_eq!(bank_after.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_after.config.fixed_price), price_value);
+    assert_eq!(bank_after.config.oracle_keys[0], Pubkey::default());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_fixed_bank_price() -> anyhow::Result<()> {
+    let test_settings = TestSettings {
+        banks: vec![TestBankSetting {
+            mint: BankMint::Fixed,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let test_f = TestFixture::new(Some(test_settings)).await;
+
+    let bank_f = test_f.get_bank(&BankMint::Fixed);
+    let bank_before = bank_f.load().await;
+    assert_eq!(bank_before.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_before.config.fixed_price), I80F48!(2.0));
+
+    let new_price_value = I80F48!(4.2);
+    let new_price_wrapped = new_price_value.into();
+
+    {
+        let mut ctx = test_f.context.borrow_mut();
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {
+                group: test_f.marginfi_group.key,
+                admin: ctx.payer.pubkey(),
+                bank: bank_f.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolSetFixedOraclePrice {
+                price: new_price_wrapped,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    let bank_after = bank_f.load().await;
+    assert_eq!(bank_after.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_after.config.fixed_price), new_price_value);
 
     Ok(())
 }

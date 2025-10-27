@@ -86,7 +86,10 @@ impl OraclePriceFeedAdapter {
                 check!(ais.is_empty(), MarginfiError::WrongNumberOfOracleAccounts);
 
                 let price: I80F48 = bank.config.fixed_price.into();
-                check!(price >= I80F48::ZERO, MarginfiError::FixedOraclePriceNegative);
+                check!(
+                    price >= I80F48::ZERO,
+                    MarginfiError::FixedOraclePriceNegative
+                );
 
                 Ok(OraclePriceFeedAdapter::Fixed(FixedPriceFeed { price }))
             }

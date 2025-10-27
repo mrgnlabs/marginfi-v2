@@ -19,6 +19,8 @@ use test_case::test_case;
 #[test_case(1_000., 999., 0., 0., 10., BankMint::Usdc, BankMint::T22WithFee)]
 #[test_case(2_000., 99., 400., -50., 1_500., BankMint::T22WithFee, BankMint::SolEquivalent)]
 #[test_case(2_000., 1_999., 1000., 750., 2_000., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(150., 9.9, 50., 0., 5., BankMint::Fixed, BankMint::Sol)]
+#[test_case(50_000., 3., 75_000., 0., 1.5, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_liquidation_success(
     liquidatee_deposit_amount: f64,
@@ -425,6 +427,8 @@ async fn marginfi_account_liquidation_success(
 #[test_case(1_000., 999., 10., BankMint::Usdc, BankMint::T22WithFee)]
 #[test_case(2_000., 99., 1500., BankMint::T22WithFee, BankMint::SolEquivalent)]
 #[test_case(2_000., 1_999., 2000., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(150., 9.9, 5., BankMint::Fixed, BankMint::Sol)]
+#[test_case(50_000., 3., 1.5, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_liquidation_with_delays_success(
     liquidatee_deposit_amount: f64,
@@ -1201,6 +1205,8 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
 #[test_case(1_000., 1900., 10., BankMint::Usdc, BankMint::T22WithFee)]
 #[test_case(2_000., 99., 20., BankMint::T22WithFee, BankMint::SolEquivalent)]
 #[test_case(2_000., 1_999., 20., BankMint::Usdc, BankMint::PyUSD)]
+#[test_case(150., 9.9, 5., BankMint::Fixed, BankMint::Sol)]
+#[test_case(50_000., 3., 1.5, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_liquidation_emode(
     deposit_amount: f64,

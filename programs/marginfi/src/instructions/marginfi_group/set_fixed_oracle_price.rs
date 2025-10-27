@@ -57,7 +57,7 @@ pub struct LendingPoolSetFixedOraclePrice<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-        mut, 
+        mut,
         has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
