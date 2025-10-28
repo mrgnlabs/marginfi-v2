@@ -1200,6 +1200,7 @@ async fn marginfi_account_liquidation_failure_bank_not_liquidatable() -> anyhow:
     Ok(())
 }
 
+// ??? this test is occasionally too slow to complete, shave off some tests cases?
 #[test_case(100., 9.9, 1., BankMint::Usdc, BankMint::Sol)]
 #[test_case(123., 122., 1.23, BankMint::SolEquivalent, BankMint::SolEqIsolated)]
 #[test_case(1_000., 1900., 10., BankMint::Usdc, BankMint::T22WithFee)]
