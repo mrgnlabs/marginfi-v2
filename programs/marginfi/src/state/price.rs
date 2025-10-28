@@ -82,17 +82,6 @@ impl OraclePriceFeedAdapter {
         let bank_config = &bank.config;
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::Fixed => {
-                check!(ais.is_empty(), MarginfiError::WrongNumberOfOracleAccounts);
-
-                let price: I80F48 = bank.config.fixed_price.into();
-                check!(
-                    price >= I80F48::ZERO,
-                    MarginfiError::FixedOraclePriceNegative
-                );
-
-                Ok(OraclePriceFeedAdapter::Fixed(FixedPriceFeed { price }))
-            }
             OracleSetup::PythLegacy => {
                 panic!("pyth legacy is deprecated");
             }
@@ -322,6 +311,17 @@ impl OraclePriceFeedAdapter {
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
+            OracleSetup::Fixed => {
+                check!(ais.is_empty(), MarginfiError::WrongNumberOfOracleAccounts);
+
+                let price: I80F48 = bank.config.fixed_price.into();
+                check!(
+                    price >= I80F48::ZERO,
+                    MarginfiError::FixedOraclePriceNegative
+                );
+
+                Ok(OraclePriceFeedAdapter::Fixed(FixedPriceFeed { price }))
+            }
         }
     }
 
@@ -337,13 +337,6 @@ impl OraclePriceFeedAdapter {
     ) -> MarginfiResult {
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
-            OracleSetup::Fixed => {
-                check!(
-                    oracle_ais.is_empty(),
-                    MarginfiError::WrongNumberOfOracleAccounts
-                );
-                Ok(())
-            }
             OracleSetup::KaminoPythPush => {
                 require_eq!(
                     oracle_ais.len(),
@@ -496,6 +489,13 @@ impl OraclePriceFeedAdapter {
 
                     Ok(())
                 }
+            }
+            OracleSetup::Fixed => {
+                check!(
+                    oracle_ais.is_empty(),
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+                Ok(())
             }
         }
     }

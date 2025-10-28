@@ -21,7 +21,8 @@ use marginfi_type_crate::{
 };
 use std::cmp::{max, min};
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
+/// for Kamino (bank, oracle, reserve), 1 for Fixed
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
     if bank.config.oracle_setup == OracleSetup::Fixed {
         Ok(1)
@@ -30,12 +31,14 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
     }
 }
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
+/// for Kamino (bank, oracle, reserve), 1 for Fixed
 fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
     get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
 }
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
+/// for Kamino (bank, oracle, reserve), 1 for Fixed
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
@@ -195,15 +198,15 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 }
                 let bank_ai = bank_ai.unwrap();
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+                let bank = bank_al.load()?;
 
-                // Determine number of accounts to process for this balance
-                let num_accounts = get_remaining_accounts_per_balance(balance)?;
+                // Determine number of accounts to process for this bank
+                let num_accounts = get_remaining_accounts_per_bank(&bank)?;
                 check_eq!(
                     balance.bank_pk,
                     *bank_ai.key,
                     MarginfiError::InvalidBankAccount
                 );
-                let bank = bank_al.load()?;
 
                 // Get the oracle, and the LST mint and sol pool if applicable (staked only)
                 let oracle_ai_idx = account_index + 1;
