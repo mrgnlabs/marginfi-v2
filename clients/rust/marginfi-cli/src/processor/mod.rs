@@ -2376,6 +2376,15 @@ pub fn marginfi_account_liquidate(
     let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
     let token_program = liability_mint_account.owner;
 
+    let liquidator_accounts = load_observation_account_metas(
+        &marginfi_account,
+        &banks,
+        vec![liability_bank_pk, asset_bank_pk],
+        vec![],
+    );
+    let liquidatee_accounts =
+        load_observation_account_metas(&liquidatee_marginfi_account, &banks, vec![], vec![]);
+
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
@@ -2396,7 +2405,12 @@ pub fn marginfi_account_liquidate(
             token_program,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
+        data: marginfi::instruction::LendingAccountLiquidate {
+            asset_amount,
+            liquidatee_accounts: liquidatee_accounts.len() as u8,
+            liquidator_accounts: liquidator_accounts.len() as u8,
+        }
+        .data(),
     };
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
@@ -2427,18 +2441,8 @@ pub fn marginfi_account_liquidate(
         is_signer: false,
         is_writable: false,
     });
-    ix.accounts.extend(load_observation_account_metas(
-        &marginfi_account,
-        &banks,
-        vec![liability_bank_pk, asset_bank_pk],
-        vec![],
-    ));
-    ix.accounts.extend(load_observation_account_metas(
-        &liquidatee_marginfi_account,
-        &banks,
-        vec![],
-        vec![],
-    ));
+    ix.accounts.extend(liquidator_accounts);
+    ix.accounts.extend(liquidatee_accounts);
 
     let cu_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 

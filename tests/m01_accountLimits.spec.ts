@@ -153,7 +153,7 @@ describe("Limits on number of accounts when using Kamino", () => {
           // anything other than OOM should blow up the test
           throw new Error(
             `Unexpected borrowIx failure on bank ${banks[i].toBase58()}: ` +
-            logs.join("\n")
+              logs.join("\n")
           );
         }
       }
@@ -188,8 +188,8 @@ describe("Limits on number of accounts when using Kamino", () => {
     const remainingAccounts: PublicKey[][] = [];
     for (let i = 0; i < MAX_BALANCES; i++) {
       remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
-      // console.log("bank: " + banks[i]);
     }
+    let liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
 
     // Deposit some funds to operate as a liquidator...
     let tx = new Transaction();
@@ -232,12 +232,11 @@ describe("Limits on number of accounts when using Kamino", () => {
             [banks[MAX_BALANCES - 1], oracles.pythPullLst.publicKey],
           ]),
 
-          ...composeRemainingAccounts(
-            // liquidatee accounts
-            remainingAccounts
-          ),
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: 4,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

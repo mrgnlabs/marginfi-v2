@@ -533,8 +533,8 @@ impl MarginfiAccountFixture {
             .await;
         }
 
-        ix.accounts.extend_from_slice(&liquidator_obs_accounts);
-        ix.accounts.extend_from_slice(&liquidatee_obs_accounts);
+        ix.accounts.extend_from_slice(liquidator_obs_accounts);
+        ix.accounts.extend_from_slice(liquidatee_obs_accounts);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
