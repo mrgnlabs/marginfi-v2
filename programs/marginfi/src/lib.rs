@@ -317,8 +317,15 @@ pub mod marginfi {
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
+        liquidatee_accounts: u8,
+        liquidator_accounts: u8,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(
+            ctx,
+            asset_amount,
+            liquidatee_accounts,
+            liquidator_accounts,
+        )
     }
 
     pub fn lending_account_start_flashloan(

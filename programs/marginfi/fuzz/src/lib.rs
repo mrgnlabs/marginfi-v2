@@ -827,6 +827,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                 Default::default(),
             ),
             asset_amount.0,
+            liquidatee_remaining_accounts.len() as u8,
+            liquidator_remaining_accounts.len() as u8,
         );
 
         let success = if let Err(error) = res {

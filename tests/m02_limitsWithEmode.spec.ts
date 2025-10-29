@@ -218,7 +218,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
           // anything other than OOM should blow up the test
           throw new Error(
             `Unexpected borrowIx failure on bank ${banks[i].toBase58()}: ` +
-            logs.join("\n")
+              logs.join("\n")
           );
         }
       }
@@ -279,6 +279,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
       liquidatorAccount
     );
     dumpAccBalances(liquidatorAcc);
+    const liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
 
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
@@ -297,12 +298,11 @@ describe("Limits on number of accounts, with emode in effect", () => {
             [banks[MAX_BALANCES - 1], oracles.pythPullLst.publicKey],
           ]),
 
-          ...composeRemainingAccounts(
-            // liquidatee accounts
-            remainingAccounts
-          ),
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: 4,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

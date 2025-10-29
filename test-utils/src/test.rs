@@ -5,6 +5,7 @@ use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
+use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
     types::{
@@ -34,6 +35,14 @@ impl TestSettings {
         let banks = vec![
             TestBankSetting {
                 mint: BankMint::Usdc,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::Fixed,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::FixedLow,
                 ..TestBankSetting::default()
             },
             TestBankSetting {
@@ -155,6 +164,8 @@ pub struct TestBankSetting {
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum BankMint {
     Usdc,
+    Fixed,
+    FixedLow,
     Sol,
     SolSwbPull,
     SolSwbOrigFee,
@@ -185,6 +196,8 @@ pub struct TestFixture {
     pub marginfi_group: MarginfiGroupFixture,
     pub banks: HashMap<BankMint, BankFixture>,
     pub usdc_mint: MintFixture,
+    pub fixed_mint: MintFixture,
+    pub fixed_low_mint: MintFixture,
     pub sol_mint: MintFixture,
     pub sol_equivalent_mint: MintFixture,
     pub mnde_mint: MintFixture,
@@ -300,6 +313,20 @@ lazy_static! {
         oracle_keys: create_oracle_key_array(PYTH_USDC_FEED),
         ..*DEFAULT_TEST_BANK_CONFIG
     };
+    pub static ref DEFAULT_FIXED_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::Fixed,
+        deposit_limit: native!(1_000_000_000, "FIXED"),
+        borrow_limit: native!(1_000_000_000, "FIXED"),
+        fixed_price: I80F48!(2.0).into(),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
+    pub static ref DEFAULT_FIXED_LOW_TEST_BANK_CONFIG: BankConfig = BankConfig {
+        oracle_setup: OracleSetup::Fixed,
+        deposit_limit: native!(1_000_000_000, "FIXED_LOW"),
+        borrow_limit: native!(1_000_000_000, "FIXED_LOW"),
+        fixed_price: I80F48!(0.0001).into(),
+        ..*DEFAULT_TEST_BANK_CONFIG
+    };
     pub static ref DEFAULT_PYUSD_TEST_BANK_CONFIG: BankConfig = BankConfig {
         deposit_limit: native!(1_000_000_000, "PYUSD"),
         borrow_limit: native!(1_000_000_000, "PYUSD"),
@@ -386,6 +413,7 @@ lazy_static! {
 }
 
 pub const USDC_MINT_DECIMALS: u8 = 6;
+pub const FIXED_MINT_DECIMALS: u8 = 6;
 pub const PYUSD_MINT_DECIMALS: u8 = 6;
 pub const T22_WITH_FEE_MINT_DECIMALS: u8 = 6;
 pub const SOL_MINT_DECIMALS: u8 = 9;
@@ -419,6 +447,8 @@ impl TestFixture {
         program.add_program("mocks", mocks::ID, None);
 
         let usdc_keypair = Keypair::new();
+        let fixed_keypair = Keypair::new();
+        let fixed_low_keypair = Keypair::new();
         let sol_keypair = Keypair::new();
         let sol_equivalent_keypair = Keypair::new();
         let mnde_keypair = Keypair::new();
@@ -546,6 +576,20 @@ impl TestFixture {
         )
         .await;
 
+        let fixed_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(fixed_keypair),
+            Some(FIXED_MINT_DECIMALS),
+        )
+        .await;
+
+        let fixed_low_mint_f = MintFixture::new(
+            Rc::clone(&context),
+            Some(fixed_low_keypair),
+            Some(FIXED_MINT_DECIMALS),
+        )
+        .await;
+
         let sol_mint_f = MintFixture::new(
             Rc::clone(&context),
             Some(sol_keypair),
@@ -591,6 +635,8 @@ impl TestFixture {
             for bank in test_settings.banks.iter() {
                 let (bank_mint, default_config) = match bank.mint {
                     BankMint::Usdc => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                    BankMint::Fixed => (&fixed_mint_f, *DEFAULT_FIXED_TEST_BANK_CONFIG),
+                    BankMint::FixedLow => (&fixed_low_mint_f, *DEFAULT_FIXED_LOW_TEST_BANK_CONFIG),
                     BankMint::Sol => (&sol_mint_f, *DEFAULT_SOL_TEST_BANK_CONFIG),
                     BankMint::SolSwbPull => {
                         (&sol_mint_f, *DEFAULT_SB_PULL_SOL_TEST_REAL_BANK_CONFIG)
@@ -648,11 +694,16 @@ impl TestFixture {
                         (&sol_equivalent_mint_f, *DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG)
                     }
                 };
+                let price: I80F48 = I80F48::from_num(get_mint_price(bank.mint.clone()));
 
                 banks.insert(
                     bank.mint.clone(),
                     tester_group
-                        .try_lending_pool_add_bank(bank_mint, bank.config.unwrap_or(default_config))
+                        .try_lending_pool_add_bank(
+                            bank_mint,
+                            bank.config.unwrap_or(default_config),
+                            Some(price),
+                        )
                         .await
                         .unwrap(),
                 );
@@ -664,6 +715,8 @@ impl TestFixture {
             marginfi_group: tester_group,
             banks,
             usdc_mint: usdc_mint_f,
+            fixed_mint: fixed_mint_f,
+            fixed_low_mint: fixed_low_mint_f,
             sol_mint: sol_mint_f,
             sol_equivalent_mint: sol_equivalent_mint_f,
             mnde_mint: mnde_mint_f,
@@ -848,6 +901,8 @@ pub fn get_mint_price(mint: BankMint) -> f64 {
     match mint {
         // For the T22 with fee variant, it's 50 cents
         BankMint::T22WithFee => 0.5,
+        BankMint::Fixed => 2.0,
+        BankMint::FixedLow => 0.0001,
         // For USDC-based and PYUSD mints, the price is roughly 1.0.
         BankMint::Usdc | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
         // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
