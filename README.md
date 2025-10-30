@@ -1,107 +1,149 @@
-# Marginfi v2
+# Project Zero: Built on the Marginfi v2 Program
 
-See more specific guides in the /guides folder.
+See more specific guides for developers, emode, fees, bankrupcies, liquidation, and more in the /guides folder.
 
 ## Overview
 
-Marginfi is a decentralized liquidity aggregation protocol built on the Solana blockchain that allows users to access a range of lending markets through a single platform, supporting cryptocurrencies such as SOL, USDC, USDT, wBTC (Portal), ETH (Portal), and BONK. The platform pools liquidity from various sources, offering competitive interest rates to lenders and lower interest rates to borrowers. Marginfi plans to introduce cross-composing in the future, enabling users to trade between different assets on the platform, further enhancing liquidity and providing more opportunities for investment returns.
+The Marginfi program is a decentralized borrow-lending platform that enables undercollateralized lending against a variety of assets, including cryptocurrencies such as SOL, USDC, USDT, etc, natively staked SOL, Liquid Staking Tokens (LST), and even lending positions on other platforms such as Kamino.
 
-## Installation
+## Glossary
 
-> :warning: marginfi-v2 only compiles on the x86_64 architecture. This is to
-> ensure struct sizes are always backwards compatible between the SVM and local
-> development. Ensure the x86_64 arch is enabled before compiling the project.
+- **Group** - A collection of banks. Groups have a single adminstrator (typically a secure
+  governance MS) who has broad authority over them, and several delegate admins (limit, emode, etc)
+  that can perform less risky modifications. All the assets you see at app.0.xyz are in a single
+  group overseen by the foundation.
+- **Bank** - Each asset available to borrow and lend on mrgnlend has a Bank, this account controls
+  all the settings for the asset. Many banks might exist for the same asset. Every asset on
+  app.0.xyz is a Bank.
+- **Account** - Users can create as many Accounts as they want. Accounts are per `Group`, and each
+  account can have up to 16 positions in any `Bank`. The Account contains various user-specific
+  settings and cached values in addition to their `LendingAccount`, where `Balances` are stored.
+- **Balance** - A Balance is an asset or liability on a single `Bank`. Users cannot have both an
+  asset and liability on the same Bank, and can have at most one Balance per `Bank`. Each `Account`
+  has a `LendingAccount`, which is a collection of 16 Balances. Balances can be blank/unused, and
+  are always sorted in byte order by the corresponding `Bank`'s Public Key.
+- **Asset Weight** - Each asset available to lend has two rates: The "Initial" and "Maintenance"
+  rates. The Maintenance rate is always higher. If attempting to execute a borrow, collateral is
+  valued at (price x initial rate). If a liquidator is attempting a liquidation, collateral is
+  valued at (price x maintenance rate). The range between these is sometimes called the health
+  buffer. For example, if a user has collateral worth \$10, and init/maint rates are 50\% and 60\%
+  respectively, the user can borrow \$10 x .5 = \$5 in collateral. For liquidation purposes, their
+  collateral is worth \$10 x .6 = \$6. The LTV you see on app.0.xyz is the "Initial" Weight, while
+  the health displayed on the portfolio page uses the "Maintenance" Weight.
+- **Liabiility Weight** - Each asset also has a liability weight! Like the `Asset Weight`, this is
+  split into "Initial" and "Maintenance", where the Maintenance rate is always lower. If attempting
+  to execute a borrow, liabilities are valued at (price x initial rate). If a liquidator is
+  attempting a liquidation, liabilities are valued at (price x maintenance rate). Liability Weights
+  are typically hidden on the front end to avoid ux complexity, but can be read on-chain.
+- **Oracle** - Each `Bank` has an oracle it uses to determine the price of the asset it transacts
+  in. The `Group` admin is responsible for picking and maintaing the Oracle. Typically, Switchboard
+  is the orale provider, but Pyth is also supported, and some banks have a Fixed price. An Oracle
+  may use multiple accounts, for example a Kamino bank uses a price source and the Kamino reserve.
+- **Oracle Confidence Interval** - Some Oracles report a price with Confidence, e.g. P +/- c. When
+  pricing assets, we use $P - P*c$, and when pricing liabilities, we use $P + P*c$. For example, if
+  Oracles report A is $20 +/- $1, assets in A are priced at $19, while liablities are priced at $21.
+  The confidence interval will be no higher than 5%. If the Oracle reports a confidence interval
+  higher than 5%, we may clamp it to 5% or abort the transaction.
 
-The easiest way to install marginfi-v2 is via git clone. Use `cargo build` for
-local development and `cargo build-bpf` for building the marginfi programs targetting the SVM.
-See [the Solana docs](https://docs.solana.com/developing/on-chain-programs/developing-rust)
-for more information.
-
-## Architecture
-
-Marginfi's protocol is made up of several key components, each playing a critical role in providing users with a reliable and efficient platform for managing their liquidity.
-
-At the heart of the Marginfi protocol is the marginfi group. This group is a core component that enables users to manage risk and pool their resources to access lending markets more efficiently. Each marginfi group has a lending pool with unlimited banks. Within the lending pool, users can borrow and lend assets, which are then used to generate interest and distribute it among the members of the group. The marginfi group is responsible for managing the risk associated with these activities and ensuring that the borrowing and lending activities are within acceptable risk parameters.
-
-Each bank within the lending pool has its own mint account and a custom oracle, currently limited to Pyth but will soon support Switchboard. This allows Marginfi to tap into multiple sources of liquidity and provide users with access to a diverse range of lending markets. Users can contribute liquidity to the lending pool and earn interest on their contributions. Users can also borrow from the pool to manage their own liquidity needs.
-
-Marginfi accounts are used by users to interact with the protocol. Each marginfi account belongs to a single group and can borrow up to 16 assets simultaneously, providing users with greater flexibility in managing their liquidity. Users can deposit assets into their marginfi account and use them to borrow other assets or lend them to the lending pool. The account balance and borrowing capacity are continuously updated based on user activity and the risk associated with their borrowing and lending activities.
-
-To maintain account health, Marginfi uses a deterministic risk engine that monitors user activity and ensures that borrowing and lending activities are within acceptable risk parameters. The risk engine uses a variety of metrics, including asset prices, volatility, and liquidity, to determine the appropriate risk parameters for each user's marginfi account. If a user's account falls below the minimum required health factor, they may be subject to liquidation to protect the integrity of the lending pool and other users' accounts.
-
-Overall, Marginfi's architecture is designed to provide users with a powerful and flexible platform for managing their liquidity. By leveraging marginfi groups, multiple banks, marginfi accounts, and a robust risk management system, the platform is able to offer competitive interest rates and reliable access to a wide range of lending markets.
+## Architecture at a Glance
 
 ```
-                     ┌────────────┐       ┌────────────┐       ┌───────────┐       ┌──────────┐
-                     │ Marginfi   |       │ Lending    │       │           │       │ Price    │
-                     │ Group      │1─────1│ Pool       │1─────n│ Bank      │m─────n│ Oracle   │
-                     │            │       │            │       │           │       │          │
-                     └────────────┘       └────────────┘       └───────────┘       └──────────┘
-                           1                    1
-                           │                    │
-                           │                    │
-                           n                    1
-┌───────────┐        ┌────────────┐       ┌────────────┐
-│           │        │ Margin     │       │ Lending    │
-│ Signer    │1──────n│ Account    │1─────1│ Account    │
-│           │        │            │       │            │
-└───────────┘        └────────────┘       └────────────┘
+┌────────────┐       ┌───────────┐       ┌──────────┐
+│ Marginfi   |       │           │       │          │
+│ Group      │1─────n│ Bank      │1─────1│ Oracle   │
+│            │       │           │       │          │
+└────────────┘       └───────────┘       └──────────┘
+      1                    1
+      |                    │
+      |                    │
+      n                    1
+┌───────────┐       ┌────────────┐
+│ Margin    │       │            │
+│ Account   │1──<=16│  Balance   │
+│           │       │            │
+└───────────┘       └────────────┘
 ```
 
-## Risk Management
+## Interest Accumulation
 
-One of the key features of Marginfi is its risk management system. Risk is managed at the marginfi group level, where each bank defines its own risk parameters and uses asset and liability weights to determine loan-to-value ratios (LTVs). Assets can be isolated to reduce the risk of contagion, and real-time risk monitoring is used to assess changing market conditions and adjust risk parameters as needed. Marginfi's risk management system is transparent and deterministic, providing users with clear information about their risk exposure. If a user's account falls below the minimum required health factor, they may be subject to liquidation to protect the integrity of the lending pool and other users' accounts.
+Interest accumulates when users borrow an asset. Borrowers are assessed interest, while lenders earn
+it. A portion of interest paid by borrowers also goes to fees. Interest accumulates on your
+position, entirely within the program: no interaction is neccessary beyond depositing, borrowing,
+withdrawing, and repaying.
 
-Key points:
+Example:
 
-- Marginfi has a robust risk management system.
-- Risk is managed at the marginfi group level.
-- Each bank defines its own risk parameters.
-- Assets can be isolated to reduce contagion risk.
-- Real-time risk monitoring is used to assess changing market conditions.
-- Marginfi's risk management system is transparent and deterministic.
-- Liquidation may occur if a user's account falls below the minimum required health factor.
+```
+      * Sally deposits $20 in A
+      * Sally borrows $10 in B
+      * Sally's $10 debt today accrues interest and grows to $11.
+      * The $1 difference is not debited until Sally repays: i.e. she will have to repay $11 to close this debt.
+      * Sally's net balance and borrowing power has declined from 20-10 = $10 to 20-11 = $9
+      * If she cannot repay, she may not be able to withdraw all of her A.
 
-## Verify
+      * Bob deposits $10 in B
+      * Thanks to Sally's interest, Bob's B is now worth $11.
+      * Bob doesn't realize his $1 gain until he withdraws.
+      * Bob's net balance and borrowing power has increased from $10 to $11
+      * Bob can withdraw $11 any time
+```
 
-Marginfi can be verified with Ellipsis Labs verifiable builds.
+## Risk Engine
 
-Install the `solana-verify` tool [here](https://github.com/Ellipsis-Labs/solana-verifiable-build#installation).
+To maintain account health, Marginfi uses a deterministic risk engine that ensures that borrowing
+and lending activities are within acceptable risk parameters. If a user's account falls below the
+minimum required health factor, they may be subject to liquidation to protect the integrity of the
+lending pool and other users' accounts.
 
-Run `./scripts/verify_mainnet.sh`
+In a nutshell, health is caclulated as the sum of assets minus the sum of liabilities, after all
+applicable weights and confidence intervals have been applied. An Account cannot borrow more once
+its health is less than zero using Initial weights, and is subject to liquidation if health is less
+than zero using Maintenance Weights.
 
-## Testing
+Example:
 
-Integration tests for the on-chain marginfi programs are located under
-`/programs/marginfi/tests`. To run the tests, use `cargo test-bpf`. Be sure to
-use an x86 toolchain when compiling and running the tests.
+```
+Token A is worth $10 with conf $0.212 (worth $9.788 low, $10.212 high)
+USDC is worth $1 with conf $0.0212 (worth $0.9788 low, $1.0212 high)
+Token A has a Maintenance Asset Weight of 10% (0.1)
+USDC has a Maintenance Liability Weight of 100% (1)
 
-## Rust Tests
+User has:
+ASSETS
+   [0] 2 Token A (worth $20)
+DEBTS
+   [1] 5.05 USDC (worth $5.05)
 
-Run the full test suite with `./scripts/test-program.sh <program_to_test>`
-* e.g. `./scripts/test-program.sh all --sane`
+$5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed!
+Health calculation: (2 * 9.788 * .1) - (5.05 * 1.0212 * 1) = -3.19946
+```
 
-Run a single test:
-`./scripts/test-program.sh <program_to_test> <name_of_test>`
-* e.g. `./scripts/test-program.sh marginfi configure_bank_success --verbose`
+In the above example, a partial liquidation can restore the user's health:
+```
+Liquidator fee = 2.5%
+Insurance fee = 2.5%
 
-## Localnet Anchor Tests
+Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt
+Liquidator must pay
+ value of A minus liquidator fee (low bias within the confidence interval): .2 * (1 - 0.025) * 9.788 = $1.90866
+ USDC equivalent (high bias): 1.90866 / 1.0212 = $1.869036
+Liquidatee receives
+ value of A minus (liquidator fee + insurance) (low bias): .2 * (1 - 0.025 - 0.025) * 9.788 = $1.8608
+ USDC equivalent (high bias): 1.8608 / 1.0212 = $1.822457
+(Insurance fund and liquidator each collected a 2.5% fee: the $0.4679 difference)
 
-Build the program with:
+Health after: ((2-0.2) * 9.788 * .1) - ((5.05-1.8608) * 1.0212 * 1) = -1.49497104
+```
 
-`anchor build -p marginfi -- --no-default-features`
 
-You may also need to build the liquidity incentive program and mock program:
+Users can send a `lending_account_pulse_health` to read the Risk Engine's assessment of their account at this moment for borrowing, liquidation, and bankruptcy purposes.
 
-- `anchor build -p mocks`
-- `anchor build -p liquidity_incentive_program -- --no-default-features`
+Whenever a user Borrows or Withdraws, the Risk Engine determines if the user would be within acceptable risk paramters after the tx completes, rejecting the tx if not.
 
-Remember to `yarn install`
+Deposits and Repays require no Risk Engine check, as they can only improve health.
 
-Run the tests:
+### Third Party Liquidation
 
-`anchor test --skip-build`
-
-## Footguns
-
-Debugging `I80F48`s by `msg!("val: {:?}", some_val_I80F48);` can cause silent build issues leading to `Program is not deployed`. Convert these values to string before printing them.
+Liquidation is open to third parties, and encouraged! An account that is unhealthy can be
+liquidated, protecting the solvency of depositors and netting a small profit (2.5-10%) for the liquidator in
+exchange for performing this service.

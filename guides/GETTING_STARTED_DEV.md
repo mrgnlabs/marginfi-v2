@@ -24,6 +24,7 @@ cargo test --lib
 ### For the TS test suite:
 
 ```
+anchor build
 anchor build -p marginfi -- --no-default-features
 anchor test --skip-build
 ```
@@ -31,6 +32,7 @@ anchor test --skip-build
 Note: you may need to build the other programs (mock, liquidity incentive, etc) if you have never run anchor build before.
 
 Segmentation fault? Just try again. That happens sometimes, generally on the first run of the day.
+Sometimes it happens on the CI pipeline as well, just kick it again it that occurs.
 
 Each letter prefix is referred to as a "suite" and is broadly end-to-end. The localnet tests
 multithread with bankrun and will create a fairly substantial CPU load. Completetion varies
@@ -87,6 +89,8 @@ Benchmarks:
 ./scripts/single-test.sh test_name --verbose
 ```
 
+This will run all tests prefixed with the given name, and all test cases for them.
+
 ### To run the fuzz suite
 
 Don't.
@@ -134,3 +138,7 @@ error[E0786]: found invalid metadata files for crate `transfer_hook`
 ```
 
 Just `anchor clean` and rebuild. This is particularly likely to occur when switching between build environments e.g. cargo test --lib then anchor build because the former does not use SBF and the latter does.
+
+## Common Footguns
+
+Debugging `I80F48`s by `msg!("val: {:?}", some_val_I80F48);` can cause silent build issues leading to `Program is not deployed`. Convert these values to string or float before printing them.
