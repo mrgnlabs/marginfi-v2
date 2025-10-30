@@ -301,11 +301,19 @@ describe("Limits on number of accounts when using Kamino", () => {
       })
     );
     for (let i = 0; i < MAX_BALANCES; i++) {
+      const setup = bankAccs[i].account.config.oracleSetup;
+      const keys = bankAccs[i].account.config.oracleKeys;
       // Note: there's probably a more clever way to compare the enum kind.
-      if ("fixed" in bankAccs[i].account.config.oracleSetup) {
+      if ("fixed" in setup) {
         remainingAccounts.push([banks[i]]);
+      } else if ("stakedWithPythPush" in setup) {
+        remainingAccounts.push([banks[i], keys[0], keys[1], keys[2]]);
+      } else if ("kaminoPythPush" in setup) {
+        remainingAccounts.push([banks[i], keys[0], keys[1]]);
+      } else if ("kaminoSwitchboardPull" in setup) {
+        remainingAccounts.push([banks[i], keys[0], keys[1]]);
       } else {
-        remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
+        remainingAccounts.push([banks[i], keys[0]]);
       }
     }
     let liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
