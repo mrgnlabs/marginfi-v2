@@ -412,7 +412,7 @@ describe("Limits on number of accounts when using Kamino", () => {
     await processBankrunTransaction(bankrunContext, tx, [liquidator.wallet]);
   });
 
-  it("(admin) sets users main liability to be worthless through a fixed price", async () => {
+  it("(admin) sets user's main liability to be near-worthless through a fixed price", async () => {
     // Note: we maxed the borrow limit in the previous test, raise it to enable some more borrows
     let config = defaultBankConfigOptRaw();
     config.borrowLimit = config.borrowLimit.muln(2);

@@ -5,7 +5,7 @@ use anchor_lang::{
     Key,
 };
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{user_account::MarginfiAccount, BalanceSide};
+use marginfi_type_crate::types::{user_account::MarginfiAccount, BalanceSide, Bank, OracleSetup};
 
 use crate::{arbitrary_helpers::BankIdx, bank_accounts::BankAccounts};
 
@@ -69,7 +69,7 @@ impl<'info> UserAccount<'info> {
 
     pub fn get_remaining_accounts(
         &'info self,
-        bank_map: &HashMap<Pubkey, &BankAccounts<'info>>,
+        bank_map: &HashMap<Pubkey, &'info BankAccounts<'info>>,
         include_banks: Vec<Pubkey>,
         exclude_banks: Vec<Pubkey>,
     ) -> Vec<AccountInfo<'info>> {
@@ -100,7 +100,20 @@ impl<'info> UserAccount<'info> {
             .flat_map(|bank_pk| {
                 let bank_accounts = bank_map.get(&bank_pk).unwrap();
                 assert_eq!(bank_pk, bank_accounts.bank.key());
-                [bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+
+                let bank: Bank = {
+                    *AccountLoader::<Bank>::try_from(&bank_accounts.bank)
+                        .unwrap()
+                        .load()
+                        .unwrap()
+                };
+
+                // For Fixed-price banks: only bank account otherwise: include bank and oracle
+                if bank.config.oracle_setup == OracleSetup::Fixed {
+                    vec![bank_accounts.bank.clone()]
+                } else {
+                    vec![bank_accounts.bank.clone(), bank_accounts.oracle.clone()]
+                }
             })
             .collect::<Vec<_>>();
 
