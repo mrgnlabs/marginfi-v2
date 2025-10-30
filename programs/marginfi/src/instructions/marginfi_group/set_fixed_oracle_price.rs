@@ -4,6 +4,7 @@ use crate::state::bank_config::BankConfigImpl;
 use crate::{check, errors::MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
+use marginfi_type_crate::constants::ASSET_TAG_STAKED;
 use marginfi_type_crate::{
     constants::FREEZE_SETTINGS,
     types::{Bank, MarginfiGroup, OracleSetup, WrappedI80F48},
@@ -17,6 +18,14 @@ pub fn lending_pool_set_fixed_oracle_price(
 
     if bank.get_flag(FREEZE_SETTINGS) {
         panic!("cannot change oracle settings on frozen banks");
+    }
+
+    // Technically there is nothing wrong with allowing this on staked banks, but since they can
+    // always inherit settings by propagation, this would be silly. There's also no reason we'd want
+    // to do this anyways.
+    if bank.config.asset_tag == ASSET_TAG_STAKED {
+        msg!("Staked banks cannot set a fixed price");
+        return err!(MarginfiError::StakedPythPushWrongAccountOwner);
     }
 
     bank.config.oracle_setup = OracleSetup::Fixed;
