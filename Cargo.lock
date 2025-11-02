@@ -7525,6 +7525,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "futures",
+ "kamino-mocks",
  "lazy_static",
  "marginfi",
  "marginfi-type-crate",

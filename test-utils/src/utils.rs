@@ -8,8 +8,17 @@ use marginfi_type_crate::constants::EMISSIONS_TOKEN_ACCOUNT_SEED;
 use pyth_solana_receiver_sdk::price_update::FeedId;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use pyth_solana_receiver_sdk::price_update::VerificationLevel;
+use solana_cli_output::CliAccount;
 use solana_program_test::*;
-use solana_sdk::{account::Account, signature::Keypair};
+use solana_sdk::account::ReadableAccount;
+use solana_sdk::account::WritableAccount;
+use solana_sdk::{
+    account::Account, account::AccountSharedData, pubkey::Pubkey, rent::Rent, signature::Keypair,
+};
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
+use std::str::FromStr;
 use std::{cell::RefCell, rc::Rc};
 
 pub const MS_PER_SLOT: u64 = 400;
@@ -350,4 +359,24 @@ pub fn get_sufficient_collateral_for_outflow(
     outflow_mint_price: f64,
 ) -> f64 {
     target_outflow * outflow_mint_price / collateral_mint_price
+}
+
+pub fn load_account_from_file(relative_path: &str) -> (Pubkey, AccountSharedData) {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push(relative_path);
+
+    let mut f = File::open(&path).expect("open json");
+    let mut raw = String::new();
+    f.read_to_string(&mut raw).expect("read json");
+
+    let cli: CliAccount = serde_json::from_str(&raw).expect("parse CliAccount");
+    let address = Pubkey::from_str(&cli.keyed_account.pubkey).expect("pubkey");
+    let mut acc: AccountSharedData = cli.keyed_account.account.decode().expect("decode");
+
+    // exactly like before: keep owner as-is, only ensure rent-exempt
+    let need = Rent::default().minimum_balance(acc.data().len());
+    if acc.lamports() < need {
+        acc.set_lamports(need);
+    }
+    (address, acc)
 }

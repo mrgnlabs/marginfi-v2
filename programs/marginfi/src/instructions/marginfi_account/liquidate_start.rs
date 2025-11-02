@@ -69,8 +69,14 @@ pub fn start_liquidation<'info>(
             ctx.program_id,
             &ix_discriminators::START_LIQUIDATION,
             &[
-                kamino::RefreshReserve::DISCRIMINATOR,
-                kamino::RefreshObligation::DISCRIMINATOR,
+                (
+                    kamino_mocks::kamino_lending::ID,
+                    kamino::RefreshReserve::DISCRIMINATOR,
+                ),
+                (
+                    kamino_mocks::kamino_lending::ID,
+                    kamino::RefreshObligation::DISCRIMINATOR,
+                ),
             ],
         )?;
         validate_ix_last(&ixes, ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;

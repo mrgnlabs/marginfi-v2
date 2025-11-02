@@ -36,10 +36,10 @@ pub fn validate_ix_first(
     ixes: &[Instruction],
     program_id: &Pubkey,
     expected_hash: &[u8],
-    allowed_hashes: &[&[u8]],
+    allowed_ixs: &[(Pubkey, &[u8])],
 ) -> MarginfiResult<()> {
     let compute_budget_key = COMPUTE_PROGRAM_KEY;
-    let mut start_ix_encountered = false;
+    let mut expected_ix_encountered = false;
 
     for instruction in ixes.iter() {
         if instruction.program_id == compute_budget_key {
@@ -54,11 +54,10 @@ pub fn validate_ix_first(
         let discrim = &instruction.data[0..8];
 
         // If this is the first non-compute ix, it is either the setup ix, or we fail
-        if !start_ix_encountered {
+        if !expected_ix_encountered {
             if instruction.program_id == *program_id && discrim == expected_hash {
-                start_ix_encountered = true;
-            } else if !(instruction.program_id == *program_id && allowed_hashes.contains(&discrim))
-            {
+                expected_ix_encountered = true;
+            } else if !allowed_ixs.contains(&(instruction.program_id, discrim)) {
                 msg!(
                     "Expected ix from program: {:?} w/ hash: {:?}",
                     program_id,
@@ -81,7 +80,7 @@ pub fn validate_ix_first(
         }
     }
 
-    if start_ix_encountered {
+    if expected_ix_encountered {
         Ok(())
     } else {
         msg!("Start IX was not found in the TX.");
