@@ -365,15 +365,14 @@ pub fn load_account_from_file(relative_path: &str) -> (Pubkey, AccountSharedData
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push(relative_path);
 
-    let mut f = File::open(&path).expect("open json");
+    let mut f = File::open(&path).expect("file not found");
     let mut raw = String::new();
-    f.read_to_string(&mut raw).expect("read json");
+    f.read_to_string(&mut raw).expect("file not readable");
 
-    let cli: CliAccount = serde_json::from_str(&raw).expect("parse CliAccount");
-    let address = Pubkey::from_str(&cli.keyed_account.pubkey).expect("pubkey");
-    let mut acc: AccountSharedData = cli.keyed_account.account.decode().expect("decode");
+    let cli: CliAccount = serde_json::from_str(&raw).expect("invalid account format");
+    let address = Pubkey::from_str(&cli.keyed_account.pubkey).unwrap();
+    let mut acc: AccountSharedData = cli.keyed_account.account.decode().unwrap();
 
-    // exactly like before: keep owner as-is, only ensure rent-exempt
     let need = Rent::default().minimum_balance(acc.data().len());
     if acc.lamports() < need {
         acc.set_lamports(need);
