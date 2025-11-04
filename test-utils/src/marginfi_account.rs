@@ -1048,5 +1048,3 @@ impl MarginfiAccountFixture {
         ix
     }
 }
-
-// TODO: mark_signer

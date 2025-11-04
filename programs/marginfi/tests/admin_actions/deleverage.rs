@@ -241,7 +241,7 @@ async fn deleverage_happy_path() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn deleverage_must_improve_health() -> anyhow::Result<()> {
+async fn deleverage_cannot_worsen_health() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
 
     let risk_admin = test_f.payer().clone();
@@ -289,9 +289,9 @@ async fn deleverage_must_improve_health() -> anyhow::Result<()> {
         .make_start_deleverage_ix(record_pk, risk_admin)
         .await;
 
-    // Seize 1 * 10 = $10
+    // Seize 1.2 * 10 = $12
     let withdraw_ix = deleveragee
-        .make_bank_withdraw_ix(risk_admin_sol_acc.key, sol_bank, 1.0, None, true)
+        .make_bank_withdraw_ix(risk_admin_sol_acc.key, sol_bank, 1.2, None, true)
         .await;
 
     // Repay $10
@@ -299,7 +299,7 @@ async fn deleverage_must_improve_health() -> anyhow::Result<()> {
         .make_bank_repay_ix(risk_admin_usdc_acc.key, usdc_bank, 10.0, None)
         .await;
 
-    // Health does not change: $10 (20 - 10) -> $10 (10 - 0)
+    // Health decreases: $10 (20 - 10) -> $8 (8 - 0)
     let end_ix = deleveragee
         .make_end_deleverage_ix(record_pk, risk_admin, vec![])
         .await;

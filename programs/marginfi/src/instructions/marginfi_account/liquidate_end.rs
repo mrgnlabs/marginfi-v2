@@ -1,7 +1,7 @@
 use crate::{
     check,
     constants::{LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD},
-    events::LiquidationReceiverEvent,
+    events::{DeleverageEvent, LiquidationReceiverEvent},
     ix_utils::{get_discrim_hash, validate_not_cpi_by_stack_height, Hashable},
     prelude::*,
     state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
@@ -88,14 +88,19 @@ pub fn end_deleverage<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
 
-    end_receivership(
+    let (_, seized_f64, _, repaid_f64) = end_receivership(
         &mut marginfi_account,
         &mut liq_record,
         ctx.remaining_accounts,
         true,
     )?;
 
-    // TODO: Do we want to emit an event in this case?
+    emit!(DeleverageEvent {
+        marginfi_account: ctx.accounts.marginfi_account.key(),
+        risk_admin: ctx.accounts.risk_admin.key(),
+        deleveragee_assets_seized: seized_f64,
+        deleveragee_liability_repaid: repaid_f64,
+    });
 
     Ok(())
 }
@@ -126,10 +131,10 @@ pub fn end_receivership<'info>(
         .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut post_hc))?;
     marginfi_account.health_cache = post_hc;
 
-    // health must improve - TODO: should we relax it to 'not worsen' rather? especially now that we have deleveraging
-    if pre_health >= post_health {
+    // health must not get worse
+    if pre_health > post_health {
         msg!(
-            "pre_health >= post_health: {} >= {}",
+            "pre_health > post_health: {} >= {}",
             pre_health,
             post_health
         );
