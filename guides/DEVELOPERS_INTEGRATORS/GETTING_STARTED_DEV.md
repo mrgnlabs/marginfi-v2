@@ -1,4 +1,4 @@
-## NEW DEV QUICKSTART GUIDE
+# NEW DEV QUICKSTART GUIDE
 
 New developer getting started working on the mrgnv2 program side? Read on.
 

@@ -1,10 +1,15 @@
 # Project Zero: Built on the Marginfi v2 Program
 
-See more specific guides for developers, emode, fees, bankrupcies, liquidation, and more in the /guides folder.
+This is a general overview of the Project Zero ecosystem and key features. Want the latest details
+for developers, emode, fees, bankrupcies, liquidation, etc? Check the [guides
+folder](https://github.com/mrgnlabs/marginfi-v2/tree/main/guides)!
 
 ## Overview
 
-The Marginfi program is a decentralized borrow-lending platform that enables undercollateralized lending against a variety of assets, including cryptocurrencies such as SOL, USDC, USDT, etc, natively staked SOL, Liquid Staking Tokens (LST), and even lending positions on other platforms such as Kamino.
+The Marginfi program is a decentralized borrow-lending platform that enables undercollateralized
+lending against a variety of assets, including cryptocurrencies such as SOL, USDC, USDT, etc,
+natively staked SOL, Liquid Staking Tokens (LST), and even lending positions on other platforms such
+as Kamino.
 
 ## Glossary
 
@@ -41,9 +46,10 @@ The Marginfi program is a decentralized borrow-lending platform that enables und
   may use multiple accounts, for example a Kamino bank uses a price source and the Kamino reserve.
 - **Oracle Confidence Interval** - Some Oracles report a price with Confidence, e.g. P +/- c. When
   pricing assets, we use $P - P*c$, and when pricing liabilities, we use $P + P*c$. For example, if
-  Oracles report A is $20 +/- $1, assets in A are priced at $19, while liablities are priced at $21.
-  The confidence interval will be no higher than 5%. If the Oracle reports a confidence interval
-  higher than 5%, we may clamp it to 5% or abort the transaction.
+  Oracles report A is \$20 +/- $1, assets in A are priced at \$19, while liablities are priced at
+  \$21. The confidence interval will be no higher than 5%. If the Oracle reports a confidence
+  interval higher than 5%, we may clamp it to 5% or abort the transaction. We call this an "Oracle
+  Confidence Interval Adjustment", and it is relatively unique to the borrow-lending space.
 
 ## Architecture at a Glance
 
@@ -161,12 +167,12 @@ ASSETS
 DEBTS
    [1] 5.05 USDC (worth $5.05)
 
-$5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed!
 Health calculation: (2 * 9.788 * .1) - (5.05 * 1.0212 * 1) = -3.19946
 ```
 
 In the above example, we see that the user still has more assets than debts, but due to weights,
-their account is unhealthy. A partial liquidation can restore their health:
+their account is unhealthy: they are eligible to be liquidated. A partial liquidation can restore
+their health:
 ```
 Liquidator fee = 2.5%
 Insurance fee = 2.5%
@@ -198,10 +204,10 @@ check must pass all Banks and Oracles involved in the user's Balances in remaini
 ### Third Party Liquidation
 
 Liquidation is open to third parties, and encouraged! An account that is unhealthy can be
-liquidated, protecting the solvency of depositors and netting a small profit (2.5-10%) for the liquidator in
-exchange for performing this service.
+liquidated, protecting the solvency of depositors and netting a small profit (2.5-10%) for the
+liquidator in exchange for performing this service.
 
-### Passing and Cranking Oracles
+### Passing Risk Accounts and Cranking Oracles
 
 Other borrow-lending protocols typically have a refresh system. When their risk system runs, a
 series of "refresh" instructions must appear before the instruction that consumes the risk data. Our
@@ -234,3 +240,38 @@ In some instructions, limited Oracle staleness is permitted. For example, when b
 can pass enough non-stale oracle data to demonstrate collateral is sufficient. For example, if the
 user is lending \$1 in A and \$1000 in B, and trying to borrow \$100 in C, the caller might pass a
 stale oracle for A, because the collateral in B alone is sufficient to complete the borrow!
+
+## Integrations With Other Venues
+
+The protocol accepts collateral from third-party venues like Kamino, provided the Group
+administrator has created a Bank for that asset. Typically, each third-party venue asset will have a
+Bank, for example the Kamino Maple Market USDC reserve is one Bank, and the Kamino Main Market USDC
+reserve is another.
+
+Lenders into a third-party venue earn no interest on our platform, because there is no borrowing
+from third-party venues on our platform! Instead, depositors earn interest like a normal lender into
+THAT VENUE. For example, when depositing in the Kamino Main Market USDC Bank, lenders earn what any
+other depositor would earn on Kamino. Another way of saying this is that lending interest is earned
+by borrowers on Kamino.
+
+## Native Staked Assets ("Staked Collateral")
+
+The protocol accepts SOL natively staked to validators as collateral. This is useful for validators
+who want to increase their leverage, or for parties interested in utilizing their natively staked
+SOL without exiting their position for e.g. tax purposes (Not tax advice: always consult your local
+tax authority). Your SOL earns all the yields it would normally earn, including MEV, etc. Currently,
+only SOL can be borrowed against native stake positions.
+
+Under the hood, this feature depends on the Single Validator Stake Pool, [published and maintained
+by Solana Foundation](https://github.com/solana-labs/solana-program-library/tree/master/single-pool)
+
+Don't see your validator listed? Adding Staked Collateral is permissionless!
+
+## Emode Benefits
+
+Some assets support "Emode", which increases the Asset Weight ("Initial" and/or "Maintenance") of
+that token when it is used to borrow a specific paired asset. For example, LST might have an Emode
+benefit with SOL, so when LST is used to borrow SOL, it supports much higher LTVs than when it is
+used to borrow e.g. USDC. An Account's Emode benefit for a given token being lent is always based on
+the worst benefit accross all the assets they are borrowing, this means in some instances it makes
+more sense to break assets into multiple accounts.
