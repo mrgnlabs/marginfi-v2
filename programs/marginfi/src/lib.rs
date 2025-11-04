@@ -525,6 +525,18 @@ pub mod marginfi {
         marginfi_account::end_liquidation(ctx)
     }
 
+    pub fn start_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_deleverage(ctx)
+    }
+
+    pub fn end_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_deleverage(ctx)
+    }
+
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
         marginfi_group::panic_pause(ctx)
     }

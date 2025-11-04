@@ -83,7 +83,7 @@ pub fn end_liquidation<'info>(
 /// * Fails if account is less healthy than it was at start
 /// Note: no fees taken.
 pub fn end_deleverage<'info>(
-    ctx: Context<'_, '_, 'info, 'info, EndLiquidation<'info>>,
+    ctx: Context<'_, '_, 'info, 'info, EndDeleverage<'info>>,
 ) -> MarginfiResult {
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
@@ -248,6 +248,9 @@ pub struct EndDeleverage<'info> {
     )]
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
+    #[account(
+        has_one = risk_admin,
+    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub risk_admin: Signer<'info>,
