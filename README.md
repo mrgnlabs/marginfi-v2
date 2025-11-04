@@ -50,7 +50,7 @@ The Marginfi program is a decentralized borrow-lending platform that enables und
 ```
 ┌────────────┐       ┌───────────┐       ┌──────────┐
 │ Marginfi   |       │           │       │          │
-│ Group      │1─────n│ Bank      │1─────1│ Oracle   │
+│ Group      │1─────n│ Bank      │1─────a│ Oracle   │
 │            │       │           │       │          │
 └────────────┘       └───────────┘       └──────────┘
       1                    1
@@ -66,10 +66,10 @@ The Marginfi program is a decentralized borrow-lending platform that enables und
 
 ## Interest Accumulation
 
-Interest accumulates when users borrow an asset. Borrowers are assessed interest, while lenders earn
-it. A portion of interest paid by borrowers also goes to fees. Interest accumulates on your
-position, entirely within the program: no interaction is neccessary beyond depositing, borrowing,
-withdrawing, and repaying.
+Interest accumulates when users borrow an asset. It's updated when a user performs any transaction
+that affects a Bank's balances. Borrowers are assessed interest, while lenders earn it. A portion of
+interest paid by borrowers also goes to fees. Interest accumulates on your position, entirely within
+the program: no interaction is neccessary beyond depositing, borrowing, withdrawing, and repaying.
 
 Example:
 
@@ -88,6 +88,37 @@ Example:
       * Bob can withdraw $11 any time
 ```
 
+### Interest Rates, Curves, and Compounding
+
+In general, Banks are configured to charge progressively higher interest as the "utilization rate"
+(UR) increases. The UR for a Bank is simply borrows/deposits. Interest typically climbs slowly until
+the "optimal utilization rate", which for most assets is around 80-90%. Beyond that level, interest
+grows rapidly. At 100% UR, lenders cannot withdraw, because all funds have been borrowed out! High
+interest rates at 90%+ UR drive market conditions to force borrowers to repay their debts.
+
+For more details about the interest configuration for a particular Bank, see the `zero_util_rate`
+(interest at 0% UR), `hundred_util_rate` (interest at 100% UR), and `points` (interest at all levels
+in between). Note that we support up to seven points in our interest rate curves (0 UR, 100 UR, and
+5 in between), but the majority of banks use only 2 (0 at 0 UR, one in between, and a value at 100
+UR).
+
+You can read a Bank's last spot interest rate from `bank.cache`. This updates any time a Bank has a
+balance change, or send a (permissionless) accrue interest instruction to force it to update.
+
+The rates we just discussed are the APR, not the APY. Note that because interest is computed just
+before any balance change, the rate at which different Banks compound varies. More popular Banks,
+like SOL, compound every few minutes, or even every few seconds on more active days. Less popular
+Banks might compound just a few times per week, but these Banks typically have very few borrows. In
+practice, Banks that have meaningful borrows typically end up being very close to the
+compounding-continuously APY. 
+
+### Interest, Previewed Amounts, and Closing Positions
+
+Because interest accumulates just before any transaction that affects a Bank's balances, when a user
+goes to withdraw, the amount they withdraw can be slightly higher than what is previewed, likewise
+for repayments, etc. This also means that to withdraw or repay all, the user must send a special
+flag to the instruction to close the balance in full AFTER interest.
+
 ## Risk Engine
 
 To maintain account health, Marginfi uses a deterministic risk engine that ensures that borrowing
@@ -100,11 +131,27 @@ applicable weights and confidence intervals have been applied. An Account cannot
 its health is less than zero using Initial weights, and is subject to liquidation if health is less
 than zero using Maintenance Weights.
 
-Example:
+Examples:
 
 ```
 Token A is worth $10 with conf $0.212 (worth $9.788 low, $10.212 high)
 USDC is worth $1 with conf $0.0212 (worth $0.9788 low, $1.0212 high)
+Token A has a Initial Asset Weight of 50% (0.5)
+USDC has a Initial Liability Weight of 100% (1)
+
+User has:
+ASSETS
+   [0] 2 Token A (worth $20)
+DEBTS
+   [1] 5.05 USDC (worth $5.05)
+
+Health calculation: (2 * 9.788 * .5) - (5.05 * 1.0212 * 1) = 4.63094
+```
+This account is healthy, and has $4.63094 in remaining borrowing power!
+
+Now let's look at an account that's unhealthy, falling below its Maintenance requirements.
+
+```
 Token A has a Maintenance Asset Weight of 10% (0.1)
 USDC has a Maintenance Liability Weight of 100% (1)
 
@@ -118,32 +165,72 @@ $5.05 is 25.25% of $20, which is more than 10%, so liquidation is allowed!
 Health calculation: (2 * 9.788 * .1) - (5.05 * 1.0212 * 1) = -3.19946
 ```
 
-In the above example, a partial liquidation can restore the user's health:
+In the above example, we see that the user still has more assets than debts, but due to weights,
+their account is unhealthy. A partial liquidation can restore their health:
 ```
 Liquidator fee = 2.5%
 Insurance fee = 2.5%
 
-Liquidator tries to repay .2 token A (worth $2) of liquidatee's debt
-Liquidator must pay
- value of A minus liquidator fee (low bias within the confidence interval): .2 * (1 - 0.025) * 9.788 = $1.90866
- USDC equivalent (high bias): 1.90866 / 1.0212 = $1.869036
-Liquidatee receives
- value of A minus (liquidator fee + insurance) (low bias): .2 * (1 - 0.025 - 0.025) * 9.788 = $1.8608
- USDC equivalent (high bias): 1.8608 / 1.0212 = $1.822457
-(Insurance fund and liquidator each collected a 2.5% fee: the $0.4679 difference)
+Liquidator seizes .2 token A (worth $2) from liquidatee's account
+Liquidator must pay (in USDC):
+ value of A minus liquidator fee (low bias): .2 * (1 - 0.025) * 9.788 = $1.90866
+Liquidatee receives (in USDC debt repayment):
+ value of A minus (liquidator fee + insurance) (low bias): .2 * (1 - 0.025 - 0.025) * 9.788 = $1.85972
 
-Health after: ((2-0.2) * 9.788 * .1) - ((5.05-1.8608) * 1.0212 * 1) = -1.49497104
+Health after: ((2-0.2) * 9.788 * .1) - ((5.05-1.85972) * 1.0212 * 1) = -1.496073936
 ```
 
+The user's health improved, but they are still eligible to partially liquidated.
 
-Users can send a `lending_account_pulse_health` to read the Risk Engine's assessment of their account at this moment for borrowing, liquidation, and bankruptcy purposes.
+### Checking Health
 
-Whenever a user Borrows or Withdraws, the Risk Engine determines if the user would be within acceptable risk paramters after the tx completes, rejecting the tx if not.
+While you can always take the sum of assets minus the sum of debts, it can be difficult to know
+exactly what price the protocol will use on-chain. Users can send a `lending_account_pulse_health`
+to read the Risk Engine's assessment of their account at this moment for borrowing, liquidation, and
+bankruptcy purposes. This instruction uses the same oracles that would be used in any other risk
+check.
 
-Deposits and Repays require no Risk Engine check, as they can only improve health.
+Whenever a user Borrows or Withdraws, the Risk Engine determines if the user would be within
+acceptable risk paramters after the tx completes, rejecting the tx if not. Deposits and Repays
+require no Risk Engine check, as they can only improve health. Accounts requiring the Risk Engine
+check must pass all Banks and Oracles involved in the user's Balances in remaining accounts.
 
 ### Third Party Liquidation
 
 Liquidation is open to third parties, and encouraged! An account that is unhealthy can be
 liquidated, protecting the solvency of depositors and netting a small profit (2.5-10%) for the liquidator in
 exchange for performing this service.
+
+### Passing and Cranking Oracles
+
+Other borrow-lending protocols typically have a refresh system. When their risk system runs, a
+series of "refresh" instructions must appear before the instruction that consumes the risk data. Our
+Risk Engine runs Just In Time: no refresh instructions are needed, except for those required by
+integrated venues. 
+
+Whenever the risk engine must run, the caller passes required accounts in the remaining_accounts.
+The format is:
+
+```
+[bank0, oracle0_1], 
+[bank1, oracle1_1, oracle1_2], 
+[bank2, oracle2_1],
+```
+
+Noting that some banks have more than one Oracle account (for example, Kamino banks have two: the
+price oracle, and the Kamino reserve). Oracles can always be read from `bank.config.oracle_keys`,
+and are passed in the order they appear there. Each set of banks/oracles are passed in sorted
+bitwise order by Bank key, the same way they appear in the user's Balances.
+
+Each oracle must not be stale. For Pyth oracles, the caller typically has no obligations, Pyth
+orales are kept up-to-date by their adminstrator. For Switchboard Oracles, the caller must call a
+crank instruction, typically just before the tx consuming that price. Some callers prefer to use
+bundles for this, but it typically suffices to send a crank instruction and briefly wait. When tx
+size permits, callers might even prepend the Switchboard crank to the tx consuming the Oracle data,
+although this runs into account and CU constraints for larger txes. For Kamino banks,
+refresh_reserve must also execute within 1 slot.
+
+In some instructions, limited Oracle staleness is permitted. For example, when borrowing, the caller
+can pass enough non-stale oracle data to demonstrate collateral is sufficient. For example, if the
+user is lending \$1 in A and \$1000 in B, and trying to borrow \$100 in C, the caller might pass a
+stale oracle for A, because the collateral in B alone is sufficient to complete the borrow!

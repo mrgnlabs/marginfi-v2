@@ -31,6 +31,8 @@ anchor test --skip-build
 
 Note: you may need to build the other programs (mock, liquidity incentive, etc) if you have never run anchor build before.
 
+Note: you need to `yarn install` before your first run
+
 Segmentation fault? Just try again. That happens sometimes, generally on the first run of the day.
 Sometimes it happens on the CI pipeline as well, just kick it again it that occurs.
 
