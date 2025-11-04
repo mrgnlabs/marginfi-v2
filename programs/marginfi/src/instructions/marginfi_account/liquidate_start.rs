@@ -6,7 +6,10 @@ use crate::{
         Hashable,
     },
     prelude::*,
-    state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
+    state::{
+        marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
+        marginfi_group::MarginfiGroupImpl,
+    },
 };
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
@@ -14,8 +17,8 @@ use kamino_mocks::kamino_lending::client::args as kamino;
 use marginfi_type_crate::{
     constants::ix_discriminators,
     types::{
-        HealthCache, LiquidationRecord, MarginfiAccount, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_IN_RECEIVERSHIP,
+        HealthCache, LiquidationRecord, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 
@@ -32,31 +35,13 @@ pub fn start_liquidation<'info>(
     {
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
-
-        // Note: the liquidator can use the health cache state after this ix concludes to plan their
-        // liquidation strategy.
-        let mut health_cache = HealthCache::zeroed();
-        let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
-        // Note: This will error if healthy
-        let (_pre_health, assets, liabs) = risk_engine
-            .check_pre_liquidation_condition_and_get_account_health(
-                None,
-                &mut Some(&mut health_cache),
-                false,
-            )?;
-        let (assets_equity, liabs_equity) = risk_engine.get_account_health_components(
-            RiskRequirementType::Equity,
-            &mut Some(&mut health_cache),
-        )?;
-        marginfi_account.health_cache = health_cache;
-        marginfi_account.set_flag(ACCOUNT_IN_RECEIVERSHIP);
-
-        // Snapshot values to use in later checks
         liq_record.liquidation_receiver = ctx.accounts.liquidation_receiver.key();
-        liq_record.cache.asset_value_maint = assets.into();
-        liq_record.cache.liability_value_maint = liabs.into();
-        liq_record.cache.asset_value_equity = assets_equity.into();
-        liq_record.cache.liability_value_equity = liabs_equity.into();
+        start_receivership(
+            &mut marginfi_account,
+            &mut liq_record,
+            ctx.remaining_accounts,
+            false,
+        )?;
     } // end common logic
 
     // Introspection logic
@@ -128,6 +113,56 @@ pub fn start_liquidation<'info>(
     Ok(())
 }
 
+/// (Permissioned) Begins a forced deleverage: snapshots the account and marks it in receivership. The
+/// risk admin now has full control over the account until the end of the tx.
+/// Note: there are no introspection checks performed - full reliance on admin's adequacy here!
+pub fn start_deleverage<'info>(
+    ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
+) -> MarginfiResult {
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
+    liq_record.liquidation_receiver = ctx.accounts.risk_admin.key();
+    start_receivership(
+        &mut marginfi_account,
+        &mut liq_record,
+        ctx.remaining_accounts,
+        true,
+    )?;
+    Ok(())
+}
+
+// Common logic for both liquidation and deleverage
+pub fn start_receivership<'info>(
+    marginfi_account: &mut MarginfiAccount,
+    liq_record: &mut LiquidationRecord,
+    remaining_ais: &'info [AccountInfo<'info>],
+    ignore_healthy: bool,
+) -> MarginfiResult {
+    // Note: the receiver can use the health cache state after this ix concludes to plan their
+    // liquidation/deleverage strategy.
+    let mut health_cache = HealthCache::zeroed();
+    let risk_engine = RiskEngine::new(marginfi_account, remaining_ais)?;
+
+    let (_pre_health, assets, liabs) = risk_engine
+        .check_pre_liquidation_condition_and_get_account_health(
+            None,
+            &mut Some(&mut health_cache),
+            ignore_healthy,
+        )?;
+    let (assets_equity, liabs_equity) = risk_engine
+        .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut health_cache))?;
+    marginfi_account.health_cache = health_cache;
+    marginfi_account.set_flag(ACCOUNT_IN_RECEIVERSHIP);
+
+    // Snapshot values to use in later checks
+    liq_record.cache.asset_value_maint = assets.into();
+    liq_record.cache.liability_value_maint = liabs.into();
+    liq_record.cache.asset_value_equity = assets_equity.into();
+    liq_record.cache.liability_value_equity = liabs_equity.into();
+
+    Ok(())
+}
+
 #[derive(Accounts)]
 pub struct StartLiquidation<'info> {
     /// Account under liquidation
@@ -163,5 +198,51 @@ pub struct StartLiquidation<'info> {
 impl Hashable for StartLiquidation<'_> {
     fn get_hash() -> [u8; 8] {
         get_discrim_hash("global", "start_liquidation")
+    }
+}
+
+// Note: risk admin only
+#[derive(Accounts)]
+pub struct StartDeleverage<'info> {
+    /// Account to deleverage
+    #[account(
+        mut,
+        has_one = liquidation_record,
+        has_one = group,
+        constraint = {
+            let acc = marginfi_account.load()?;
+            !acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+                && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_DISABLED)
+        } @MarginfiError::UnexpectedLiquidationState
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    /// The associated liquidation record PDA for the given `marginfi_account`
+    #[account(mut)]
+    pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
+
+    #[account(
+        has_one = risk_admin,
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    /// The risk admin will have the authority to withdraw/repay as if they are the user authority
+    /// until the end of the tx.
+    pub risk_admin: Signer<'info>,
+
+    /// CHECK: validated against known hard-coded sysvar key
+    #[account(
+        address = sysvar::instructions::id()
+    )]
+    pub instruction_sysvar: AccountInfo<'info>,
+}
+
+impl Hashable for StartDeleverage<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "start_deleverage")
     }
 }

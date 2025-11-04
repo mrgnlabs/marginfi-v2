@@ -44,11 +44,13 @@ pub struct MarginfiGroup {
     /// Can modify the emissions `flags`, `emissions_rate` and `emissions_mint`, but nothing else,
     /// for every bank under this group
     pub delegate_emissions_admin: Pubkey,
+    /// Can run bankruptcy and forced deleverage ixes to e.g. sunset risky/illiquid assets
+    pub risk_admin: Pubkey,
     /// When program keeper temporarily puts the program into panic mode, information about the
     /// duration of the lockup will be available here.
     pub panic_state_cache: PanicStateCache,
 
-    pub _padding_0: [[u64; 2]; 17],
+    pub _padding_0: [[u64; 2]; 15],
     pub _padding_1: [[u64; 2]; 32],
 }
 

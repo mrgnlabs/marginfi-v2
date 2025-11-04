@@ -84,6 +84,7 @@ impl MarginfiGroupFixture {
                     new_curve_admin: admin,
                     new_limit_admin: admin,
                     new_emissions_admin: admin,
+                    new_risk_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -605,6 +606,7 @@ impl MarginfiGroupFixture {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -620,6 +622,7 @@ impl MarginfiGroupFixture {
                 new_curve_admin,
                 new_limit_admin,
                 new_emissions_admin,
+                new_risk_admin,
                 is_arena_group,
             }
             .data(),

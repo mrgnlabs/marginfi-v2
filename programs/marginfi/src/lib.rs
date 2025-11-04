@@ -98,6 +98,7 @@ pub mod marginfi {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
@@ -107,6 +108,7 @@ pub mod marginfi {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_risk_admin,
             is_arena_group,
         )
     }

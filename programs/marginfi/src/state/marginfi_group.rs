@@ -12,6 +12,7 @@ pub trait MarginfiGroupImpl {
     fn update_curve_admin(&mut self, new_curve_admin: Pubkey);
     fn update_limit_admin(&mut self, new_limit_admin: Pubkey);
     fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey);
+    fn update_risk_admin(&mut self, new_risk_admin: Pubkey);
     fn set_initial_configuration(&mut self, admin_pk: Pubkey);
     fn get_group_bank_config(&self) -> GroupBankConfig;
     fn set_program_fee_enabled(&mut self, fee_enabled: bool);
@@ -86,6 +87,20 @@ impl MarginfiGroupImpl for MarginfiGroup {
                 new_emissions_admin
             );
             self.delegate_emissions_admin = new_emissions_admin;
+        }
+    }
+
+    fn update_risk_admin(&mut self, new_risk_admin: Pubkey) {
+        if self.risk_admin == new_risk_admin {
+            msg!("No change to risk admin: {:?}", new_risk_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set risk admin from {:?} to {:?}",
+                self.risk_admin,
+                new_risk_admin
+            );
+            self.risk_admin = new_risk_admin;
         }
     }
 
