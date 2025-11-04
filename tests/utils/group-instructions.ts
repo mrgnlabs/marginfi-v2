@@ -137,6 +137,7 @@ export const addBankWithSeed = (
  * newCurveAdmin - (Optional) pass null to keep current curve admin
  * newLimitAdmin - (Optional) pass null to keep current limit admin
  * newEmissionsAdmin - (Optional) pass null to keep current emissions admin
+ * newRiskAdmin - (Optional) pass null to keep current risk admin
  * marginfiGroup's admin - must sign
  * isArena - default false
  */
@@ -146,6 +147,7 @@ export type GroupConfigureArgs = {
   newCurveAdmin?: PublicKey | null;
   newLimitAdmin?: PublicKey | null;
   newEmissionsAdmin?: PublicKey | null;
+  newRiskAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
 };
@@ -161,6 +163,8 @@ export const groupConfigure = async (
   const newLimitAdmin = args.newLimitAdmin ?? group.delegateLimitAdmin;
   const newEmissionsAdmin =
     args.newEmissionsAdmin ?? group.delegateEmissionsAdmin;
+  const newRiskAdmin =
+    args.newRiskAdmin ?? group.riskAdmin;
   const isArena = args.isArena ?? false;
 
   const ix = program.methods
@@ -170,6 +174,7 @@ export const groupConfigure = async (
       newCurveAdmin,
       newLimitAdmin,
       newEmissionsAdmin,
+      newRiskAdmin,
       isArena
     )
     .accounts({

@@ -61,8 +61,10 @@ export let globalProgramAdmin: MockUser = undefined;
 export let groupAdmin: MockUser = undefined;
 /** Administers the emode group configuration */
 export let emodeAdmin: MockUser = undefined;
-/** Administers valiator votes and withdraws */
+/** Administers validator votes and withdraws */
 export let validatorAdmin: MockUser = undefined;
+/** Administers bankruptcy and deleveraging */
+export let riskAdmin: MockUser = undefined;
 export const users: MockUser[] = [];
 export const numUsers = 4;
 
@@ -307,6 +309,7 @@ export const mochaHooks = {
       wallet.payer,
       setupUserOptions
     );
+    riskAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
     copyKeys.push(
       groupAdmin.wsolAccount,
       groupAdmin.usdcAccount,
@@ -314,7 +317,8 @@ export const mochaHooks = {
       groupAdmin.tokenBAccount,
       groupAdmin.lstAlphaAccount,
       groupAdmin.wallet.publicKey,
-      emodeAdmin.wallet.publicKey
+      emodeAdmin.wallet.publicKey,
+      riskAdmin.wallet.publicKey
     );
 
     for (let i = 0; i < numUsers; i++) {
@@ -436,6 +440,15 @@ export const mochaHooks = {
       new AnchorProvider(
         bankRunProvider.connection,
         new Wallet(emodeAdmin.wallet),
+        {}
+      )
+    );
+
+    riskAdmin.mrgnBankrunProgram = new Program(
+      mrgnProgram.idl,
+      new AnchorProvider(
+        bankRunProvider.connection,
+        new Wallet(riskAdmin.wallet),
         {}
       )
     );
