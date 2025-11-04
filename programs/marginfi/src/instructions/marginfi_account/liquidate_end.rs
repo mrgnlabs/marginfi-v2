@@ -126,11 +126,15 @@ pub fn end_receivership<'info>(
         .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut post_hc))?;
     marginfi_account.health_cache = post_hc;
 
-    // validate health has improved.
-    check!(
-        post_health > pre_health,
-        MarginfiError::WorseHealthPostLiquidation
-    );
+    // health must improve - TODO: should we relax it to 'not worsen' rather? especially now that we have deleveraging
+    if pre_health >= post_health {
+        msg!(
+            "pre_health >= post_health: {} >= {}",
+            pre_health,
+            post_health
+        );
+        return Err(MarginfiError::WorseHealthPostLiquidation.into());
+    }
 
     // ensure seized asset‐value ≤ N% of repaid liability‐value, where N = 100% + the bonus fee
     let seized: I80F48 = pre_assets_equity - post_assets_equity;

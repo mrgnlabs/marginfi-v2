@@ -78,6 +78,7 @@ Benchmarks:
 | Apple M4 Pro | `[  11.038s] 225 tests run: 225 passed, 0 skipped` |
 
 0.1.4
+
 | 9700X | `[  12.203s] 226 tests run: 226 passed, 0 skipped`
 
 ### To run just one Rust test:
@@ -134,3 +135,7 @@ error[E0786]: found invalid metadata files for crate `transfer_hook`
 ```
 
 Just `anchor clean` and rebuild. This is particularly likely to occur when switching between build environments e.g. cargo test --lib then anchor build because the former does not use SBF and the latter does.
+
+### Rust tests fail with `Error: simulation error: BlockhashNotFound, logs: [], units_consumed: 0`
+
+Ensure your machine is not in Low Power battery mode (or in any other mode decreasing performance).
