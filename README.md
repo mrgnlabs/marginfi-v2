@@ -1,7 +1,7 @@
 # Project Zero: Built on the Marginfi v2 Program
 
 This is a general overview of the Project Zero ecosystem and key features. Want the latest details
-for developers, emode, fees, bankrupcies, liquidation, etc? Check the [guides
+for developers, emode, fees, bankruptcies, liquidation, etc? Check the [guides
 folder](https://github.com/mrgnlabs/marginfi-v2/tree/main/guides)!
 
 ## Overview
@@ -11,9 +11,9 @@ lending against a variety of assets, including cryptocurrencies such as SOL, USD
 natively staked SOL, Liquid Staking Tokens (LST), and even lending positions on other platforms such
 as Kamino.
 
-## Glossary
+## Glossary And Important Terms
 
-- **Group** - A collection of banks. Groups have a single adminstrator (typically a secure
+- **Group** - A collection of banks. Groups have a single administrator (typically a secure
   governance MS) who has broad authority over them, and several delegate admins (limit, emode, etc)
   that can perform less risky modifications. All the assets you see at app.0.xyz are in a single
   group overseen by the foundation.
@@ -35,21 +35,26 @@ as Kamino.
   respectively, the user can borrow \$10 x .5 = \$5 in collateral. For liquidation purposes, their
   collateral is worth \$10 x .6 = \$6. The LTV you see on app.0.xyz is the "Initial" Weight, while
   the health displayed on the portfolio page uses the "Maintenance" Weight.
-- **Liabiility Weight** - Each asset also has a liability weight! Like the `Asset Weight`, this is
+- **Liability Weight** - Each asset also has a liability weight! Like the `Asset Weight`, this is
   split into "Initial" and "Maintenance", where the Maintenance rate is always lower. If attempting
   to execute a borrow, liabilities are valued at (price x initial rate). If a liquidator is
   attempting a liquidation, liabilities are valued at (price x maintenance rate). Liability Weights
   are typically hidden on the front end to avoid ux complexity, but can be read on-chain.
 - **Oracle** - Each `Bank` has an oracle it uses to determine the price of the asset it transacts
-  in. The `Group` admin is responsible for picking and maintaing the Oracle. Typically, Switchboard
-  is the orale provider, but Pyth is also supported, and some banks have a Fixed price. An Oracle
-  may use multiple accounts, for example a Kamino bank uses a price source and the Kamino reserve.
+  in. The `Group` admin is responsible for picking and maintaining the Oracle. Typically,
+  Switchboard is the oracle provider, but Pyth is also supported, and some banks have a Fixed price.
+  An Oracle may use multiple accounts, for example a Kamino bank uses a price source and the Kamino
+  reserve.
 - **Oracle Confidence Interval** - Some Oracles report a price with Confidence, e.g. P +/- c. When
   pricing assets, we use $P - P*c$, and when pricing liabilities, we use $P + P*c$. For example, if
-  Oracles report A is \$20 +/- $1, assets in A are priced at \$19, while liablities are priced at
+  Oracles report A is \$20 +/- $1, assets in A are priced at \$19, while liabilities are priced at
   \$21. The confidence interval will be no higher than 5%. If the Oracle reports a confidence
   interval higher than 5%, we may clamp it to 5% or abort the transaction. We call this an "Oracle
   Confidence Interval Adjustment", and it is relatively unique to the borrow-lending space.
+- **EMA vs Spot** - Some oracles report an Exponential Moving Average (EMA) price in a addition to
+  their spot price. This is essentially a price-over-time instead of an instant price "right now".
+  If available, borrowing operations will use the EMA price, while liquidation will continue to use
+  the spot price. If unavailable, all operations will use the spot price.
 
 ## Architecture at a Glance
 
@@ -75,7 +80,7 @@ as Kamino.
 Interest accumulates when users borrow an asset. It's updated when a user performs any transaction
 that affects a Bank's balances. Borrowers are assessed interest, while lenders earn it. A portion of
 interest paid by borrowers also goes to fees. Interest accumulates on your position, entirely within
-the program: no interaction is neccessary beyond depositing, borrowing, withdrawing, and repaying.
+the program: no interaction is necessary beyond depositing, borrowing, withdrawing, and repaying.
 
 Example:
 
@@ -152,7 +157,7 @@ borrowers!
 
 The difference between the what borrowers pay and lenders receive is called the `spread`. When the
 lending interest in some asset exceeds the borrow rate for the same asset on another venue, we call
-this opportunity an `interest arbitragage` (or `arb` for short).
+this opportunity an `interest arbitrage` (or `arb` for short).
 
 ### APR vs APY
 
@@ -196,7 +201,7 @@ and lending activities are within acceptable risk parameters. If a user's accoun
 minimum required health factor, they may be subject to liquidation to protect the integrity of the
 lending pool and other users' accounts.
 
-In a nutshell, health is caclulated as the sum of assets minus the sum of liabilities, after all
+In a nutshell, health is calculated as the sum of assets minus the sum of liabilities, after all
 applicable weights and confidence intervals have been applied. An Account cannot borrow more once
 its health is less than zero using Initial weights, and is subject to liquidation if health is less
 than zero using Maintenance Weights.
@@ -263,7 +268,7 @@ bankruptcy purposes. This instruction uses the same oracles that would be used i
 check.
 
 Whenever a user Borrows or Withdraws, the Risk Engine determines if the user would be within
-acceptable risk paramters after the tx completes, rejecting the tx if not. Deposits and Repays
+acceptable risk parameters after the tx completes, rejecting the tx if not. Deposits and Repays
 require no Risk Engine check, as they can only improve health. Accounts requiring the Risk Engine
 check must pass all Banks and Oracles involved in the user's Balances in remaining accounts.
 
@@ -295,7 +300,7 @@ and are passed in the order they appear there. Each set of banks/oracles are pas
 bitwise order by Bank key, the same way they appear in the user's Balances.
 
 Each oracle must not be stale. For Pyth oracles, the caller typically has no obligations, Pyth
-orales are kept up-to-date by their adminstrator. For Switchboard Oracles, the caller must call a
+oracles are kept up-to-date by their administrator. For Switchboard Oracles, the caller must call a
 crank instruction, typically just before the tx consuming that price. Some callers prefer to use
 bundles for this, but it typically suffices to send a crank instruction and briefly wait. When tx
 size permits, callers might even prepend the Switchboard crank to the tx consuming the Oracle data,
@@ -339,5 +344,37 @@ Some assets support "Emode", which increases the Asset Weight ("Initial" and/or 
 that token when it is used to borrow a specific paired asset. For example, LST might have an Emode
 benefit with SOL, so when LST is used to borrow SOL, it supports much higher LTVs than when it is
 used to borrow e.g. USDC. An Account's Emode benefit for a given token being lent is always based on
-the worst benefit accross all the assets they are borrowing, this means in some instances it makes
+the worst benefit across all the assets they are borrowing, this means in some instances it makes
 more sense to break assets into multiple accounts.
+
+
+## Notable Bank States
+
+The Group administrator can create Banks (or place them into) several notable states:
+
+### Isolated
+
+Banks in an "Isolated" Risk Tier are worthless as collateral: their Asset Weight is always zero.
+They can still earn interest, and can still be borrowed, i.e. their Liability Weight is still
+active. Accounts can only borrow one Isolated asset at a time.
+
+### Reduce-Only
+
+Banks in a "Reduce Only" Operational Mode can only withdraw or repay, not borrow or deposit.
+Liquidations continue to function as normal, and all other parameters also work as normal.
+
+Banks are usually placed in this mode when they are going to be sunset. Users are encouraged to
+withdraw from Reduce-Only banks as soon as possible before more drastic measures are taken to
+deleverage these banks, such as reducing Asset Weights.
+
+### Paused
+
+Banks in a "Paused" Operational Mode cannot deposit, withdraw, borrow, or repay. This mode is
+usually reserved for defunct Banks that are empty.
+
+### Globally Paused
+
+The Global Fee State Admin, which controls program-level fees, can pause the protocol for up to 30
+minutes at a time, and up to twice per day. This is used only in extreme emergencies: it has never
+been used once as of November 2025. During a global pause, all financial operations on all Groups
+and Banks are suspended. 
