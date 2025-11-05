@@ -1,8 +1,20 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { configureBank, configureBankOracle } from "./utils/group-instructions";
+import {
+  configureBank,
+  configureBankOracle,
+  groupConfigure,
+  initBankMetadata,
+  writeBankMetadata,
+} from "./utils/group-instructions";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
-import { bankKeypairUsdc, groupAdmin, oracles, users } from "./rootHooks";
+import {
+  bankKeypairUsdc,
+  groupAdmin,
+  marginfiGroup,
+  oracles,
+  users,
+} from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
@@ -24,6 +36,7 @@ import {
   InterestRateConfigOpt1_6,
   makeRatePoints,
 } from "./utils/types";
+import { deriveBankMetadata } from "./utils/pdas";
 
 describe("Lending pool configure bank", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -310,5 +323,79 @@ describe("Lending pool configure bank", () => {
     // Ignored fields didn't change..
     assert.equal(config.oracleMaxAge, 240);
     assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG); // still frozen
+  });
+
+  it("(permissionless) Init blank metadata for a bank", async () => {
+    await users[1].mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await initBankMetadata(users[1].mrgnProgram, {
+          bank: bankKeypairUsdc.publicKey,
+        })
+      )
+    );
+
+    const [metaKey, metaBump] = deriveBankMetadata(
+      program.programId,
+      bankKeypairUsdc.publicKey
+    );
+    const meta = await program.account.bankMetadata.fetch(metaKey);
+    assertKeysEqual(meta.bank, bankKeypairUsdc.publicKey);
+    assert.equal(meta.bump, metaBump);
+  });
+
+  it("(meta admin) Update metadata for a bank", async () => {
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await groupConfigure(groupAdmin.mrgnProgram, {
+          newMetadataAdmin: users[0].wallet.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
+        })
+      )
+    );
+    const group = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
+    assertKeysEqual(group.metadataAdmin, users[0].wallet.publicKey);
+
+    const [metaKey] = deriveBankMetadata(
+      program.programId,
+      bankKeypairUsdc.publicKey
+    );
+
+    const tickerStr = "USDCasdfg";
+    const descStr = "It's a coin 1234 ?#*Z";
+    const tickerUtf8 = Buffer.from(tickerStr, "utf8");
+    const descUtf8 = Buffer.from(descStr, "utf8");
+
+    await users[0].mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await writeBankMetadata(users[0].mrgnProgram, {
+          metadata: metaKey,
+          ticker: tickerStr,
+          description: descStr,
+        })
+      )
+    );
+    const meta = await program.account.bankMetadata.fetch(metaKey);
+    // Note: buffer is zero-padded, but the subarray will match the expected str
+    const onchainTicker = Buffer.from(meta.ticker as number[]);
+    assert.equal(
+      onchainTicker.subarray(0, tickerUtf8.length).toString("utf8"),
+      tickerStr
+    );
+    // Use the end byte pointer to quickly get the end byte for subarray
+    assert.equal(meta.endTickerByte, tickerUtf8.length - 1);
+
+    // Note: also the same as a zero-padded buffer allocated manually
+    const expectedTicker = Buffer.alloc(64, 0);
+    expectedTicker.set(tickerUtf8, 0);
+    assert.deepStrictEqual(onchainTicker, expectedTicker);
+
+    const onchainDesc = Buffer.from(meta.description as number[]);
+    assert.equal(
+      onchainDesc.subarray(0, descUtf8.length).toString("utf8"),
+      descStr
+    );
+    assert.equal(meta.endDescriptionByte, descUtf8.length - 1);
   });
 });

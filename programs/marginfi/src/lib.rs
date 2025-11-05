@@ -98,6 +98,7 @@ pub mod marginfi {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
@@ -107,6 +108,7 @@ pub mod marginfi {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             is_arena_group,
         )
     }
@@ -543,6 +545,18 @@ pub mod marginfi {
     /// on how interest accrues.
     pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
         marginfi_group::migrate_curve(ctx)
+    }
+
+    pub fn init_bank_metadata(ctx: Context<InitBankMetadata>) -> MarginfiResult {
+        marginfi_group::init_bank_metadata(ctx)
+    }
+
+    pub fn write_bank_metadata(
+        ctx: Context<WriteBankMetadata>,
+        ticker: Option<Vec<u8>>,
+        description: Option<Vec<u8>>,
+    ) -> MarginfiResult {
+        marginfi_group::write_bank_metadata(ctx, ticker, description)
     }
 
     /****** Kamino integration instructions *****/

@@ -48,7 +48,10 @@ pub struct MarginfiGroup {
     /// duration of the lockup will be available here.
     pub panic_state_cache: PanicStateCache,
 
-    pub _padding_0: [[u64; 2]; 17],
+    /// Can modify a Bank's metadata, and nothing else.
+    pub metadata_admin: Pubkey,
+
+    pub _padding_0: [[u64; 2]; 15],
     pub _padding_1: [[u64; 2]; 32],
 }
 

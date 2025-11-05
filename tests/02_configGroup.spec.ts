@@ -50,6 +50,7 @@ describe("Config group", () => {
             PublicKey.default,
             PublicKey.default,
             PublicKey.default,
+            PublicKey.default,
             false
           )
           .accountsPartial({
@@ -58,7 +59,9 @@ describe("Config group", () => {
           })
           .instruction()
 
-        // Note: Fails because admin is incorrectly implied, TODO figure out why...
+        // Note: Fails because admin is incorrectly implied, since it's now newAdmin, and we have
+        // groupAdmin signing for the above instead:
+
         // await groupConfigure(groupAdmin.mrgnProgram, {
         //   newAdmin: groupAdmin.wallet.publicKey,
         //   marginfiGroup: marginfiGroup.publicKey,
