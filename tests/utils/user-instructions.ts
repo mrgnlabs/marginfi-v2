@@ -2,7 +2,6 @@ import { BN, Program } from "@coral-xyz/anchor";
 import {
   AccountMeta,
   PublicKey,
-  SystemProgram,
   SYSVAR_INSTRUCTIONS_PUBKEY,
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
@@ -453,6 +452,53 @@ export const endLiquidationIx = (
     .instruction();
 };
 
+export type StartDeleverageArgs = {
+  marginfiAccount: PublicKey;
+  riskAdmin: PublicKey;
+  remaining: PublicKey[];
+};
+
+export const startDeleverageIx = (
+  program: Program<Marginfi>,
+  args: StartDeleverageArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+  return program.methods
+    .startDeleverage()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
+
+export type EndDeleverageArgs = {
+  marginfiAccount: PublicKey;
+  remaining: PublicKey[];
+};
+
+export const endDeleverageIx = (
+  program: Program<Marginfi>,
+  args: EndDeleverageArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+  return program.methods
+    .endDeleverage()
+    .accounts({
+      marginfiAccount: args.marginfiAccount,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
+
 export type LiquidateIxArgs = {
   assetBankKey: PublicKey;
   liabilityBankKey: PublicKey;
@@ -565,7 +611,6 @@ export const composeRemainingAccounts = (
   // flatten out [bank, oracle…, oracle…] → [bank, oracle…, bank, oracle…, …]
   return banksAndOracles.flat();
 };
-
 
 export type AccountInitPdaArgs = {
   marginfiGroup: PublicKey;

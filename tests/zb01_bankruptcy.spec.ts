@@ -308,7 +308,7 @@ describe("Bank bankruptcy tests", () => {
     assertBankrunTxFailed(result, "0x178a");
   });
 
-  it("(admin) set the risk admin", async () => {
+  it("(admin) Sets the risk admin", async () => {
     const tx = new Transaction().add(
       await groupConfigure(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: throwawayGroup.publicKey,
@@ -626,7 +626,7 @@ describe("Bank bankruptcy tests", () => {
     await banksClient.processTransaction(tx);
   });
 
-it("(admin) Tries to bankrupt user 0 as wrong admin (not risk one) - should fail", async () => {
+  it("(admin) Tries to bankrupt user 0 as wrong admin (not risk one) - should fail", async () => {
     const admin = groupAdmin; // sneaky sneaky
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
@@ -859,6 +859,8 @@ it("(admin) Tries to bankrupt user 0 as wrong admin (not risk one) - should fail
       bankDebtBefore - debtBefore,
       100
     );
-    assert.deepEqual(bankAcc.config.operationalState, { killedByBankruptcy: {} });
+    assert.deepEqual(bankAcc.config.operationalState, {
+      killedByBankruptcy: {},
+    });
   });
 });

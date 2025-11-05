@@ -318,7 +318,8 @@ export const mochaHooks = {
       groupAdmin.lstAlphaAccount,
       groupAdmin.wallet.publicKey,
       emodeAdmin.wallet.publicKey,
-      riskAdmin.wallet.publicKey
+      riskAdmin.wallet.publicKey,
+      riskAdmin.lstAlphaAccount
     );
 
     for (let i = 0; i < numUsers; i++) {

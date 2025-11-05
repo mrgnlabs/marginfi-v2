@@ -238,6 +238,7 @@ impl Hashable for EndLiquidation<'_> {
 pub struct EndDeleverage<'info> {
     #[account(
         mut,
+        has_one = liquidation_record,
         has_one = group,
         constraint = {
             let acc = marginfi_account.load()?;
