@@ -148,10 +148,10 @@ pub enum MarginfiError {
     TooSevereLiquidation,
     #[msg("Liquidation would worsen account health")] // 6072
     WorseHealthPostLiquidation,
-    #[msg("Arena groups can only support two banks")] // 6073
-    ArenaBankLimit,
-    #[msg("Arena groups cannot return to non-arena status")] // 6074
-    ArenaSettingCannotChange,
+    #[msg("Vacated0")] // 6073
+    Vacated0,
+    #[msg("Vacated1")] // 6074
+    Vacated1,
     #[msg("The Emode config was invalid")] // 6075
     BadEmodeConfig,
     #[msg("TWAP window size does not match expected duration")] // 6076
@@ -431,8 +431,8 @@ impl From<u32> for MarginfiError {
             6070 => MarginfiError::TooSeverePayoff,
             6071 => MarginfiError::TooSevereLiquidation,
             6072 => MarginfiError::WorseHealthPostLiquidation,
-            6073 => MarginfiError::ArenaBankLimit,
-            6074 => MarginfiError::ArenaSettingCannotChange,
+            6073 => MarginfiError::Vacated0,
+            6074 => MarginfiError::Vacated1,
             6075 => MarginfiError::BadEmodeConfig,
             6076 => MarginfiError::PythPushInvalidWindowSize,
             6077 => MarginfiError::InvalidFeesDestinationAccount,
