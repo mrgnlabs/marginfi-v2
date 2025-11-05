@@ -168,17 +168,19 @@ balance change, so the rate at which different Banks compound actually varies. M
 like SOL, compound every few minutes, or even every few seconds on more active days. Less popular
 Banks might compound just a few times per week, but these Banks typically have very few borrows (and
 thus a low APR to compound). Since interest compounds based on usage, the more popular our platform,
-the more often interest compounds.
+the more often interest compounds. Remember that interest accrues for all of a Bank's users at the
+same time: that means if anyone transacts with a bank, the interest for *every* user compounds!
 
-In practice, Banks that have meaningful borrows typically usually end up yielding within 1% of the
+In practice, Banks that have meaningful borrows typically end up yielding within 1% of the
 continuously compounded APY. The exceptions are rare cases where an asset has a high APR, but not a
 lot of activity.
 
-Different providers handle the APR -> APY conversion in different ways, which can lead to slightly
-different rates depending on where you look. The rates displayed on 0.xyz assume compounding roughly
-hourly for native banks. Some other venues directly generate on-chain APY compounded every 400ms
-(the Solana slot time) using a Taylor series approximation instead of an APR, so they may have no
-APR to compare against. Those APYs are fetched using best-practices as defined in the venue's SDK.
+Different venues and providers handle the APR -> APY conversion in different ways, which can lead to
+slightly different rates depending on the source of the data The rates displayed on 0.xyz assume
+compounding roughly hourly for native banks. Some other venues directly generate on-chain APY
+compounded every 400ms (the Solana slot time) using a Taylor series approximation instead of an APR,
+so they may have no APR to compare against. Those APYs are fetched using best-practices as defined
+in the venue's SDK.
 
 ### Interest, Previewed Amounts, and Closing Positions
 
