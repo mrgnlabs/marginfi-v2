@@ -10,6 +10,7 @@ use crate::{
 };
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
+use kamino_mocks::kamino_lending::client::args as kamino;
 use marginfi_type_crate::{
     constants::ix_discriminators,
     types::{
@@ -63,7 +64,21 @@ pub fn start_liquidation<'info>(
         let sysvar = &ctx.accounts.instruction_sysvar;
         // TODO set allowed keys to e.g. mrgn, token program, jup, compute, and selection of others
         let ixes = load_and_validate_instructions(sysvar, None)?;
-        validate_ix_first(&ixes, ctx.program_id, &ix_discriminators::START_LIQUIDATION)?;
+        validate_ix_first(
+            &ixes,
+            ctx.program_id,
+            &ix_discriminators::START_LIQUIDATION,
+            &[
+                (
+                    kamino_mocks::kamino_lending::ID,
+                    kamino::RefreshReserve::DISCRIMINATOR,
+                ),
+                (
+                    kamino_mocks::kamino_lending::ID,
+                    kamino::RefreshObligation::DISCRIMINATOR,
+                ),
+            ],
+        )?;
         validate_ix_last(&ixes, ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;
         // Note: this only validates top-level instructions, all other instructions can still appear
         // inside a CPI. This list essentially bans any ix that's already banned inside CPI (e.g.
