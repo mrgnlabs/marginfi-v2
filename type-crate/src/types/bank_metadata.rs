@@ -37,7 +37,7 @@ pub struct BankMetadata {
     pub _pad0: [u8; 2],
 }
 
-impl Default for BankMetadata{
+impl Default for BankMetadata {
     fn default() -> Self {
         BankMetadata::zeroed()
     }

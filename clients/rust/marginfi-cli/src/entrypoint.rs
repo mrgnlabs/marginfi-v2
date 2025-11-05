@@ -96,6 +96,8 @@ pub enum GroupCommand {
         #[clap(long)]
         new_emissions_admin: Pubkey,
         #[clap(long)]
+        new_metadata_admin: Pubkey,
+        #[clap(long)]
         is_arena_group: bool,
     },
     AddBank {
@@ -657,6 +659,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             is_arena_group,
         } => processor::group_configure(
             config,
@@ -666,6 +669,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             is_arena_group,
         ),
 
