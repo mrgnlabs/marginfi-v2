@@ -111,12 +111,74 @@ UR).
 You can read a Bank's last spot interest rate from `bank.cache`. This updates any time a Bank has a
 balance change, or send a (permissionless) accrue interest instruction to force it to update.
 
-The rates we just discussed are the APR, not the APY. Note that because interest is computed just
-before any balance change, the rate at which different Banks compound varies. More popular Banks,
+### Curve Details
+
+The "Base Rate" or `r` is the rate linearly interpolated between the two nearest points (x0, y0) and
+(x1, y1), where there is always a point at (0, y0) and (100, yn).
+
+```
+r = (ur-x0)/(x1-x0) * (y1-y0) + y0
+```
+
+Examples:
+
+If the `zero_util_rate` is 10%, and there is a point at (50%, 100%), and the UR is
+currently 25%, then
+
+```
+r = (25-0)/(50-0) * (100-10) + 10 = 55%`
+```
+
+If there is a point at (50%, 100%) and (80%, 150%), and the UR is currently 60%,
+then
+
+```
+r = (60-50)/(80-50) * (150-100) + 100 = 116.67%`
+```
+
+### Rate Details
+
+There are two other notable interest rates that follow from r, and all of three these are reported
+in the bank cache:
+
+```
+lending_rate = r * UR
+borrow_rate = (r * ir_fees + fixed_fees)
+```
+
+Where fees include insurance and protocol fees. Notice that borrowers always pay more than lenders
+get, because there are fees, and more importantly because there are more lenders than there are
+borrowers!
+
+The difference between the what borrowers pay and lenders receive is called the `spread`. When the
+lending interest in some asset exceeds the borrow rate for the same asset on another venue, we call
+this opportunity an `interest arbitragage` (or `arb` for short).
+
+### APR vs APY
+
+The rates we just discussed are the Annual Percentage Rate (APR), not the Annual Percentage Yield
+(APY). The former assumes simple interest, i.e. assuming it's charged once a year. The latter uses
+compounding: your interest is accumulated pro-rata over time, and you also earn interest on the
+interest that has accumulated to date. How often you earn pro-rata interest is sometimes called the
+"compounding rate". Most savings accounts compound daily, while some financial products compound
+monthly or quarterly. "Compounding continuously" means as often as possible.
+
+Realized rates on our banks are actually closer to the APY. Interest is computed just before any
+balance change, so the rate at which different Banks compound actually varies. More popular Banks,
 like SOL, compound every few minutes, or even every few seconds on more active days. Less popular
-Banks might compound just a few times per week, but these Banks typically have very few borrows. In
-practice, Banks that have meaningful borrows typically end up being very close to the
-compounding-continuously APY. 
+Banks might compound just a few times per week, but these Banks typically have very few borrows (and
+thus a low APR to compound). Since interest compounds based on usage, the more popular our platform,
+the more often interest compounds.
+
+In practice, Banks that have meaningful borrows typically usually end up yielding within 1% of the
+continuously compounded APY. The exceptions are rare cases where an asset has a high APR, but not a
+lot of activity.
+
+Different providers handle the APR -> APY conversion in different ways, which can lead to slightly
+different rates depending on where you look. The rates displayed on 0.xyz assume compounding roughly
+hourly for native banks. Some other venues directly generate on-chain APY compounded every 400ms
+(the Solana slot time) using a Taylor series approximation instead of an APR, so they may have no
+APR to compare against. Those APYs are fetched using best-practices as defined in the venue's SDK.
 
 ### Interest, Previewed Amounts, and Closing Positions
 
@@ -153,6 +215,7 @@ DEBTS
 
 Health calculation: (2 * 9.788 * .5) - (5.05 * 1.0212 * 1) = 4.63094
 ```
+
 This account is healthy, and has $4.63094 in remaining borrowing power!
 
 Now let's look at an account that's unhealthy, falling below its Maintenance requirements.
@@ -173,6 +236,7 @@ Health calculation: (2 * 9.788 * .1) - (5.05 * 1.0212 * 1) = -3.19946
 In the above example, we see that the user still has more assets than debts, but due to weights,
 their account is unhealthy: they are eligible to be liquidated. A partial liquidation can restore
 their health:
+
 ```
 Liquidator fee = 2.5%
 Insurance fee = 2.5%
@@ -212,14 +276,14 @@ liquidator in exchange for performing this service.
 Other borrow-lending protocols typically have a refresh system. When their risk system runs, a
 series of "refresh" instructions must appear before the instruction that consumes the risk data. Our
 Risk Engine runs Just In Time: no refresh instructions are needed, except for those required by
-integrated venues. 
+integrated venues.
 
 Whenever the risk engine must run, the caller passes required accounts in the remaining_accounts.
 The format is:
 
 ```
-[bank0, oracle0_1], 
-[bank1, oracle1_1, oracle1_2], 
+[bank0, oracle0_1],
+[bank1, oracle1_1, oracle1_2],
 [bank2, oracle2_1],
 ```
 
