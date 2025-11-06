@@ -6,9 +6,9 @@ Try Receivership Liquidation instead: the process is simpler, and the potential 
 
 Classic liquidation uses the `lending_account_liquidate` instruction. To execute this kind of liquidation, the liquidator must have their own lending Account. The target, also called the "liquidatee", must be unhealthy. The liquidator will assume part of one of the liquidatee's assets, and in exchange, will also take on some of the liquidatee's debt in one of their liabilities.
 
-If a liquidator reclaims \$A asset, they only have to assume (1-0.025)\*A in B liablities. The liquidator keeps this 2.5% premium.
+If a liquidator reclaims \$A asset, they only have to assume (1-0.025)\*A in B liabilities. The liquidator keeps this 2.5% premium.
 
-The liquidatee only recieves a repayment on their B debt of (1-0.025-0.025)\*A, the additional 2.5% goes to insurance funds.
+The liquidatee only receives a repayment on their B debt of (1-0.025-0.025)\*A, the additional 2.5% goes to insurance funds.
 
 ### Common FAQs
 
@@ -24,7 +24,7 @@ Yes, no stale oracles are permitted. Typically, you will send a crank tx just be
 
 <details>
 <summary>How do I know when accounts are eligible to be liquidated?</summary>
-Most liquidators will try to keep a running inventory of all the accounts that exist above some dollar threshold, and all the prices of the various assets they are involved with. This is a considerable endevour with 500k accounts!
+Most liquidators will try to keep a running inventory of all the accounts that exist above some dollar threshold, and all the prices of the various assets they are involved with. This is a considerable endeavour with 500k accounts!
 </details>
 
 <details>
@@ -34,7 +34,7 @@ Most liquidators will set this number conservatively, since prices may change by
 
 <details>
 <summary>I landed a liquidation, now what?</summary>
-Most liquidators will try to reblaance their inventory as soon as possible: withdraw the asset, swap to debt, and repay the debt. Some liquidators will even attempts to do this within the same transaction as the liquidation, though this isn't always possible with larger accounts due to TX size and compute limits. Note that taking on a liabilitiy carries risk: there's no gaurantee that a profitable swap route exists to exit that liability.
+Most liquidators will try to rebalance their inventory as soon as possible: withdraw the asset, swap to debt, and repay the debt. Some liquidators will even attempts to do this within the same transaction as the liquidation, though this isn't always possible with larger accounts due to TX size and compute limits. Note that taking on a liability carries risk: there's no guarantee that a profitable swap route exists to exit that liability.
 </details>
 
 <details>
