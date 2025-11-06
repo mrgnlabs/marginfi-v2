@@ -184,6 +184,7 @@ pub fn lending_account_liquidate<'info>(
             &clock,
             ctx.remaining_accounts,
         )?;
+        check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
         let mut liab_bank = ctx.accounts.liab_bank.load_mut()?;
         let liab_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&liab_bank)? - 1;

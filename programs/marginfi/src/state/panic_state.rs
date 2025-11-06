@@ -1,6 +1,6 @@
 use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::PanicState;
+use marginfi_type_crate::{constants::DAILY_RESET_INTERVAL, types::PanicState};
 
 pub trait PanicStateImpl {
     fn pause(&mut self, current_timestamp: i64) -> MarginfiResult;
@@ -14,8 +14,7 @@ impl PanicStateImpl for PanicState {
         self.unpause_if_expired(current_timestamp);
 
         // Reset daily count if needed
-        if current_timestamp.saturating_sub(self.last_daily_reset_timestamp)
-            >= Self::DAILY_RESET_INTERVAL
+        if current_timestamp.saturating_sub(self.last_daily_reset_timestamp) >= DAILY_RESET_INTERVAL
         {
             self.daily_pause_count = 0;
             self.last_daily_reset_timestamp = current_timestamp;
@@ -178,7 +177,7 @@ mod panic_state_tests {
         }
 
         // Move forward 24+ hours
-        let next_day = base_timestamp + PanicState::DAILY_RESET_INTERVAL + 1;
+        let next_day = base_timestamp + DAILY_RESET_INTERVAL + 1;
 
         // Should be able to pause again
         assert!(panic_state.can_pause(next_day));
@@ -251,7 +250,6 @@ mod panic_state_tests {
         assert_eq!(PanicState::PAUSE_DURATION_SECONDS, 30 * 60);
         assert_eq!(PanicState::MAX_CONSECUTIVE_PAUSES, 2);
         assert_eq!(PanicState::MAX_DAILY_PAUSES, 3);
-        assert_eq!(PanicState::DAILY_RESET_INTERVAL, 24 * 60 * 60);
     }
 
     #[test]
@@ -344,7 +342,7 @@ mod panic_state_tests {
         assert_eq!(s.daily_pause_count, 2);
 
         // Time jumps to another day; but pause flag still set, we never bothered to unpause
-        let t3 = t + PanicState::DAILY_RESET_INTERVAL * 3;
+        let t3 = t + DAILY_RESET_INTERVAL * 3;
         // Should "unpause" and then start a new "pause"
         assert!(s.pause(t3).is_ok());
         assert!(s.is_paused_flag());

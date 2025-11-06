@@ -88,6 +88,8 @@ pub fn end_deleverage<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
 
+    validate_not_cpi_by_stack_height()?;
+
     let (_, seized_f64, _, repaid_f64) = end_receivership(
         &mut marginfi_account,
         &mut liq_record,

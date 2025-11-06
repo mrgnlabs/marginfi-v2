@@ -7,7 +7,7 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
     },
@@ -55,37 +55,41 @@ pub fn lending_account_withdraw<'info>(
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
-
-    let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
-    let bank_key = bank_loader.key();
-    let maybe_bank_mint;
-
     {
-        let bank = bank_loader.load()?;
+        let mut group = marginfi_group_loader.load_mut()?;
+        let mut bank = bank_loader.load_mut()?;
 
-        maybe_bank_mint =
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
+
+        let maybe_bank_mint =
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
-        if in_liquidation {
-            // Note: we don't care about the price we are just validating non-zero...
-            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-        }
-        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
-    } // release immutable borrow of bank
+        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        let price = if in_liquidation {
+            let price = fetch_asset_price_for_bank(
+                &bank_loader.key(),
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
 
-    {
-        let group = &marginfi_group_loader.load()?;
+            // Validate price is non-zero during liquidation to prevent exploits with stale oracles
+            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
-        let mut bank = bank_loader.load_mut()?;
+            price
+        } else {
+            // TODO: force users to always pass the oracle, even in case of withdraw_all, to correctly update withdrawn equity.
+            I80F48::ZERO
+        };
 
         bank.accrue_interest(
             clock.unix_timestamp,
-            group,
+            &group,
             #[cfg(not(feature = "client"))]
             bank_loader.key(),
         )?;
@@ -117,6 +121,14 @@ pub fn lending_account_withdraw<'info>(
             amount_pre_fee
         };
 
+        let withdrawn_equity = calc_value(
+            I80F48::from_num(amount_pre_fee),
+            price,
+            bank.mint_decimals,
+            None,
+        )?;
+        group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+
         marginfi_account.last_update = clock.unix_timestamp as u64;
 
         bank.withdraw_spl_transfer(
@@ -134,7 +146,7 @@ pub fn lending_account_withdraw<'info>(
             ctx.remaining_accounts,
         )?;
 
-        bank.update_bank_cache(group)?;
+        bank.update_bank_cache(&group)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
@@ -176,6 +188,7 @@ pub fn lending_account_withdraw<'info>(
 #[derive(Accounts)]
 pub struct LendingAccountWithdraw<'info> {
     #[account(
+        mut,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused

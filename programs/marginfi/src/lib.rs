@@ -611,6 +611,14 @@ pub mod marginfi {
     ) -> MarginfiResult {
         kamino::kamino_harvest_reward(ctx, reward_index)
     }
+
+    /// (group admin only) Set the daily withdrawal limit per group.
+    pub fn configure_withdrawal_limit(
+        ctx: Context<ConfigureWithdrawalLimit>,
+        limit: u32,
+    ) -> MarginfiResult {
+        marginfi_group::configure_withdrawal_limit(ctx, limit)
+    }
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

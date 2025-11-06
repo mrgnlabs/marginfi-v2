@@ -1,5 +1,6 @@
 use crate::{
     check,
+    constants::COMPUTE_PROGRAM_KEY,
     ix_utils::{
         get_discrim_hash, load_and_validate_instructions, validate_ix_first, validate_ix_last,
         validate_ixes_exclusive, validate_not_cpi_by_stack_height, validate_not_cpi_with_sysvar,
@@ -32,90 +33,31 @@ use marginfi_type_crate::{
 pub fn start_liquidation<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartLiquidation<'info>>,
 ) -> MarginfiResult {
-    {
-        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-        let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
-        liq_record.liquidation_receiver = ctx.accounts.liquidation_receiver.key();
-        start_receivership(
-            &mut marginfi_account,
-            &mut liq_record,
-            ctx.remaining_accounts,
-            false,
-        )?;
-    } // end common logic
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
+    liq_record.liquidation_receiver = ctx.accounts.liquidation_receiver.key();
+    start_receivership(
+        &mut marginfi_account,
+        &mut liq_record,
+        ctx.remaining_accounts,
+        false,
+    )?;
 
-    // Introspection logic
-    {
-        let sysvar = &ctx.accounts.instruction_sysvar;
-        // TODO set allowed keys to e.g. mrgn, token program, jup, compute, and selection of others
-        let ixes = load_and_validate_instructions(sysvar, None)?;
-        validate_ix_first(
-            &ixes,
-            ctx.program_id,
-            &ix_discriminators::START_LIQUIDATION,
-            &[
-                (
-                    kamino_mocks::kamino_lending::ID,
-                    kamino::RefreshReserve::DISCRIMINATOR,
-                ),
-                (
-                    kamino_mocks::kamino_lending::ID,
-                    kamino::RefreshObligation::DISCRIMINATOR,
-                ),
-            ],
-        )?;
-        validate_ix_last(&ixes, ctx.program_id, &ix_discriminators::END_LIQUIDATION)?;
-        // Note: this only validates top-level instructions, all other instructions can still appear
-        // inside a CPI. This list essentially bans any ix that's already banned inside CPI (e.g.
-        // flashloan), but has limited utility otherwise.
-        validate_ixes_exclusive(
-            &ixes,
-            ctx.program_id,
-            &[
-                // Note: since start must be first, it isn't possible to init within the same tx here,
-                // so `&ix_discriminators::INIT_LIQUIDATION_RECORD` is not a valid entry.
-                &ix_discriminators::START_LIQUIDATION,
-                &ix_discriminators::END_LIQUIDATION,
-                &ix_discriminators::LENDING_ACCOUNT_WITHDRAW,
-                &ix_discriminators::LENDING_ACCOUNT_REPAY,
-                &ix_discriminators::KAMINO_WITHDRAW,
-                // TODO add withdraw/repay from integrator as they are added to the program. Also
-                // remember to add a test to ix_utils to validate you added the correct hash.
-
-                // Note: At some point we may allow the liquidator to claim emissions too. Since we
-                // currently don't allow this, liquidators can never fully close out an account that
-                // has emissions active. This is not a priority since we are considering deprecating
-                // the emissions feature in late 2025 and moving to a fully off-chain emissions
-                // system anyways.
-                // * &ix_discriminators::LENDING_SETTLE_EMISSIONS,
-                // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
-            ],
-        )?;
-        validate_not_cpi_by_stack_height()?;
-        let start_ix = validate_not_cpi_with_sysvar(sysvar)?;
-        // Sanity check: we have already verified start/end are first/last.
-        check!(start_ix < ixes.len() - 1, MarginfiError::StartNotFirst);
-
-        // Sanity check: peak at the end instruction and validate the marginfi account is the same
-        let end_ix = ixes.last().unwrap(); // safe unwrap, already validated last
-        let end_marginfi_account = end_ix
-            .accounts
-            .first() // marginfi_account is the first account
-            .ok_or(MarginfiError::EndNotLast)?;
-        check!(
-            end_marginfi_account
-                .pubkey
-                .eq(&ctx.accounts.marginfi_account.key()),
-            MarginfiError::EndNotLast
-        );
-    }
-
-    Ok(())
+    let sysvar = &ctx.accounts.instruction_sysvar;
+    validate_instructions(
+        sysvar,
+        ctx.program_id,
+        &ix_discriminators::START_LIQUIDATION,
+        &ix_discriminators::END_LIQUIDATION,
+    )
 }
 
 /// (Permissioned) Begins a forced deleverage: snapshots the account and marks it in receivership. The
 /// risk admin now has full control over the account until the end of the tx.
-/// Note: there are no introspection checks performed - full reliance on admin's adequacy here!
+/// * Fails if end deleverage instruction isn't at the end of this tx.
+/// * Fails if the start deleverage instruction appears more than once in this tx.
+/// * Fails if any mrgn instruction other than start, end, withdraw, or repay (or the equivalent
+///   from a third party integration) are used within this tx.
 pub fn start_deleverage<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
 ) -> MarginfiResult {
@@ -128,7 +70,14 @@ pub fn start_deleverage<'info>(
         ctx.remaining_accounts,
         true,
     )?;
-    Ok(())
+
+    let sysvar = &ctx.accounts.instruction_sysvar;
+    validate_instructions(
+        sysvar,
+        ctx.program_id,
+        &ix_discriminators::START_DELEVERAGE,
+        &ix_discriminators::END_DELEVERAGE,
+    )
 }
 
 // Common logic for both liquidation and deleverage
@@ -159,6 +108,70 @@ pub fn start_receivership<'info>(
     liq_record.cache.liability_value_maint = liabs.into();
     liq_record.cache.asset_value_equity = assets_equity.into();
     liq_record.cache.liability_value_equity = liabs_equity.into();
+
+    Ok(())
+}
+
+// Common introspection logic for both liquidation and deleverage
+pub fn validate_instructions(
+    sysvar: &AccountInfo<'_>,
+    program_id: &Pubkey,
+    start_ix: &[u8],
+    end_ix: &[u8],
+) -> MarginfiResult {
+    let allowed_program_ids = &[
+        COMPUTE_PROGRAM_KEY,
+        id_crate::ID,
+        kamino_mocks::kamino_lending::ID,
+    ];
+    let ixes = load_and_validate_instructions(sysvar, Some(allowed_program_ids))?;
+    validate_ix_first(
+        &ixes,
+        program_id,
+        start_ix,
+        &[
+            (
+                // TODO: think if this is an overkill since we already filtered out unwanted programs above
+                kamino_mocks::kamino_lending::ID,
+                kamino::RefreshReserve::DISCRIMINATOR,
+            ),
+            (
+                kamino_mocks::kamino_lending::ID,
+                kamino::RefreshObligation::DISCRIMINATOR,
+            ),
+            (id_crate::ID, &ix_discriminators::INIT_LIQUIDATION_RECORD),
+        ],
+    )?;
+    validate_ix_last(&ixes, program_id, end_ix)?;
+    // Note: this only validates top-level instructions, all other instructions can still appear
+    // inside a CPI. This list essentially bans any ix that's already banned inside CPI (e.g.
+    // flashloan), but has limited utility otherwise.
+    validate_ixes_exclusive(
+        &ixes,
+        program_id,
+        &[
+            start_ix,
+            end_ix,
+            &ix_discriminators::INIT_LIQUIDATION_RECORD,
+            &ix_discriminators::LENDING_ACCOUNT_WITHDRAW,
+            &ix_discriminators::LENDING_ACCOUNT_REPAY,
+            &ix_discriminators::KAMINO_WITHDRAW,
+            // TODO add withdraw/repay from integrator as they are added to the program. Also
+            // remember to add a test to ix_utils to validate you added the correct hash.
+
+            // Note: At some point we may allow the liquidator to claim emissions too. Since we
+            // currently don't allow this, liquidators can never fully close out an account that
+            // has emissions active. This is not a priority since we are considering deprecating
+            // the emissions feature in late 2025 and moving to a fully off-chain emissions
+            // system anyways.
+            // * &ix_discriminators::LENDING_SETTLE_EMISSIONS,
+            // * &ix_discriminators::LENDING_WITHDRAW_EMISSIONS,
+        ],
+    )?;
+    validate_not_cpi_by_stack_height()?;
+    let start_ix = validate_not_cpi_with_sysvar(sysvar)?;
+    // Sanity check: we have already verified start/end are first/last.
+    check!(start_ix < ixes.len() - 1, MarginfiError::StartNotFirst);
 
     Ok(())
 }

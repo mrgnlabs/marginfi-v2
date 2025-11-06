@@ -49,9 +49,12 @@ pub struct MarginfiGroup {
     /// When program keeper temporarily puts the program into panic mode, information about the
     /// duration of the lockup will be available here.
     pub panic_state_cache: PanicStateCache,
+    /// Keeps track of the liquidity withdrawn from the group over the day. Used as a protection mechanism
+    /// against too big withdrawals (e.g. as a result of deleverages performed by a compromised risk admin).
+    pub withdraw_window_cache: WithdrawWindowCache,
 
-    pub _padding_0: [[u64; 2]; 15],
-    pub _padding_1: [[u64; 2]; 32],
+    pub _padding_1: [[u64; 2]; 14],
+    pub _padding_2: [[u64; 2]; 32],
 }
 
 impl MarginfiGroup {
@@ -67,4 +70,13 @@ pub struct FeeStateCache {
     pub program_fee_fixed: WrappedI80F48,
     pub program_fee_rate: WrappedI80F48,
     pub last_update: i64,
+}
+
+#[repr(C)]
+#[cfg_attr(feature = "anchor", derive(AnchorSerialize, AnchorDeserialize))]
+#[derive(Default, Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
+pub struct WithdrawWindowCache {
+    pub daily_limit: u32,
+    pub withdrawn_today: u32, // in USD, approximate and rounded
+    pub last_daily_reset_timestamp: i64,
 }

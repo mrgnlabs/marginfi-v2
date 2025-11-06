@@ -55,7 +55,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     if !bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) {
         check!(
-            ctx.accounts.signer.key() == marginfi_group_loader.load()?.risk_admin,
+            ctx.accounts.signer.key() == marginfi_group_loader.load()?.risk_admin
+                || ctx.accounts.signer.key() == marginfi_group_loader.load()?.admin,
             MarginfiError::Unauthorized
         );
     }

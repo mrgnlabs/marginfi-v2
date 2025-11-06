@@ -1,6 +1,7 @@
 use crate::{prelude::MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::MarginfiGroup;
+use fixed::types::I80F48;
+use marginfi_type_crate::{constants::DAILY_RESET_INTERVAL, types::MarginfiGroup};
 use std::fmt::Debug;
 
 pub const PROGRAM_FEES_ENABLED: u64 = 1;
@@ -21,6 +22,11 @@ pub trait MarginfiGroupImpl {
     fn is_arena_group(&self) -> bool;
     fn add_bank(&mut self) -> MarginfiResult;
     fn is_protocol_paused(&self) -> bool;
+    fn update_withdrawn_equity(
+        &mut self,
+        withdrawn_equity: I80F48,
+        current_timestamp: i64,
+    ) -> MarginfiResult;
 }
 
 impl MarginfiGroupImpl for MarginfiGroup {
@@ -180,6 +186,31 @@ impl MarginfiGroupImpl for MarginfiGroup {
 
         self.panic_state_cache.is_paused_flag()
             && !self.panic_state_cache.is_expired(current_timestamp)
+    }
+
+    fn update_withdrawn_equity(
+        &mut self,
+        withdrawn_equity: I80F48,
+        current_timestamp: i64,
+    ) -> MarginfiResult {
+        if current_timestamp.saturating_sub(self.withdraw_window_cache.last_daily_reset_timestamp)
+            >= DAILY_RESET_INTERVAL
+        {
+            self.withdraw_window_cache.withdrawn_today = 0;
+            self.withdraw_window_cache.last_daily_reset_timestamp = current_timestamp;
+        }
+        self.withdraw_window_cache.withdrawn_today = self
+            .withdraw_window_cache
+            .withdrawn_today
+            .saturating_add(withdrawn_equity.to_num());
+
+        // Note: treat zero limit as "no limit" here for backwards compatibility.
+        if self.withdraw_window_cache.daily_limit != 0
+            && self.withdraw_window_cache.withdrawn_today < self.withdraw_window_cache.daily_limit
+        {
+            return err!(MarginfiError::DailyWithdrawalLimitExceeded);
+        }
+        Ok(())
     }
 }
 

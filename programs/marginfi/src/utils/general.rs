@@ -1,5 +1,5 @@
 use crate::{
-    bank_authority_seed, bank_seed, check,
+    bank_authority_seed, bank_seed,
     state::{
         bank::BankVaultType,
         marginfi_account::get_remaining_accounts_per_bank,
@@ -331,7 +331,7 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
 }
 
 /// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
-/// any risk check. Errors if the bank is not found or the price is zero
+/// any risk check. Errors if the bank is not found.
 pub fn fetch_asset_price_for_bank<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
@@ -357,7 +357,6 @@ pub fn fetch_asset_price_for_bank<'info>(
         Some(PriceBias::Low),
         bank.config.oracle_max_confidence,
     )?;
-    check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
     Ok(price)
 }

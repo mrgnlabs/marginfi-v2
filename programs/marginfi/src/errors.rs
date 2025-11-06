@@ -188,6 +188,10 @@ pub enum MarginfiError {
     NotAllowedInCPI,
     #[msg("Stake pool supply is zero: cannot compute price")] // 6092
     ZeroSupplyInStakePool,
+    #[msg("Daily withdrawal limit exceeded: try again later")] // 6093
+    DailyWithdrawalLimitExceeded,
+    #[msg("Cannot set daily withdrawal limit to zero")] // 6094
+    ZeroWithdrawalLimit,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -333,6 +337,8 @@ impl From<u32> for MarginfiError {
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
             6092 => MarginfiError::ZeroSupplyInStakePool,
+            6093 => MarginfiError::DailyWithdrawalLimitExceeded,
+            6094 => MarginfiError::ZeroWithdrawalLimit,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

@@ -23,6 +23,7 @@ pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
+pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 
 /// Due to real-world constraints, oracles using an age less than this value are typically too
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
@@ -181,4 +182,6 @@ pub mod ix_discriminators {
     pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
     pub const START_FLASHLOAN: [u8; 8] = [14, 131, 33, 220, 81, 186, 180, 107];
     pub const END_FLASHLOAN: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
+    pub const START_DELEVERAGE: [u8; 8] = [10, 138, 10, 57, 40, 232, 182, 193];
+    pub const END_DELEVERAGE: [u8; 8] = [114, 14, 250, 143, 252, 104, 214, 209];
 }
