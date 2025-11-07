@@ -69,8 +69,8 @@ pub fn lending_account_withdraw<'info>(
         let maybe_bank_mint =
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
-        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        let price = if in_liquidation {
+        let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        let price = if in_receivership {
             let price = fetch_asset_price_for_bank(
                 &bank_loader.key(),
                 &bank,
@@ -78,7 +78,7 @@ pub fn lending_account_withdraw<'info>(
                 ctx.remaining_accounts,
             )?;
 
-            // Validate price is non-zero during liquidation to prevent exploits with stale oracles
+            // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
             price
@@ -167,7 +167,7 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
-    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    // Note: during receivership, we skip all health checks until the end of the transaction.
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
@@ -205,10 +205,10 @@ pub struct LendingAccountWithdraw<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Must be marginfi_account's authority, unless in liquidation receivership
+    /// Must be marginfi_account's authority, unless in liquidation/deleverage receivership
     ///
-    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
-    /// long as the invariants checked at the end of liquidation are met.
+    /// Note: during receivership, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of receivership are met.
     pub authority: Signer<'info>,
 
     #[account(

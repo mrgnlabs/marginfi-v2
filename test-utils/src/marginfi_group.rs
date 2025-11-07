@@ -644,6 +644,33 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    pub async fn try_update_withdrawal_limit(&self, limit: u32) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::ConfigureWithdrawalLimit {
+                marginfi_group: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::ConfigureWithdrawalLimit { limit }.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn try_collect_fees(&self, bank: &BankFixture) -> Result<()> {
         let ctx = self.ctx.borrow_mut();
 

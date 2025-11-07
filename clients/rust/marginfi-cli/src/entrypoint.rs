@@ -350,9 +350,14 @@ pub enum BankCommand {
         permissionless_bad_debt_settlement: Option<bool>,
         #[clap(
             long,
-            help = "If enabled, will prevent this Update ix from ever running against after this invokation"
+            help = "If enabled, will prevent this Update ix from ever running against after this invocation"
         )]
         freeze_settings: Option<bool>,
+        #[clap(
+            long,
+            help = "If enabled, allows risk admin to \"repay\" debts in this bank with nothing"
+        )]
+        tokenless_repayments_allowed: Option<bool>,
     },
     UpdateOracle {
         bank_pk: Pubkey,
@@ -821,6 +826,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
             oracle_max_age,
             permissionless_bad_debt_settlement,
             freeze_settings,
+            tokenless_repayments_allowed,
         } => {
             let bank = config.mfi_program.account::<Bank>(bank_pk).unwrap();
             let points_opt: Option<[RatePoint; CURVE_POINTS]> = if points.is_empty() {
@@ -865,6 +871,7 @@ fn bank(subcmd: BankCommand, global_options: &GlobalOptions) -> Result<()> {
                     oracle_max_age,
                     permissionless_bad_debt_settlement,
                     freeze_settings,
+                    tokenless_repayments_allowed,
                 },
             )
         }

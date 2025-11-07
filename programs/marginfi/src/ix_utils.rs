@@ -68,7 +68,7 @@ pub fn validate_ix_first(
                     instruction.program_id,
                     instruction.data,
                 );
-                msg!("Start IX was not the first ix (other than compute).");
+                msg!("Start IX was not the first ix (other than allowed).");
                 return err!(MarginfiError::StartNotFirst);
             }
         } else {
@@ -171,6 +171,7 @@ pub fn validate_program_allowed(
 ) -> MarginfiResult<()> {
     let id = &instruction.program_id;
     if !allowed_keys.iter().any(|key| key.eq(id)) {
+        msg!("Forbidden ix program: {:?}", id);
         return err!(MarginfiError::ForbiddenIx);
     }
     Ok(())

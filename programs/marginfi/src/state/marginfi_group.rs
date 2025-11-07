@@ -206,8 +206,13 @@ impl MarginfiGroupImpl for MarginfiGroup {
 
         // Note: treat zero limit as "no limit" here for backwards compatibility.
         if self.withdraw_window_cache.daily_limit != 0
-            && self.withdraw_window_cache.withdrawn_today < self.withdraw_window_cache.daily_limit
+            && self.withdraw_window_cache.withdrawn_today > self.withdraw_window_cache.daily_limit
         {
+            msg!(
+                "trying to withdraw more than daily limit: {} > {}",
+                self.withdraw_window_cache.withdrawn_today,
+                self.withdraw_window_cache.daily_limit
+            );
             return err!(MarginfiError::DailyWithdrawalLimitExceeded);
         }
         Ok(())

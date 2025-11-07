@@ -65,13 +65,15 @@ pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
 pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
+pub const TOKENLESS_REPAYMENTS_ALLOWED: u64 = 1 << 5;
 
 /// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
 /// version. False otherwise.
 pub const PYTH_PUSH_MIGRATED_DEPRECATED: u8 = 1 << 0;
 
 pub const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
+pub const GROUP_FLAGS: u64 =
+    PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS | TOKENLESS_REPAYMENTS_ALLOWED;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.

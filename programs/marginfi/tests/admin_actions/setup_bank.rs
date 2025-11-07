@@ -11,7 +11,10 @@ use marginfi::{
     },
 };
 use marginfi_type_crate::{
-    constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    constants::{
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        TOKENLESS_REPAYMENTS_ALLOWED,
+    },
     types::{
         make_points, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
         MarginfiGroup, OracleSetup, RatePoint, EMODE_ON, INTEREST_CURVE_SEVEN_POINT,
@@ -399,6 +402,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         oracle_max_confidence,
         permissionless_bad_debt_settlement,
         freeze_settings,
+        tokenless_repayments_allowed,
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {
@@ -456,6 +460,15 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             .map(|set| set == bank.get_flag(FREEZE_SETTINGS))
             // If None check flag is unchanged
             .unwrap_or(bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS)));
+
+        assert!(tokenless_repayments_allowed
+            // If Some(...) check flag set properly
+            .map(|set| set == bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED))
+            // If None check flag is unchanged
+            .unwrap_or(
+                bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+                    == old_bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+            ));
 
         // Oracles no longer update in the standard config instruction
         assert_eq!(
