@@ -105,10 +105,6 @@ pub fn validate_ix_last(
 
     check!(last_ix.program_id.eq(program_id), MarginfiError::EndNotLast);
     check_eq!(discrim, expected_hash, MarginfiError::EndNotLast);
-
-    // if !last_ix.program_id.eq(program_id) || discrim != expected_hash {
-    //     return err!(MarginfiError::EndNotLast);
-    // }
     Ok(())
 }
 

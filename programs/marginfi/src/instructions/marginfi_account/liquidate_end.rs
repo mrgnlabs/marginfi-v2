@@ -143,7 +143,6 @@ pub fn end_receivership<'info>(
         return Err(MarginfiError::WorseHealthPostLiquidation.into());
     }
 
-    // ensure seized asset‐value ≤ N% of repaid liability‐value, where N = 100% + the bonus fee
     let seized: I80F48 = pre_assets_equity - post_assets_equity;
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
 

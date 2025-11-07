@@ -17,6 +17,7 @@ import {
   verbose,
   globalProgramAdmin,
   riskAdmin,
+  emodeAdmin,
 } from "./rootHooks";
 import {
   accrueInterest,
@@ -27,7 +28,7 @@ import {
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 import {
-  emptyBankConfigOptRaw,
+  blankBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_ORACLE_OK,
@@ -118,7 +119,7 @@ describe("Bank bankruptcy tests", () => {
   });
 
   it("(admin) Sets both banks' asset weights to 0.9", async () => {
-    let config = emptyBankConfigOptRaw();
+    let config = blankBankConfigOptRaw();
     banks[0];
     config.assetWeightInit = bigNumberToWrappedI80F48(0.9); // 90%
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.9); // 90%
@@ -626,8 +627,8 @@ describe("Bank bankruptcy tests", () => {
     await banksClient.processTransaction(tx);
   });
 
-  it("(admin) Tries to bankrupt user 0 as wrong admin (not risk one) - should fail", async () => {
-    const admin = groupAdmin; // sneaky sneaky
+  it("(admin) Tries to bankrupt user 0 as wrong admin (not group/risk one) - should fail", async () => {
+    const admin = emodeAdmin; // sneaky sneaky
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 

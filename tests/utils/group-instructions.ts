@@ -163,8 +163,7 @@ export const groupConfigure = async (
   const newLimitAdmin = args.newLimitAdmin ?? group.delegateLimitAdmin;
   const newEmissionsAdmin =
     args.newEmissionsAdmin ?? group.delegateEmissionsAdmin;
-  const newRiskAdmin =
-    args.newRiskAdmin ?? group.riskAdmin;
+  const newRiskAdmin = args.newRiskAdmin ?? group.riskAdmin;
   const isArena = args.isArena ?? false;
 
   const ix = program.methods
@@ -400,8 +399,7 @@ export const propagateFeeState = (
   args: PropogateFeeStateArgs
 ) => {
   const ix = program.methods
-    .propagateFeeState(
-    )
+    .propagateFeeState()
     .accounts({
       marginfiGroup: args.group,
       // feeState = deriveGlobalFeeState(id),
@@ -410,7 +408,6 @@ export const propagateFeeState = (
 
   return ix;
 };
-
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
@@ -844,6 +841,25 @@ export const panicUnpausePermissionless = async (
     .panicUnpausePermissionless()
     .accounts({
       // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type ConfigureWithdrawalLimitArgs = {
+  marginfiGroup: PublicKey;
+  limit: number;
+};
+
+export const configureWithdrawalLimit = async (
+  program: Program<Marginfi>,
+  args: ConfigureWithdrawalLimitArgs
+) => {
+  const ix = await program.methods
+    .configureWithdrawalLimit(args.limit)
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
     })
     .instruction();
 

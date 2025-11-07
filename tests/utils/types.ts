@@ -1,6 +1,4 @@
-import {
-  RiskTierRaw,
-} from "@mrgnlabs/marginfi-client-v2";
+import { RiskTierRaw } from "@mrgnlabs/marginfi-client-v2";
 import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { PublicKey } from "@solana/web3.js";
 
@@ -27,6 +25,7 @@ export const EMISSIONS_FLAG_LENDING_ACTIVE = 2;
 export const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG = 4;
 export const FREEZE_SETTINGS = 8;
 export const CLOSE_ENABLED_FLAG = 16;
+export const TOKENLESS_REPAYMENTS_ALLOWED = 32;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
@@ -140,12 +139,13 @@ export const defaultBankConfigOptRaw = () => {
     permissionlessBadDebtSettlement: null,
     freezeSettings: null,
     oracleMaxConfidence: 0,
+    tokenlessRepaymentsAllowed: false,
   };
 
   return bankConfigOpt;
 };
 
-export const emptyBankConfigOptRaw = () => {
+export const blankBankConfigOptRaw = () => {
   let bankConfigOpt: BankConfigOptRaw = {
     assetWeightInit: null,
     assetWeightMaint: null,
@@ -162,37 +162,7 @@ export const emptyBankConfigOptRaw = () => {
     oracleMaxAge: null,
     permissionlessBadDebtSettlement: null,
     freezeSettings: null,
-  };
-
-  return bankConfigOpt;
-};
-
-/**
- * A blank config except that `defaultInterestRateConfigRaw` is used. Useful when trying to set a
- * config without updating deposit limits, etc.
- * @returns
- */
-export const blankBankConfigOptRaw = () => {
-  let bankConfigOpt: BankConfigOptRaw = {
-    assetWeightInit: null,
-    assetWeightMaint: null,
-    liabilityWeightInit: null,
-    liabilityWeightMaint: null,
-    depositLimit: null,
-    borrowLimit: null,
-    riskTier: {
-      collateral: undefined,
-    },
-    assetTag: null,
-    totalAssetValueInitLimit: null,
-    interestRateConfig: defaultInterestRateConfigRaw(),
-    operationalState: {
-      operational: undefined,
-    },
-    oracleMaxAge: null,
-    permissionlessBadDebtSettlement: null,
-    freezeSettings: null,
-    oracleMaxConfidence: null,
+    tokenlessRepaymentsAllowed: null,
   };
 
   return bankConfigOpt;
@@ -228,7 +198,7 @@ export const defaultInterestRateConfigRaw = () => {
 
 /**
  * Same params as `defaultInterestRateConfigRaw`
- * @returns 
+ * @returns
  */
 export const defaultInterestRateConfigOptRaw = () => {
   let config: InterestRateConfigOpt1_6 = {
@@ -407,6 +377,7 @@ export type BankConfigOptRaw = {
   oracleMaxAge: number | null;
   permissionlessBadDebtSettlement: boolean | null;
   freezeSettings: boolean | null;
+  tokenlessRepaymentsAllowed: boolean | null;
 };
 
 export type StakedSettingsConfig = {

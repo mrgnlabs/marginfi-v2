@@ -93,9 +93,7 @@ describe("k10: Kamino Liquidation", () => {
     const market = kaminoAccounts.get(MARKET);
     const usdcReserve = kaminoAccounts.get(USDC_RESERVE);
 
-    let defaultConfig = defaultKaminoBankConfig(
-      oracles.usdcOracle.publicKey
-    );
+    let defaultConfig = defaultKaminoBankConfig(oracles.usdcOracle.publicKey);
 
     let tx = new Transaction().add(
       await makeAddKaminoBankIx(
