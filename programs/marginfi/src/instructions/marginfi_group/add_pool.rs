@@ -100,7 +100,7 @@ pub fn lending_pool_add_bank(
 pub struct LendingPoolAddBank<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
@@ -114,7 +114,7 @@ pub struct LendingPoolAddBank<'info> {
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_wallet
+        has_one = global_fee_wallet @ MarginfiError::InvalidFeeWallet
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 
