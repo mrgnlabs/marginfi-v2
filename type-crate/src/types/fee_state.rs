@@ -59,8 +59,6 @@ pub struct FeeState {
     _reserved1: [u8; 32],
 }
 
-// TODO regression test with mainnet for fee state to make sure padding is still good
-
 impl FeeState {
     pub const LEN: usize = std::mem::size_of::<FeeState>();
     pub const DISCRIMINATOR: [u8; 8] = discriminators::FEE_STATE;
