@@ -46,7 +46,7 @@ marginfi-type-crate = { path = "type-crate" }
 
 pyth-solana-receiver-sdk = "0.6.0"
 # pythnet-sdk = "2.3.1"
-switchboard-on-demand = { path = "/Users/mgild/projects/sbv3/rust/switchboard-on-demand", features = ["solana-v2", "anchor"] }
+switchboard-on-demand = { version = "0.10.7", features = ["solana-v2", "anchor"] }
 base64ct = "<1.7.3"
 
 borsh = "1.5.7"
