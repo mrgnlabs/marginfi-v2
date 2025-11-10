@@ -47,7 +47,8 @@ profitable route between A and B, simply abort the entire tx.
 
 ## Notable Rules:
 
-- ComputeBudgetProgram is the only kind of top-level instruction that can come before Start.
+- ComputeBudgetProgram ixes and Kamino refreshes are the only kind of instructions that can come
+  before Start.
 
 - There must be exactly one liquidate Start, and it must come first in the tx (other than Compute
   Budget)
@@ -86,6 +87,9 @@ profitable route between A and B, simply abort the entire tx.
 
 - Liquidations are not inherently profitable: a liquidator can repay a debt without claiming any
   asset! They can also do nothing at all!
+
+- If liquidating an account with Kamino positions, don't forget to include the refreshes. Also
+  remember that Kamino positions use a different withdraw instruction.
 
   ## Tips and Tricks
 
