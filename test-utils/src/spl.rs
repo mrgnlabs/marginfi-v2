@@ -1,4 +1,4 @@
-use crate::ui_to_native;
+use crate::{ui_to_native, utils::load_account_from_file};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::{
@@ -20,10 +20,9 @@ use anchor_spl::{
     },
     token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
-use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    account::{AccountSharedData, ReadableAccount, WritableAccount},
+    account::{ReadableAccount, WritableAccount},
     commitment_config::CommitmentLevel,
     instruction::Instruction,
     program_pack::{Pack, Sealed},
@@ -38,7 +37,7 @@ use solana_sdk::{native_token::LAMPORTS_PER_SOL, system_instruction};
 use spl_transfer_hook_interface::{
     get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
 };
-use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
+use std::{cell::RefCell, rc::Rc};
 #[cfg(feature = "transfer-hook")]
 use transfer_hook::TEST_HOOK_ID;
 
@@ -216,45 +215,25 @@ impl MintFixture {
         ctx: &Rc<RefCell<ProgramTestContext>>,
         relative_path: &str,
     ) -> MintFixture {
-        let ctx_ref = Rc::clone(ctx);
+        let (address, mut account) = load_account_from_file(relative_path);
 
-        let (address, account_info) = {
-            let mut ctx = ctx.borrow_mut();
+        let payer = ctx.borrow().payer.pubkey();
+        let mut base_mint = spl_token::state::Mint::unpack(&account.data()[..Mint::LEN]).unwrap();
+        base_mint.mint_authority.replace(payer);
 
-            // load cargo workspace path from env
-            let mut path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
-            path.push(relative_path);
-            let mut file = File::open(&path).unwrap();
-            let mut account_info_raw = String::new();
-            file.read_to_string(&mut account_info_raw).unwrap();
+        let mut mint_bytes = [0u8; Mint::LEN];
+        spl_token::state::Mint::pack(base_mint, &mut mint_bytes).unwrap();
+        account.data_as_mut_slice()[..Mint::LEN].copy_from_slice(&mint_bytes);
 
-            let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
-            let address = Pubkey::from_str(&account.keyed_account.pubkey).unwrap();
-            let mut account_info: AccountSharedData =
-                account.keyed_account.account.decode().unwrap();
+        ctx.borrow_mut().set_account(&address, &account);
 
-            let mut mint =
-                spl_token::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
-            let payer = ctx.payer.pubkey();
-            mint.mint_authority.replace(payer);
+        let mint_2022 = spl_token_2022::state::Mint::unpack(&account.data()[..Mint::LEN]).unwrap();
 
-            let mint_bytes = &mut [0; Mint::LEN];
-            spl_token::state::Mint::pack(mint, mint_bytes).unwrap();
-
-            account_info.data_as_mut_slice()[..Mint::LEN].copy_from_slice(mint_bytes);
-
-            ctx.set_account(&address, &account_info);
-
-            (address, account_info)
-        };
-
-        let mint = spl_token_2022::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
-
-        MintFixture {
-            ctx: ctx_ref,
+        Self {
+            ctx: Rc::clone(ctx),
             key: address,
-            mint,
-            token_program: account_info.owner().to_owned(),
+            mint: mint_2022,
+            token_program: account.owner().to_owned(),
         }
     }
 
