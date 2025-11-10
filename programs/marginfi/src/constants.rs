@@ -52,6 +52,9 @@ cfg_if::cfg_if! {
     }
 }
 
+// Switchboard Quote program ID (same for all networks)
+pub const SWITCHBOARD_QUOTE_ID: Pubkey = pubkey!("orac1eFjzWL5R3RbbdMV68K9H6TaCVVcL6LjvQQWAbz");
+
 pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 
 // Note: We mock Kamino/Kamino Farms with the same keys on localnet

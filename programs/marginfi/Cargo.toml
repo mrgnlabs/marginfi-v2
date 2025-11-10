@@ -44,10 +44,12 @@ fixed = { workspace = true }
 fixed-macro = { workspace = true }
 lazy_static = { workspace = true }
 static_assertions = { workspace = true }
+getrandom = { workspace = true }
 cfg-if = "1.0.0"
 enum_dispatch = "0.3.13"
 solana-security-txt = "1.1.1"
 
+base64ct = "<1.7.3"
 kamino-mocks = { path = "../kamino-mocks" , features = ["no-entrypoint"]}
 
 [dev-dependencies]

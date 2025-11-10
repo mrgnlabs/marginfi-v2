@@ -171,6 +171,7 @@ pub enum OracleSetup {
     StakedWithPythPush,
     KaminoPythPush,
     KaminoSwitchboardPull,
+    SwitchboardQuote,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -186,6 +187,7 @@ impl OracleSetup {
             5 => Some(Self::StakedWithPythPush),
             6 => Some(Self::KaminoPythPush),
             7 => Some(Self::KaminoSwitchboardPull),
+            8 => Some(Self::SwitchboardQuote),
             _ => None,
         }
     }

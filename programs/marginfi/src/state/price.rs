@@ -1,10 +1,11 @@
 use crate::constants::{
     MIN_PYTH_PUSH_VERIFICATION_LEVEL, NATIVE_STAKE_ID, PYTH_ID, SPL_SINGLE_POOL_ID,
-    SWITCHBOARD_PULL_ID,
+    SWITCHBOARD_PULL_ID, SWITCHBOARD_QUOTE_ID,
 };
 use crate::state::bank_config::BankConfigImpl;
 use crate::{check, check_eq, debug, live, math_error, prelude::*};
 use anchor_lang::prelude::*;
+use anchor_lang::Discriminator;
 use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state::StakeStateV2};
 use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
@@ -21,7 +22,7 @@ use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
-    CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
+    CurrentResult, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
 };
 #[derive(Copy, Clone, Debug)]
 pub enum PriceBias {
@@ -61,6 +62,7 @@ pub trait PriceAdapter {
 pub enum OraclePriceFeedAdapter {
     PythPushOracle(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
+    SwitchboardQuote(SwitchboardQuotePriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
@@ -312,6 +314,21 @@ impl OraclePriceFeedAdapter {
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
+            OracleSetup::SwitchboardQuote => {
+                check!(ais.len() == 1, MarginfiError::WrongNumberOfOracleAccounts);
+                if ais[0].key != &bank_config.oracle_keys[0] {
+                    msg!(
+                        "Expected oracle key: {:?}, got: {:?}",
+                        bank_config.oracle_keys[0],
+                        ais[0].key
+                    );
+                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                }
+
+                Ok(OraclePriceFeedAdapter::SwitchboardQuote(
+                    SwitchboardQuotePriceFeed::load_checked(&ais[0], clock.unix_timestamp, max_age)?,
+                ))
+            }
         }
     }
 
@@ -480,6 +497,24 @@ impl OraclePriceFeedAdapter {
                     Ok(())
                 }
             }
+            OracleSetup::SwitchboardQuote => {
+                check!(
+                    oracle_ais.len() == 1,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+                if oracle_ais[0].key != &bank_config.oracle_keys[0] {
+                    msg!(
+                        "Expected oracle key: {:?}, got: {:?}",
+                        bank_config.oracle_keys[0],
+                        oracle_ais[0].key
+                    );
+                    return Err(error!(MarginfiError::WrongOracleAccountKeys));
+                }
+
+                SwitchboardQuotePriceFeed::check_ais(&oracle_ais[0])?;
+
+                Ok(())
+            }
         }
     }
 }
@@ -618,6 +653,159 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
     }
 }
 
+#[cfg_attr(feature = "client", derive(Clone, Debug))]
+pub struct SwitchboardQuotePriceFeed {
+    pub value: i128,
+}
+
+impl SwitchboardQuotePriceFeed {
+    /// Discriminator for SwitchboardQuote accounts: "SBOracle"
+    const QUOTE_DISCRIMINATOR: &'static [u8; 8] = b"SBOracle";
+
+    pub fn load_checked(
+        ai: &AccountInfo,
+        _current_timestamp: i64,
+        _max_age: u64,
+    ) -> MarginfiResult<Self> {
+        let ai_data = ai.data.borrow();
+
+        // Check owner
+        check!(
+            ai.owner.eq(&SWITCHBOARD_QUOTE_ID),
+            MarginfiError::SwitchboardWrongAccountOwner
+        );
+
+        // Check discriminator
+        check!(
+            ai_data.len() >= 8,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        let discriminator = &ai_data[0..8];
+        check!(
+            discriminator == Self::QUOTE_DISCRIMINATOR,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        // Parse the SwitchboardQuote account manually
+        // Account layout: discriminator(8) + queue(32) + length_prefix(2) + ED25519 instruction data
+        // ED25519 data contains: signatures(variable) + quote_header(32) + feeds(variable) + oracle_idxs(variable) + slot(8) + version(1) + tail(4)
+
+        // Skip: discriminator(8) + queue(32) = 40
+        check!(
+            ai_data.len() >= 42,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        let data_start = 40;
+
+        // Read u16 length prefix for the ED25519 instruction data
+        let length_bytes = [ai_data[data_start], ai_data[data_start + 1]];
+        let ed25519_data_length = u16::from_le_bytes(length_bytes) as usize;
+
+        // Verify we have enough data
+        check!(
+            ai_data.len() >= data_start + 2 + ed25519_data_length,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        // The ED25519 instruction data starts at offset 42
+        let ed25519_data = &ai_data[data_start + 2..data_start + 2 + ed25519_data_length];
+
+        // Parse the feed value from the ED25519 instruction data
+        // We need to skip: signatures(variable) + quote_header(32)
+        // Then read the feed count and first feed value
+
+        // Read u16 signature count at the start
+        check!(
+            ed25519_data.len() >= 2,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+        let sig_count_bytes = [ed25519_data[0], ed25519_data[1]];
+        let sig_count = u16::from_le_bytes(sig_count_bytes) as usize;
+
+        // Each signature is 110 bytes (offsets 14 + pubkey 32 + signature 64)
+        let signatures_size = 2 + sig_count * 110;
+
+        // After signatures comes quote_header (32 bytes)
+        let quote_header_offset = signatures_size;
+        let feeds_offset = quote_header_offset + 32;
+
+        check!(
+            ed25519_data.len() >= feeds_offset + 1,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        // Read feed count (u8)
+        let feed_count = ed25519_data[feeds_offset];
+
+        check!(
+            feed_count > 0,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        // Read first feed value (each feed is 49 bytes: feed_id 32 + value i128 16 + min_samples 1)
+        let first_feed_offset = feeds_offset + 1;
+        check!(
+            ed25519_data.len() >= first_feed_offset + 49,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        // Skip feed_id (32 bytes) and read value (16 bytes i128)
+        let value_offset = first_feed_offset + 32;
+        let mut value_bytes = [0u8; 16];
+        value_bytes.copy_from_slice(&ed25519_data[value_offset..value_offset + 16]);
+        let value = i128::from_le_bytes(value_bytes);
+
+        Ok(Self { value })
+    }
+
+    fn check_ais(ai: &AccountInfo) -> MarginfiResult {
+        let ai_data = ai.data.borrow();
+
+        // Check owner
+        check!(
+            ai.owner.eq(&SWITCHBOARD_QUOTE_ID),
+            MarginfiError::SwitchboardWrongAccountOwner
+        );
+
+        // Check discriminator
+        check!(
+            ai_data.len() >= 8,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        let discriminator = &ai_data[0..8];
+        check!(
+            discriminator == Self::QUOTE_DISCRIMINATOR,
+            MarginfiError::SwitchboardInvalidAccount
+        );
+
+        Ok(())
+    }
+
+    fn get_price(&self) -> MarginfiResult<I80F48> {
+        // SwitchboardQuote uses i128 with 18 decimals precision
+        let price: I80F48 = I80F48::from_num(self.value)
+            .checked_div(EXP_10_I80F48[switchboard_on_demand::PRECISION as usize])
+            .ok_or_else(math_error!())?;
+        Ok(price)
+    }
+}
+
+impl PriceAdapter for SwitchboardQuotePriceFeed {
+    fn get_price_of_type(
+        &self,
+        _price_type: OraclePriceType,
+        _bias: Option<PriceBias>,
+        _oracle_max_confidence: u32,
+    ) -> MarginfiResult<I80F48> {
+        // SwitchboardQuote doesn't provide confidence intervals
+        // so we ignore bias parameter
+        self.get_price()
+    }
+}
+
 // TODO remove when swb fixes the alignment issue in their crate
 // (TargetAlignmentGreaterAndInputNotAligned) when bytemuck::from_bytes executes on any local system
 // (including bpf next-test) where the struct is "properly" aligned 16
@@ -627,7 +815,7 @@ pub fn parse_swb_ignore_alignment(data: Ref<&mut [u8]>) -> MarginfiResult<PullFe
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 
-    if data[..8] != PullFeedAccountData::DISCRIMINATOR {
+    if data[..8] != *PullFeedAccountData::DISCRIMINATOR {
         return err!(MarginfiError::SwitchboardInvalidAccount);
     }
 

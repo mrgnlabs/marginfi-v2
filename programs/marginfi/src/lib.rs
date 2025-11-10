@@ -8,6 +8,15 @@ pub mod prelude;
 pub mod state;
 pub mod utils;
 
+// Custom getrandom implementation for Solana BPF target
+use getrandom::register_custom_getrandom;
+
+fn dummy_getrandom(_buf: &mut [u8]) -> std::result::Result<(), getrandom::Error> {
+    Err(getrandom::Error::UNSUPPORTED)
+}
+
+register_custom_getrandom!(dummy_getrandom);
+
 // #[cfg(target_os = "solana")]
 // use anchor_lang::solana_program::entrypoint::{HEAP_LENGTH, HEAP_START_ADDRESS};
 // #[cfg(target_os = "solana")]
