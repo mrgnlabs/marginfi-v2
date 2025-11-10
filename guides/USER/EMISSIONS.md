@@ -54,7 +54,7 @@ Contact support if you think you should have gotten a drop and didn't!
 <details>
 <summary> Do emissions always come in the same token as the Bank?</summary>
 
-No, could be in any asset, or even several!
+No, they could be in any asset, or even several!
 </details>
 
 
