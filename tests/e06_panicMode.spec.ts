@@ -388,8 +388,9 @@ describe("Panic Mode state test (Bankrun)", () => {
     tx.sign(users[0].wallet);
 
     const result = await banksClient.tryProcessTransaction(tx);
-    // generic has_one violation (fee state admin doesn't match fee state)
-    assertBankrunTxFailed(result, 2001);
+    // (fee state admin doesn't match fee state)
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(fee admin) tries to pause beyond daily pause limits - should fail", async () => {
@@ -445,8 +446,8 @@ describe("Panic Mode state test (Bankrun)", () => {
     tx.sign(users[0].wallet);
 
     const result = await banksClient.tryProcessTransaction(tx);
-    // generic has_one violation (fee state admin doesn't match fee state)
-    assertBankrunTxFailed(result, 2001);
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(permissionless) permissionless unpause when not paused - should fail", async () => {

@@ -201,7 +201,7 @@ pub struct KaminoWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -213,10 +213,10 @@ pub struct KaminoWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = kamino_reserve,
-        has_one = kamino_obligation,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = kamino_reserve @ MarginfiError::InvalidKaminoReserve,
+        has_one = kamino_obligation @ MarginfiError::InvalidKaminoObligation,
         constraint = is_kamino_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForKaminoInstructions,
         // Block withdraw of zero-weight assets during receivership - prevents unfair liquidation

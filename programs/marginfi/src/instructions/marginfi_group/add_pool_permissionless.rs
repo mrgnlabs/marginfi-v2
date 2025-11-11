@@ -148,7 +148,7 @@ pub struct LendingPoolAddBankPermissionless<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = marginfi_group
+        has_one = marginfi_group @ MarginfiError::InvalidGroup
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 

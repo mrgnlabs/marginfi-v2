@@ -1,7 +1,7 @@
 use crate::events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent};
 use crate::state::bank::BankImpl;
 use crate::state::bank_config::BankConfigImpl;
-use crate::MarginfiResult;
+use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::constants::FREEZE_SETTINGS;
 use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
@@ -49,7 +49,7 @@ pub fn lending_pool_configure_bank_oracle(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankOracle<'info> {
     #[account(
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -57,7 +57,7 @@ pub struct LendingPoolConfigureBankOracle<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

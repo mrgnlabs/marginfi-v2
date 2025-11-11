@@ -188,6 +188,20 @@ pub enum MarginfiError {
     NotAllowedInCPI,
     #[msg("Stake pool supply is zero: cannot compute price")] // 6092
     ZeroSupplyInStakePool,
+    #[msg("Invalid group: account constraint violated")] // 6093
+    InvalidGroup,
+    #[msg("Invalid liquidity vault: account constraint violated")] // 6094
+    InvalidLiquidityVault,
+    #[msg("Invalid liquidation record: account constraint violated")] // 6095
+    InvalidLiquidationRecord,
+    #[msg("Invalid liquidation receiver: account constraint violated")] // 6096
+    InvalidLiquidationReceiver,
+    #[msg("Invalid emissions mint: account constraint violated")] // 6097
+    InvalidEmissionsMint,
+    #[msg("Invalid mint: account constraint violated")] // 6098
+    InvalidMint,
+    #[msg("Invalid fee wallet: account constraint violated")] // 6099
+    InvalidFeeWallet,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -216,7 +230,11 @@ pub enum MarginfiError {
     KaminoInvalidOracleSetup, // 6211
     #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
     KaminoPositionLimitExceeded, // 6212
-                                 // **************END KAMINO ERRORS
+    #[msg("Invalid Kamino reserve: account constraint violated")]
+    InvalidKaminoReserve, // 6213
+    #[msg("Invalid Kamino obligation: account constraint violated")]
+    InvalidKaminoObligation, // 6214
+                             // **************END KAMINO ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -333,6 +351,13 @@ impl From<u32> for MarginfiError {
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
             6092 => MarginfiError::ZeroSupplyInStakePool,
+            6093 => MarginfiError::InvalidGroup,
+            6094 => MarginfiError::InvalidLiquidityVault,
+            6095 => MarginfiError::InvalidLiquidationRecord,
+            6096 => MarginfiError::InvalidLiquidationReceiver,
+            6097 => MarginfiError::InvalidEmissionsMint,
+            6098 => MarginfiError::InvalidMint,
+            6099 => MarginfiError::InvalidFeeWallet,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,
@@ -348,6 +373,8 @@ impl From<u32> for MarginfiError {
             6210 => MarginfiError::KaminoReserveValidationFailed,
             6211 => MarginfiError::KaminoInvalidOracleSetup,
             6212 => MarginfiError::KaminoPositionLimitExceeded,
+            6213 => MarginfiError::InvalidKaminoReserve,
+            6214 => MarginfiError::InvalidKaminoObligation,
             _ => MarginfiError::InternalLogicError,
         }
     }

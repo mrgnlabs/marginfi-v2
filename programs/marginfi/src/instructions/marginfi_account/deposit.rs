@@ -140,8 +140,8 @@ pub struct LendingAccountDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -149,8 +149,8 @@ pub struct LendingAccountDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
