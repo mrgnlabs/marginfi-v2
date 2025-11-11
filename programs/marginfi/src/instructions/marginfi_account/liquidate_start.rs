@@ -181,7 +181,7 @@ pub struct StartLiquidation<'info> {
     /// Account under liquidation
     #[account(
         mut,
-        has_one = liquidation_record,
+        has_one = liquidation_record @ MarginfiError::InvalidLiquidationRecord,
         constraint = {
             let acc = marginfi_account.load()?;
             !acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)

@@ -17,6 +17,8 @@ use test_case::test_case;
 #[test_case(128932.0, 9834.0, BankMint::PyUSD)]
 #[test_case(0.1, 0.092, BankMint::T22WithFee)]
 #[test_case(100.0, 92.0, BankMint::T22WithFee)]
+#[test_case(0.5, 0.2, BankMint::Fixed)]
+#[test_case(5_000., 2_000., BankMint::FixedLow)]
 #[tokio::test]
 async fn marginfi_account_withdraw_success(
     deposit_amount: f64,
@@ -191,6 +193,8 @@ async fn marginfi_account_withdraw_success(
 #[test_case(128932.0, BankMint::PyUSD)]
 #[test_case(0.1, BankMint::T22WithFee)]
 #[test_case(100.0, BankMint::T22WithFee)]
+#[test_case(0.5, BankMint::Fixed)]
+#[test_case(5_000., BankMint::FixedLow)]
 #[tokio::test]
 async fn marginfi_account_withdraw_all_success(
     deposit_amount: f64,

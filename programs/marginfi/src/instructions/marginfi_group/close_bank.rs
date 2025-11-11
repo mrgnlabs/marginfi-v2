@@ -51,13 +51,13 @@ pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiRe
 pub struct LendingPoolCloseBank<'info> {
     #[account(
         mut,
-        has_one = admin,
+        has_one = admin @ MarginfiError::Unauthorized,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         close = admin
     )]
     pub bank: AccountLoader<'info, Bank>,

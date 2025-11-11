@@ -197,7 +197,7 @@ pub struct LendingAccountWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -213,8 +213,8 @@ pub struct LendingAccountWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions,
         // We want to block withdraw of assets with no weight (e.g. isolated) otherwise the

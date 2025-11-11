@@ -186,6 +186,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (admin only)
+    pub fn lending_pool_set_fixed_oracle_price(
+        ctx: Context<LendingPoolSetFixedOraclePrice>,
+        price: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
+    }
+
     /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
@@ -311,8 +319,15 @@ pub mod marginfi {
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
+        liquidatee_accounts: u8,
+        liquidator_accounts: u8,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(
+            ctx,
+            asset_amount,
+            liquidatee_accounts,
+            liquidator_accounts,
+        )
     }
 
     pub fn lending_account_start_flashloan(

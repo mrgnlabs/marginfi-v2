@@ -11,6 +11,7 @@ Options:
   -f, --features   Comma-separated feature flags to pass to nextest (default: "test,test-bpf")
   -l, --loglevel   Log level for stable_log (e.g. "warn", default: "debug")
   -c, --chain      Chain to test against (e.g., mainnet-beta). This sets the TEST_CHAIN env variable.
+  -j, --jobs       Threads to use (use as many as your CPU has physical cores for best results)
   --               Anything after this is passed as extra test flags (such as filters or test harness flags).
 EOF
   exit 1
@@ -21,6 +22,7 @@ features="test,test-bpf"
 loglevel="debug"
 program=""
 chain=""
+jobs=""  # number of parallel test jobs (if your CPU has 8 physical cores, 8 is probably best!)
 extra_args=()
 
 # Parse command-line arguments.
@@ -58,6 +60,14 @@ while [[ "$#" -gt 0 ]]; do
       chain="$2"
       shift 2
       ;;
+    -j)
+      if [[ -z "${2-}" ]]; then
+        echo "Error: -j requires a value."
+        usage
+      fi
+      jobs="$2"
+      shift 2
+      ;;
     --)
       shift
       extra_args=("$@")
@@ -89,7 +99,12 @@ if [[ -n "$chain" ]]; then
 fi
 
 # Build the cargo nextest command.
-cmd=(cargo nextest run --no-fail-fast --package "$program" --features "$features")
+cmd=(cargo nextest run --no-fail-fast --package "$program" --features "$features" --retries 2)
+
+# Add job limit if specified
+if [[ -n "$jobs" ]]; then
+  cmd+=(-j "$jobs")
+fi
 
 # Append any extra arguments (these are passed after '--')
 if [ "${#extra_args[@]}" -gt 0 ]; then

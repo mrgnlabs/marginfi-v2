@@ -54,7 +54,7 @@ pub struct LendingPoolConfigureBankEmode<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

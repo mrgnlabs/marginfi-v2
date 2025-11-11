@@ -362,6 +362,9 @@ describe("Bank bankruptcy tests", () => {
     const remainingAccounts: PublicKey[][] = [];
     remainingAccounts.push([banks[0], oracles.pythPullLst.publicKey]);
     remainingAccounts.push([banks[1], oracles.pythPullLst.publicKey]);
+    const liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
+    // Note: same accounts in this case
+    const liquidatorAccounts = liquidateeAccounts;
 
     const liquidateTx = new Transaction();
     liquidateTx.add(
@@ -375,10 +378,12 @@ describe("Bank bankruptcy tests", () => {
         remaining: [
           oracles.pythPullLst.publicKey,
           oracles.pythPullLst.publicKey,
-          ...composeRemainingAccounts(remainingAccounts),
-          ...composeRemainingAccounts(remainingAccounts),
+          ...liquidateeAccounts,
+          ...liquidatorAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       })
     );
     liquidateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

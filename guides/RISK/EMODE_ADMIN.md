@@ -1,5 +1,7 @@
 # Emode Administrator Guide and General Overview
 
+Are you interested on how Emode works and is adminstrated? Read on.
+
 ## Glossary
 
 - **Emode/E-mode/EMode** - "Efficiency Mode", probably a backronym, popularized by Aave. Allows
@@ -24,7 +26,8 @@
   example, SOL is 501, LST is 157, etc. If the name doesn't fit into range (1 - 65,535), we use our
   imagination.
 - **Emode Config** - A bank's collection of emode entries.
-- **Emode Entry** - A tag we want to treat as a preferrential asset, and the initial/maintenance asset weights to use for that asset.
+- **Emode Entry** - A tag we want to treat as a preferrential asset, and the initial/maintenance
+  asset weights to use for that asset.
 
 ## Key Differences vs AAVE
 
@@ -180,7 +183,13 @@ Now let's look at some examples of what rate users would get.
 
 ## Applying Emode to Isolated Assets (Not Yet Implemented)
 
-Generally, an isolated asset is worth 0 for collateral purposes. Enabling Emode on an isolated asset allows it count as collateral in preferrential borrowing situations. This is useful to enable lending on assets that are highly correlated with some other asset but otherwise extremely risky. For example, consider a betting market with a YES and NO token where we know one asset will converge to zero eventually and the other will converge to $1. We may offer a limit emode advantage here, for position hedging, when the event is in the distant future and gradually step the emode advantage down to zero as the decision approaches.
+Generally, an isolated asset is worth 0 for collateral purposes. Enabling Emode on an isolated asset
+allows it count as collateral in preferrential borrowing situations. This is useful to enable
+lending on assets that are highly correlated with some other asset but otherwise extremely risky.
+For example, consider a betting market with a YES and NO token where we know one asset will converge
+to zero eventually and the other will converge to $1. We may offer a limit emode advantage here, for
+position hedging, when the event is in the distant future and gradually step the emode advantage
+down to zero as the decision approaches.
 
 ## Ix Construction Examples
 
@@ -254,8 +263,10 @@ await configBankEmode(emodeAdmin.mrgnProgram, {
 }),
 ```
 
-- Note: A bank can have an emode entry for its own tag, but you can never borrow from a bank you are already lending into.
-- Note: The `configBankEmode` is large, only two can fit in one TX. It is recommended to use a jito bundle of several txes when updating more than two banks.
+- Note: A bank can have an emode entry for its own tag, but you can never borrow from a bank you are
+  already lending into.
+- Note: The `configBankEmode` is large, only two can fit in one TX. It is recommended to use a jito
+  bundle of several txes when updating more than two banks.
 
 ### Enable borrowing more Stable vs any other Stable, with nuances
 

@@ -334,6 +334,8 @@ describe("k10: Kamino Liquidation", () => {
           ]),
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: 5,
+        liquidatorAccounts: 5,
       })
     );
     await processBankrunTx(ctx, tx, [liquidator.wallet]);

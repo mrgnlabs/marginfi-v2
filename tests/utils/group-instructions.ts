@@ -13,7 +13,7 @@ import {
   StakedSettingsEdit,
 } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
 
@@ -841,6 +841,27 @@ export const panicUnpausePermissionless = async (
     .panicUnpausePermissionless()
     .accounts({
       // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type SetFixedPriceArgs = {
+  bank: PublicKey;
+  price: number;
+};
+
+export const setFixedPrice = (
+  program: Program<Marginfi>,
+  args: SetFixedPriceArgs
+) => {
+  const ix = program.methods
+    .lendingPoolSetFixedOraclePrice(bigNumberToWrappedI80F48(args.price))
+    .accounts({
+      // group: // implied from bank
+      // admin: // implied from group
+      bank: args.bank,
     })
     .instruction();
 

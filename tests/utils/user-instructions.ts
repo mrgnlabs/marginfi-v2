@@ -506,6 +506,8 @@ export type LiquidateIxArgs = {
   liquidateeMarginfiAccount: PublicKey;
   remaining: PublicKey[];
   amount: BN;
+  liquidateeAccounts: number;
+  liquidatorAccounts: number;
 };
 
 /**
@@ -530,7 +532,11 @@ export const liquidateIx = (
   });
 
   return program.methods
-    .lendingAccountLiquidate(args.amount)
+    .lendingAccountLiquidate(
+      args.amount,
+      args.liquidateeAccounts,
+      args.liquidatorAccounts
+    )
     .accounts({
       assetBank: args.assetBankKey,
       liabBank: args.liabilityBankKey,

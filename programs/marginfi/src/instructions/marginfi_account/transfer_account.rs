@@ -88,8 +88,8 @@ pub struct TransferToNewAccount<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -216,8 +216,8 @@ pub struct TransferToNewAccountPda<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

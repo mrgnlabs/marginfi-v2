@@ -1,4 +1,4 @@
-## NEW DEV QUICKSTART GUIDE
+# NEW DEV QUICKSTART GUIDE
 
 New developer getting started working on the mrgnv2 program side? Read on.
 
@@ -24,13 +24,17 @@ cargo test --lib
 ### For the TS test suite:
 
 ```
+anchor build
 anchor build -p marginfi -- --no-default-features
 anchor test --skip-build
 ```
 
 Note: you may need to build the other programs (mock, liquidity incentive, etc) if you have never run anchor build before.
 
+Note: you need to `yarn install` before your first run
+
 Segmentation fault? Just try again. That happens sometimes, generally on the first run of the day.
+Sometimes it happens on the CI pipeline as well, just kick it again it that occurs.
 
 Each letter prefix is referred to as a "suite" and is broadly end-to-end. The localnet tests
 multithread with bankrun and will create a fairly substantial CPU load. Completetion varies
@@ -66,8 +70,10 @@ This is much slower than the remix test command, but stable on any system.
 ### Customize Your Rust testing experience:
 
 ```
-./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta
+./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta -j 8
 ```
+
+Where the number after j is how many threads you want to use. More threads = more likely to experience random failures for no reason, but it sure is faster!
 
 This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running. It is approximately 10x faster than test-program.sh, so use this one if you value your time and sanity. Feel free to add your flex below:
 
@@ -81,12 +87,18 @@ Benchmarks:
 
 | 9700X | `[  12.203s] 226 tests run: 226 passed, 0 skipped`
 
+0.1.6
+| 9700X (8 threads)  | `[  27.718s] 373 tests run: 373 passed, 0 skipped`
+| 9700X (16 threads) | `[  19.343s] 373 tests run: 373 passed (3 flaky), 0 skipped`
+
 ### To run just one Rust test:
 
 ```
 ./scripts/single-test.sh marginfi accrue_interest --verbose
 ./scripts/single-test.sh test_name --verbose
 ```
+
+This will run all tests prefixed with the given name, and all test cases for them.
 
 ### To run the fuzz suite
 
@@ -139,3 +151,7 @@ Just `anchor clean` and rebuild. This is particularly likely to occur when switc
 ### Rust tests fail with `Error: simulation error: BlockhashNotFound, logs: [], units_consumed: 0`
 
 Ensure your machine is not in Low Power battery mode (or in any other mode decreasing performance).
+
+## Common Footguns
+
+Debugging `I80F48`s by `msg!("val: {:?}", some_val_I80F48);` can cause silent build issues leading to `Program is not deployed`. Convert these values to string or float before printing them.

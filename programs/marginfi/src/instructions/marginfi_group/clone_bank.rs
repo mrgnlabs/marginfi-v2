@@ -147,7 +147,7 @@ pub fn lending_pool_clone_bank(
 pub struct LendingPoolCloneBank<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

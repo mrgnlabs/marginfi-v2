@@ -117,6 +117,7 @@ pub struct Bank {
     /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
     ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
+
     pub _padding_0: [u8; 16],
 
     /// Kamino banks only, otherwise Pubkey default
@@ -124,7 +125,7 @@ pub struct Bank {
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 15 = 240B
+    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 14 = 224B
 }
 
 impl Bank {
@@ -173,6 +174,7 @@ pub enum OracleSetup {
     StakedWithPythPush,
     KaminoPythPush,
     KaminoSwitchboardPull,
+    Fixed,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -188,6 +190,7 @@ impl OracleSetup {
             5 => Some(Self::StakedWithPythPush),
             6 => Some(Self::KaminoPythPush),
             7 => Some(Self::KaminoSwitchboardPull),
+            8 => Some(Self::Fixed),
             _ => None,
         }
     }

@@ -1,6 +1,6 @@
 use crate::StakedSettingsEditConfig;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{BankConfigOpt, HealthCache};
+use marginfi_type_crate::types::{BankConfigOpt, HealthCache, WrappedI80F48};
 
 // Event headers
 
@@ -53,6 +53,13 @@ pub struct LendingPoolBankConfigureOracleEvent {
     pub bank: Pubkey,
     pub oracle_setup: u8,
     pub oracle: Pubkey,
+}
+
+#[event]
+pub struct LendingPoolBankSetFixedOraclePriceEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub price: WrappedI80F48,
 }
 
 #[event]
