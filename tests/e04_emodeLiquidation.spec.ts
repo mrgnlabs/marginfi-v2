@@ -1,5 +1,10 @@
 import { BN } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import {
   bankrunContext,
   bankrunProgram,
@@ -527,6 +532,12 @@ describe("Emode liquidation", () => {
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
         units: 260_000,
+      }),
+      // dummy ix to trick bankrun
+      SystemProgram.transfer({
+        fromPubkey: liquidator.wallet.publicKey,
+        toPubkey: bankrunProgram.provider.publicKey,
+        lamports: 5678,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
