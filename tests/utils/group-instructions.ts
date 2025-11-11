@@ -868,17 +868,17 @@ export const setFixedPrice = (
   return ix;
 };
 
-export type ConfigureWithdrawalLimitArgs = {
+export type ConfigureDeleverageWithdrawalLimitArgs = {
   marginfiGroup: PublicKey;
   limit: number;
 };
 
-export const configureWithdrawalLimit = async (
+export const configureDeleverageWithdrawalLimit = async (
   program: Program<Marginfi>,
-  args: ConfigureWithdrawalLimitArgs
+  args: ConfigureDeleverageWithdrawalLimitArgs
 ) => {
   const ix = await program.methods
-    .configureWithdrawalLimit(args.limit)
+    .configureDeleverageWithdrawalLimit(args.limit)
     .accounts({
       marginfiGroup: args.marginfiGroup,
     })

@@ -49,6 +49,7 @@ pub fn lending_account_withdraw<'info>(
         bank_liquidity_vault_authority,
         bank: bank_loader,
         group: marginfi_group_loader,
+        authority,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -121,13 +122,16 @@ pub fn lending_account_withdraw<'info>(
             amount_pre_fee
         };
 
-        let withdrawn_equity = calc_value(
-            I80F48::from_num(amount_pre_fee),
-            price,
-            bank.mint_decimals,
-            None,
-        )?;
-        group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        // Note: we only care about the withdraw limit in case of deleverage
+        if authority.key() == group.risk_admin {
+            let withdrawn_equity = calc_value(
+                I80F48::from_num(amount_pre_fee),
+                price,
+                bank.mint_decimals,
+                None,
+            )?;
+            group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        }
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
 

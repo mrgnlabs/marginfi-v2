@@ -193,25 +193,29 @@ impl MarginfiGroupImpl for MarginfiGroup {
         withdrawn_equity: I80F48,
         current_timestamp: i64,
     ) -> MarginfiResult {
-        if current_timestamp.saturating_sub(self.withdraw_window_cache.last_daily_reset_timestamp)
-            >= DAILY_RESET_INTERVAL
+        if current_timestamp.saturating_sub(
+            self.deleverage_withdraw_window_cache
+                .last_daily_reset_timestamp,
+        ) >= DAILY_RESET_INTERVAL
         {
-            self.withdraw_window_cache.withdrawn_today = 0;
-            self.withdraw_window_cache.last_daily_reset_timestamp = current_timestamp;
+            self.deleverage_withdraw_window_cache.withdrawn_today = 0;
+            self.deleverage_withdraw_window_cache
+                .last_daily_reset_timestamp = current_timestamp;
         }
-        self.withdraw_window_cache.withdrawn_today = self
-            .withdraw_window_cache
+        self.deleverage_withdraw_window_cache.withdrawn_today = self
+            .deleverage_withdraw_window_cache
             .withdrawn_today
             .saturating_add(withdrawn_equity.to_num());
 
         // Note: treat zero limit as "no limit" here for backwards compatibility.
-        if self.withdraw_window_cache.daily_limit != 0
-            && self.withdraw_window_cache.withdrawn_today > self.withdraw_window_cache.daily_limit
+        if self.deleverage_withdraw_window_cache.daily_limit != 0
+            && self.deleverage_withdraw_window_cache.withdrawn_today
+                > self.deleverage_withdraw_window_cache.daily_limit
         {
             msg!(
                 "trying to withdraw more than daily limit: {} > {}",
-                self.withdraw_window_cache.withdrawn_today,
-                self.withdraw_window_cache.daily_limit
+                self.deleverage_withdraw_window_cache.withdrawn_today,
+                self.deleverage_withdraw_window_cache.daily_limit
             );
             return err!(MarginfiError::DailyWithdrawalLimitExceeded);
         }

@@ -7,10 +7,7 @@ use crate::{
         Hashable,
     },
     prelude::*,
-    state::{
-        marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
-        marginfi_group::MarginfiGroupImpl,
-    },
+    state::marginfi_account::{MarginfiAccountImpl, RiskEngine, RiskRequirementType},
 };
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
@@ -236,10 +233,7 @@ pub struct StartDeleverage<'info> {
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
     #[account(
-        has_one = risk_admin,
-        constraint = (
-            !group.load()?.is_protocol_paused()
-        ) @ MarginfiError::ProtocolPaused
+        has_one = risk_admin
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 

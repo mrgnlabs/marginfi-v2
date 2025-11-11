@@ -254,13 +254,16 @@ async fn deleverage_tokenless_up_to_limit() -> anyhow::Result<()> {
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 
-    let res = test_f.marginfi_group.try_update_withdrawal_limit(0).await; // try to set the zero limit -> fails
+    let res = test_f
+        .marginfi_group
+        .try_update_deleverage_withdrawal_limit(0)
+        .await; // try to set the zero limit -> fails
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ZeroWithdrawalLimit);
 
     test_f
         .marginfi_group
-        .try_update_withdrawal_limit(10)
+        .try_update_deleverage_withdrawal_limit(10)
         .await?; // cap the deleverages by $10
     test_f
         .marginfi_group

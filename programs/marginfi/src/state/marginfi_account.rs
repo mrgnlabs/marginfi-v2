@@ -103,7 +103,7 @@ impl MarginfiAccountImpl for MarginfiAccount {
         // check if new account authority flag is set
         if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED) || self.get_flag(ACCOUNT_DISABLED)
         {
-            return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
+            return err!(MarginfiError::IllegalAccountAuthorityTransfer);
         }
 
         // update account authority

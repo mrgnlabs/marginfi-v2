@@ -120,14 +120,16 @@ pub fn kamino_withdraw<'info>(
             bank_account.withdraw(I80F48::from_num(amount))?;
             amount
         };
-
-        let withdrawn_equity = calc_value(
-            I80F48::from_num(collateral_amount),
-            price,
-            bank.mint_decimals,
-            None,
-        )?;
-        group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        // Note: we only care about the withdraw limit in case of deleverage
+        if ctx.accounts.authority.key() == group.risk_admin {
+            let withdrawn_equity = calc_value(
+                I80F48::from_num(collateral_amount),
+                price,
+                bank.mint_decimals,
+                None,
+            )?;
+            group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        }
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
         bank.update_bank_cache(&group)?;

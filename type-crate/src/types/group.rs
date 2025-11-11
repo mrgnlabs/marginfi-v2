@@ -49,9 +49,9 @@ pub struct MarginfiGroup {
     /// When program keeper temporarily puts the program into panic mode, information about the
     /// duration of the lockup will be available here.
     pub panic_state_cache: PanicStateCache,
-    /// Keeps track of the liquidity withdrawn from the group over the day. Used as a protection mechanism
-    /// against too big withdrawals (e.g. as a result of deleverages performed by a compromised risk admin).
-    pub withdraw_window_cache: WithdrawWindowCache,
+    /// Keeps track of the liquidity withdrawn from the group over the day as a result of deleverages.
+    /// Used as a protection mechanism against too big (and unwanted) withdrawals (e.g. when the risk admin is compromised).
+    pub deleverage_withdraw_window_cache: WithdrawWindowCache,
 
     pub _padding_1: [[u64; 2]; 14],
     pub _padding_2: [[u64; 2]; 32],

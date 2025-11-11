@@ -140,7 +140,7 @@ pub fn end_receivership<'info>(
             pre_health,
             post_health
         );
-        return Err(MarginfiError::WorseHealthPostLiquidation.into());
+        return err!(MarginfiError::WorseHealthPostLiquidation);
     }
 
     let seized: I80F48 = pre_assets_equity - post_assets_equity;

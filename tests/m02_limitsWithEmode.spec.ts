@@ -23,8 +23,9 @@ import {
 import {
   configBankEmode,
   configureBank,
-  configureWithdrawalLimit,
+  configureDeleverageWithdrawalLimit,
   groupConfigure,
+  setFixedPrice,
 } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
@@ -49,7 +50,12 @@ import {
 } from "./utils/user-instructions";
 import { deriveGlobalFeeState, deriveLiquidationRecord } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
-import { bytesToF64, dumpAccBalances } from "./utils/tools";
+import {
+  bytesToF64,
+  dumpAccBalances,
+  dumpBankrunLogs,
+  processBankrunTransaction,
+} from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { getEpochAndSlot } from "./utils/stake-utils";
 import { Clock } from "solana-bankrun";
@@ -157,7 +163,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
       }
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(user.wallet);
-      await banksClient.tryProcessTransaction(tx);
+      await banksClient.processTransaction(tx);
     }
   });
 
@@ -180,7 +186,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
     tx.sign(user.wallet);
-    await banksClient.tryProcessTransaction(tx);
+    await banksClient.processTransaction(tx);
 
     for (let i = 1; i < banks.length; i += 1) {
       const remainingAccounts: PublicKey[][] = [];
@@ -283,6 +289,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
       liquidatorAccount
     );
     dumpAccBalances(liquidatorAcc);
+    const liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
 
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
@@ -301,12 +308,11 @@ describe("Limits on number of accounts, with emode in effect", () => {
             [banks[MAX_BALANCES - 1], oracles.pythPullLst.publicKey],
           ]),
 
-          ...composeRemainingAccounts(
-            // liquidatee accounts
-            remainingAccounts
-          ),
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: 4,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -498,22 +504,6 @@ describe("Limits on number of accounts, with emode in effect", () => {
     for (let i = 0; i < 3; i++) {
       assert(recordAfter.entries[i].timestamp.toNumber() == 0);
     }
-  });
-
-  it("(admin) Restores last bank liability ratio to make user 0 healthy again", async () => {
-    let config = defaultBankConfigOptRaw();
-    config.liabilityWeightInit = bigNumberToWrappedI80F48(1); // 100%
-    config.liabilityWeightMaint = bigNumberToWrappedI80F48(1); // 100%
-
-    let tx = new Transaction().add(
-      await configureBank(groupAdmin.mrgnBankrunProgram, {
-        bank: banks[MAX_BALANCES - 1],
-        bankConfigOpt: config,
-      })
-    );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
   });
 
   it("(admin) Sets the risk admin", async () => {
@@ -765,7 +755,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
   it("(admin) Sets the group withdrawal limit to $1 less than bank 4's liability", async () => {
     const tx = new Transaction();
     tx.add(
-      await configureWithdrawalLimit(groupAdmin.mrgnBankrunProgram, {
+      await configureDeleverageWithdrawalLimit(groupAdmin.mrgnBankrunProgram, {
         marginfiGroup: throwawayGroup.publicKey,
         limit: 1 * ecosystem.lstAlphaPrice - 1, // borrowAmount is 1 LST Alpha
       })
@@ -826,8 +816,171 @@ describe("Limits on number of accounts, with emode in effect", () => {
     versionedTx.sign([riskAdmin.wallet]);
 
     let result = await banksClient.tryProcessTransaction(versionedTx);
-    // 6093 (DailyWithdrawalLimitExceeded)
-    assertBankrunTxFailed(result, "0x17cd");
+    // 6101 (DailyWithdrawalLimitExceeded)
+    assertBankrunTxFailed(result, "0x17d5");
+  });
+
+  it("(admin) Sets various banks to a fixed price", async () => {
+    let tx = new Transaction().add(
+      await setFixedPrice(groupAdmin.mrgnBankrunProgram, {
+        bank: banks[0],
+        price: oracles.lstAlphaPrice,
+      }),
+      await setFixedPrice(groupAdmin.mrgnBankrunProgram, {
+        bank: banks[5],
+        price: oracles.lstAlphaPrice,
+      }),
+      await setFixedPrice(groupAdmin.mrgnBankrunProgram, {
+        bank: banks[6],
+        price: oracles.lstAlphaPrice,
+      }),
+      await setFixedPrice(groupAdmin.mrgnBankrunProgram, {
+        bank: banks[MAX_BALANCES - 1],
+        price: oracles.lstAlphaPrice,
+      })
+    );
+    await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
+  });
+
+  it("(user 1) Liquidates user 0 with start/end - some banks use fixed prices", async () => {
+    const liquidatee = users[0];
+    const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const liquidator = users[1];
+
+    // Exclude oracles from the fixed-priced banks' remaining accounts
+    remainingAccounts = remainingAccounts.map((a) => {
+      if (
+        a[0] == banks[0] ||
+        a[0] == banks[5] ||
+        a[0] == banks[6] ||
+        a[0] == banks[MAX_BALANCES - 1]
+      ) {
+        return [a[0]];
+      } else {
+        return a;
+      }
+    });
+
+    // Note: Liquidation record already exists from previous round
+
+    const [liqRecordKey] = deriveLiquidationRecord(
+      bankrunProgram.programId,
+      liquidateeAccount
+    );
+
+    const mrgnAccountBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
+    assertKeysEqual(mrgnAccountBefore.liquidationRecord, liqRecordKey);
+
+    const recordBefore = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+    assertKeysEqual(recordBefore.key, liqRecordKey);
+    assertKeysEqual(recordBefore.recordPayer, liquidator.wallet.publicKey);
+    assertKeysEqual(recordBefore.marginfiAccount, liquidateeAccount);
+
+    let tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
+      await startLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        // liquidationRecord: liqRecord,
+        liquidationReceiver: liquidator.wallet.publicKey,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      }),
+      await withdrawIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[0],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(0.105 * 10 ** ecosystem.lstAlphaDecimals),
+      }),
+      await repayIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        bank: banks[MAX_BALANCES - 1],
+        tokenAccount: liquidator.lstAlphaAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+        amount: new BN(0.1 * 10 ** ecosystem.lstAlphaDecimals),
+      }),
+      await endLiquidationIx(liquidator.mrgnBankrunProgram, {
+        marginfiAccount: liquidateeAccount,
+        remaining: composeRemainingAccounts(remainingAccounts),
+      })
+    );
+    const blockhash = await getBankrunBlockhash(bankrunContext);
+    const lutRaw = await banksClient.getAccount(lookupTable);
+    const lutState = AddressLookupTableAccount.deserialize(lutRaw.data);
+    const lutAccount = new AddressLookupTableAccount({
+      key: lookupTable,
+      state: lutState,
+    });
+    const messageV0 = new TransactionMessage({
+      payerKey: liquidator.wallet.publicKey,
+      recentBlockhash: blockhash,
+      instructions: [...tx.instructions],
+    }).compileToV0Message([lutAccount]);
+    const versionedTx = new VersionedTransaction(messageV0);
+    versionedTx.sign([liquidator.wallet]);
+    //await banksClient.processTransaction(versionedTx);
+    let result = await banksClient.tryProcessTransaction(versionedTx);
+    dumpBankrunLogs(result);
+
+    const recordAfter = await bankrunProgram.account.liquidationRecord.fetch(
+      liqRecordKey
+    );
+    const mrgnAccountAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      liquidateeAccount
+    );
+    assertKeysEqual(mrgnAccountAfter.liquidationRecord, liqRecordKey);
+
+    // Note: We have the entry from the previous round (which was two deleverages ago) before as well.
+    const oldEntry = recordAfter.entries[0];
+    assert(oldEntry.timestamp.toNumber() > 0);
+
+    const entry = recordAfter.entries[3];
+    assert(entry.timestamp.toNumber() > 0);
+
+    // Note: we did the same liquidation twice: they should be identical, but not quite! The fixed
+    // oracle doesn't have a confidence applied, so here we have seized using the raw price with no
+    // confidence adjustments. (Of course, the raw amount seized is actually the same)
+    const t = 0.00000001;
+    const assetsActual = bytesToF64(entry.assetAmountSeized);
+    const assetsExpected =
+      assetsActual -
+      assetsActual * ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+    assert.approximately(
+      assetsExpected,
+      bytesToF64(oldEntry.assetAmountSeized),
+      t
+    );
+
+    // Same for liabilities, we sorta repaid less (in $) because the confidence interval didn't
+    // apply here. But again, the actual amount repaid, in token, is unchanged.
+    const liabActual = bytesToF64(entry.liabAmountRepaid);
+    const liabExpected =
+      liabActual + liabActual * ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+    assert.approximately(
+      liabExpected,
+      bytesToF64(oldEntry.liabAmountRepaid),
+      t
+    );
+
+    // Note: asset seized and liability repaid are scaled to the oracle confidence adjustment
+    const seized = bytesToF64(entry.assetAmountSeized);
+    const repaid = bytesToF64(entry.liabAmountRepaid);
+    if (verbose) {
+      console.log("asset seized: " + seized);
+      console.log("liab repaid: " + repaid);
+      console.log("theoretical profit: " + (seized - repaid));
+    }
+    const expectedAssets = 0.105 * oracles.lstAlphaPrice;
+    assert.approximately(seized, expectedAssets, 0.001);
+    const expectedLiabs = 0.1 * oracles.lstAlphaPrice;
+    assert.approximately(repaid, expectedLiabs, 0.001);
+
+    // All slots are filled now!!
+    for (let i = 0; i < 4; i++) {
+      assert(recordAfter.entries[i].timestamp.toNumber() != 0);
+    }
   });
 
   // TODO try these with switchboard oracles.
