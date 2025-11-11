@@ -20,6 +20,7 @@ import {
   ecosystem,
   emodeGroup,
   oracles,
+  LIQUIDATION_MAX_FEE,
 } from "./rootHooks";
 import { assert } from "chai";
 import { deriveBankWithSeed, deriveGlobalFeeState } from "./utils/pdas";
@@ -80,6 +81,8 @@ describe("Panic Mode state test (Bankrun)", () => {
           bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
           programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
           programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+          liquidationFlatSolFee: 12345,
+          liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
         })
       );
 
@@ -257,6 +260,8 @@ describe("Panic Mode state test (Bankrun)", () => {
           ]),
         ],
         amount: new BN(0.0000001 * 10 ** ecosystem.wsolDecimals),
+        liquidatorAccounts: 6,
+        liquidateeAccounts: 4,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

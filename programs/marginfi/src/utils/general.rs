@@ -351,7 +351,7 @@ pub fn fetch_asset_price_for_bank<'info>(
         MarginfiError::WrongNumberOfOracleAccounts
     );
     let oracle_ais = &remaining_accounts[start..end];
-    let pf = OraclePriceFeedAdapter::try_from_bank_config(&bank.config, oracle_ais, clock)?;
+    let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
     let price = pf.get_price_of_type(
         OraclePriceType::RealTime,
         Some(PriceBias::Low),

@@ -15,6 +15,7 @@ use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::constants::{
     FEE_STATE_SEED, PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
 };
+use marginfi_type_crate::types::WrappedI80F48;
 use marginfi_type_crate::types::{
     BankConfig, BankConfigCompact, BankConfigOpt, EmodeEntry, FeeState, InterestRateConfigOpt,
     MarginfiGroup, OracleSetup, MAX_EMODE_ENTRIES,
@@ -168,6 +169,7 @@ impl MarginfiGroupFixture {
         bank_asset_mint_fixture: &MintFixture,
         kamino_fixture: Option<KaminoFixture>,
         bank_config: BankConfig,
+        fixed_price: Option<I80F48>,
     ) -> Result<BankFixture, BanksClientError> {
         let bank_key = Keypair::new();
         let bank_mint = bank_asset_mint_fixture.key;
@@ -220,12 +222,22 @@ impl MarginfiGroupFixture {
             }
         };
 
-        let config_oracle_ix = self.make_lending_pool_configure_bank_oracle_ix(
-            &bank_fixture,
-            bank_config.oracle_setup as u8,
-            bank_config.oracle_keys[0],
-            feed_oracle,
-        );
+        let config_oracle_ix = if bank_config.oracle_setup == OracleSetup::Fixed {
+            let price: I80F48 = fixed_price.unwrap();
+            println!("mint: {:?} price {:?}", bank_mint, price);
+
+            self.make_lending_pool_set_fixed_oracle_price_ix(
+                &bank_fixture,
+                fixed_price.unwrap().into(),
+            )
+        } else {
+            self.make_lending_pool_configure_bank_oracle_ix(
+                &bank_fixture,
+                bank_config.oracle_setup as u8,
+                bank_config.oracle_keys[0],
+                feed_oracle,
+            )
+        };
 
         let tx = Transaction::new_signed_with_payer(
             &[init_ix, config_oracle_ix],
@@ -381,6 +393,25 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }.data(),
+        }
+    }
+
+    pub fn make_lending_pool_set_fixed_oracle_price_ix(
+        &self,
+        bank: &BankFixture,
+        price: WrappedI80F48,
+    ) -> Instruction {
+        let accounts = marginfi::accounts::LendingPoolSetFixedOraclePrice {
+            group: self.key,
+            admin: self.ctx.borrow().payer.pubkey(),
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: marginfi::ID,
+            accounts,
+            data: marginfi::instruction::LendingPoolSetFixedOraclePrice { price }.data(),
         }
     }
 

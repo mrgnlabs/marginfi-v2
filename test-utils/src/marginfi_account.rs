@@ -4,6 +4,7 @@ use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use kamino_mocks::kamino_lending::client as kamino;
 use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::types::OracleSetup;
 use marginfi_type_crate::types::{Bank, MarginfiAccount};
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
@@ -469,20 +470,31 @@ impl MarginfiAccountFixture {
             accounts.push(AccountMeta::new_readonly(liab_bank_fixture.mint.key, false));
         }
 
-        let oracle_accounts = vec![asset_bank.config, liab_bank.config]
-            .iter()
-            .map(|config| {
-                AccountMeta::new_readonly(
-                    {
-                        get_oracle_id_from_feed_id(config.oracle_keys[0])
-                            .unwrap_or(config.oracle_keys[0])
-                    },
-                    false,
-                )
-            })
-            .collect::<Vec<AccountMeta>>();
+        if asset_bank.config.oracle_setup != OracleSetup::Fixed {
+            accounts.push(AccountMeta::new_readonly(
+                asset_bank.config.oracle_keys[0],
+                false,
+            ));
+        }
+        if liab_bank.config.oracle_setup != OracleSetup::Fixed {
+            accounts.push(AccountMeta::new_readonly(
+                liab_bank.config.oracle_keys[0],
+                false,
+            ));
+        }
 
-        accounts.extend(oracle_accounts);
+        let liquidator_obs_accounts = &self
+            .load_observation_account_metas(
+                vec![asset_bank_fixture.key, liab_bank_fixture.key],
+                vec![],
+            )
+            .await;
+        let liquidator_accounts = liquidator_obs_accounts.len() as u8;
+
+        let liquidatee_obs_accounts = &liquidatee
+            .load_observation_account_metas(vec![], vec![])
+            .await;
+        let liquidatee_accounts = liquidatee_obs_accounts.len() as u8;
 
         let mut ix = Instruction {
             program_id: marginfi::ID,
@@ -492,6 +504,8 @@ impl MarginfiAccountFixture {
                     asset_ui_amount.into(),
                     asset_bank_fixture.mint.mint.decimals
                 ),
+                liquidatee_accounts,
+                liquidator_accounts,
             }
             .data(),
         };
@@ -521,20 +535,8 @@ impl MarginfiAccountFixture {
             .await;
         }
 
-        ix.accounts.extend_from_slice(
-            &self
-                .load_observation_account_metas(
-                    vec![asset_bank_fixture.key, liab_bank_fixture.key],
-                    vec![],
-                )
-                .await,
-        );
-
-        ix.accounts.extend_from_slice(
-            &liquidatee
-                .load_observation_account_metas(vec![], vec![])
-                .await,
-        );
+        ix.accounts.extend_from_slice(liquidator_obs_accounts);
+        ix.accounts.extend_from_slice(liquidatee_obs_accounts);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
@@ -707,23 +709,27 @@ impl MarginfiAccountFixture {
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
-                let oracle_key = {
-                    let oracle_key = bank.config.oracle_keys[0];
-                    get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
-                };
+                // The bank is included for all oracle types
+                let mut metas = vec![AccountMeta {
+                    pubkey: *bank_pk,
+                    is_signer: false,
+                    is_writable: false,
+                }];
 
-                vec![
-                    AccountMeta {
-                        pubkey: *bank_pk,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    AccountMeta {
+                // Oracle meta is included for all but fixed-price banks
+                if bank.config.oracle_setup != OracleSetup::Fixed {
+                    let oracle_key = {
+                        let oracle_key = bank.config.oracle_keys[0];
+                        get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
+                    };
+
+                    metas.push(AccountMeta {
                         pubkey: oracle_key,
                         is_signer: false,
                         is_writable: false,
-                    },
-                ]
+                    });
+                }
+                metas
             })
             .collect::<Vec<_>>();
         account_metas

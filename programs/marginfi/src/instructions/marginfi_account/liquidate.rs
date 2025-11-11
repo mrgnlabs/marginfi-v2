@@ -91,6 +91,8 @@ use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_I
 pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
     asset_amount: u64,
+    liquidatee_accounts: u8,
+    liquidator_accounts: u8,
 ) -> MarginfiResult {
     check!(asset_amount > 0, MarginfiError::ZeroLiquidationAmount);
 
@@ -153,8 +155,7 @@ pub fn lending_account_liquidate<'info>(
         )?;
     }
 
-    let init_liquidatee_remaining_len = liquidatee_marginfi_account.get_remaining_accounts_len()?;
-
+    let init_liquidatee_remaining_len = liquidatee_accounts as usize;
     let liquidatee_accounts_starting_pos =
         ctx.remaining_accounts.len() - init_liquidatee_remaining_len;
     let liquidatee_remaining_accounts = &ctx.remaining_accounts[liquidatee_accounts_starting_pos..];
@@ -190,11 +191,7 @@ pub fn lending_account_liquidate<'info>(
         let liab_price: I80F48 = {
             let oracle_ais = &ctx.remaining_accounts[asset_bank_remaining_accounts_len
                 ..(asset_bank_remaining_accounts_len + liab_bank_remaining_accounts_len)];
-            let liab_pf = OraclePriceFeedAdapter::try_from_bank_config(
-                &liab_bank.config,
-                oracle_ais,
-                &clock,
-            )?;
+            let liab_pf = OraclePriceFeedAdapter::try_from_bank(&liab_bank, oracle_ais, &clock)?;
             liab_pf.get_price_of_type(
                 OraclePriceType::RealTime,
                 Some(PriceBias::High),
@@ -402,8 +399,7 @@ pub fn lending_account_liquidate<'info>(
     };
 
     // ## Risk checks ##
-
-    let liquidator_remaining_acc_len = liquidator_marginfi_account.get_remaining_accounts_len()?;
+    let liquidator_remaining_acc_len = liquidator_accounts as usize;
     let liquidator_accounts_starting_pos =
         liquidatee_accounts_starting_pos - liquidator_remaining_acc_len;
 
