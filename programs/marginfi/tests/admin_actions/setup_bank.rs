@@ -75,7 +75,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
 
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config)
             .await;
 
         let marginfi_group: MarginfiGroup = test_f
@@ -221,7 +221,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
 
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank_with_seed(&mint_f, bank_config, bank_seed)
+            .try_lending_pool_add_bank_with_seed(&mint_f, None, bank_config, bank_seed)
             .await;
         assert!(res.is_ok());
 
@@ -333,6 +333,7 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .marginfi_group
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
+            None,
             BankConfig {
                 oracle_setup: OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
@@ -512,7 +513,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config)
             .await;
         assert!(res.is_ok());
     }
@@ -524,7 +525,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(&another_mint, another_config)
+        .try_lending_pool_add_bank(&another_mint, None, another_config)
         .await;
 
     assert!(res.is_err());
@@ -579,7 +580,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config)
             .await;
         assert!(res.is_ok());
     }
@@ -909,7 +910,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_interest_only(&bank, ir_config)
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     Ok(())
 }
@@ -970,7 +971,7 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_limits_only(&bank, Some(1), Some(1), Some(1))
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     Ok(())
 }

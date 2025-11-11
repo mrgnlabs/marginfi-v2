@@ -1,6 +1,6 @@
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
 use crate::state::marginfi_group::MarginfiGroupImpl;
-use crate::MarginfiResult;
+use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::types::MarginfiGroup;
 
@@ -51,7 +51,7 @@ pub fn configure(
 pub struct MarginfiGroupConfigure<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 

@@ -35,7 +35,7 @@ pub fn lending_account_start_flashloan(
 pub struct LendingAccountStartFlashloan<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -147,7 +147,7 @@ pub fn lending_account_end_flashloan<'info>(
 pub struct LendingAccountEndFlashloan<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

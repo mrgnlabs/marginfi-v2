@@ -247,8 +247,8 @@ describe("Lending pool configure bank", () => {
           )
         );
       },
-      "ConstraintHasOne",
-      2001
+      "Unauthorized",
+      6042
     );
 
     await expectFailedTxWithMessage(async () => {

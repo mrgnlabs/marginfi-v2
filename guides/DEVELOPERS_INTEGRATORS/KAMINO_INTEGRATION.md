@@ -1,6 +1,7 @@
 # KAMINO INTEGRATION GENERAL GUIDE
 
-Are you an administrator, risk manager, developer, or power user of the mrgn program's Kamino integration and want to know more? Read on!
+Are you an administrator, risk manager, developer, or power user of the mrgn program's Kamino
+integration and want to know more? Read on!
 
 ## Terms
 
@@ -89,13 +90,13 @@ beforehand.
 
 ## Points and Rewards
 
-The mrgn-wrapped Kamino obligation earns points and rewards like any other user. We will distribute
-rewards from Kamino points back to mrgn users of that bank using a fair and proportional method to
-be determined in the future.
+The mrgn-wrapped Kamino obligation earns points and rewards like any other user. We (the group
+admin) will distribute rewards from Kamino points back to mrgn users of that bank using a fair and
+proportional method to be determined in the future.
 
 Emissions can be harvested permissionlessly, and are sent to the global fee admin. Like rewards, we
-will distribute emissions back to mrgn users of that bank using a fair and proportional method to be
-determined in the future.
+(the group admin) will distribute emissions back to mrgn users of that bank using a fair and
+proportional method to be determined in the future.
 
 ## Liquidators Guide
 
@@ -116,11 +117,18 @@ amount of CU: it is recommended to do this in a separate tx to the liquidation i
 | Withdraw | Collateral token amount | Must convert from collateral to liquidity token amount |
 | Liquidate | Collateral token amount | Must convert from collateral to liquidity token amount |
 
-**Important:** Deposit operations accept liquidity token amounts (the underlying asset), while withdraw and liquidate operations work with collateral token amounts. Since collateral tokens appreciate in value relative to the liquidity token as interest accumulates, liquidators and withdrawers must manually convert from collateral token amounts to liquidity token amounts using the current exchange rate.
+**Important:** Deposit operations accept liquidity token amounts (the underlying asset), while
+withdraw and liquidate operations work with collateral token amounts. Since collateral tokens
+appreciate in value relative to the liquidity token as interest accumulates, liquidators and
+withdrawers must manually convert from collateral token amounts to liquidity token amounts using the
+current exchange rate.
 
 ## Ongoing Considerations
 
-**Monitor for Kamino changes:**
-- **IDL updates**: Breaking changes to Kamino's instruction interfaces can brick marginfi's Kamino operations
-- **Account layout changes**: Changes to Reserve/Obligation structures can break deserialization and validation
-- **Liquidity constraints**: Insufficient reserve liquidity or withdrawal halts prevent users from accessing funds despite marginfi allowing the operation
+Integrating with another venue carries certain additional risks:
+- **IDL updates**: Breaking changes to Kamino's instruction interfaces can break marginfi's Kamino
+  operations
+- **Account layout changes**: Changes to Reserve/Obligation structures can break deserialization and
+  validation
+- **Liquidity constraints**: Insufficient reserve liquidity or withdrawal halts prevent users from
+  accessing funds despite marginfi allowing the operation

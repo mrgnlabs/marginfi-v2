@@ -5,28 +5,24 @@ publish = false
 edition = "2021"
 
 [features]
-# lip = ["liquidity-incentive-program"]
 default = []
 transfer-hook = ["transfer_hook"]
 
 [dependencies]
 marginfi-type-crate = { workspace = true, features = ["anchor"] }
+kamino-mocks = { path = "../programs/kamino-mocks" , features = ["no-entrypoint"]}
+
 solana-cli-output = { workspace = true }
 solana-program = { workspace = true }
 solana-logger = { workspace = true }
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
-# spl-tlv-account-resolution = { workspace = true }
-# spl-discriminator = { workspace = true }
-# spl-token-2022 = { workspace = true }
 
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
 
 pyth-solana-receiver-sdk = { workspace = true }
-# pythnet-sdk = { workspace = true }
-# switchboard-solana = { workspace = true }
 switchboard-on-demand = { workspace = true }
 
 bytemuck = { workspace = true }
@@ -47,7 +43,3 @@ transfer_hook = { workspace = true, features = [
     "no-entrypoint",
 ], optional = true }
 mocks = { workspace = true, features = ["no-entrypoint"] }
-
-# [dependencies.liquidity-incentive-program]
-# path = "../programs/liquidity-incentive-program"
-# optional = true
