@@ -1324,7 +1324,14 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
-        .partition(|(setup, _, _, _)| matches!(setup, OracleSetup::PythPushOracle));
+        .partition(|(setup, _, _, _)| {
+            matches!(
+                setup,
+                OracleSetup::PythPushOracle
+                    | OracleSetup::KaminoPythPush
+                    | OracleSetup::StakedWithPythPush
+            )
+        });
 
     let pyth_feeds = pyth_feeds
         .into_iter()

@@ -2,6 +2,7 @@ use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
+use kamino_mocks::kamino_lending::client as kamino;
 use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::types::OracleSetup;
 use marginfi_type_crate::types::{Bank, MarginfiAccount};
@@ -12,6 +13,7 @@ use solana_sdk::{
     signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
+
 #[cfg(feature = "transfer-hook")]
 use transfer_hook::TEST_HOOK_ID;
 
@@ -960,6 +962,44 @@ impl MarginfiAccountFixture {
             }
             .to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiAccountInitLiqRecord {}.data(),
+        }
+    }
+
+    pub async fn make_kamino_refresh_reserve_ix(&self, bank: &BankFixture) -> Instruction {
+        let reserve = &bank.kamino.as_ref().unwrap().reserve;
+        let bank = bank.load().await;
+
+        let accounts = kamino::accounts::RefreshReserve {
+            reserve: bank.kamino_reserve,
+            lending_market: reserve.lending_market,
+            pyth_oracle: None,
+            switchboard_price_oracle: None,
+            switchboard_twap_oracle: None,
+            scope_prices: Some(reserve.config.token_info.scope_configuration.price_feed),
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: kamino_mocks::kamino_lending::ID,
+            accounts,
+            data: kamino::args::RefreshReserve {}.data(),
+        }
+    }
+
+    pub async fn make_kamino_refresh_obligation_ix(&self, bank: &BankFixture) -> Instruction {
+        let obligation = &bank.kamino.as_ref().unwrap().obligation;
+        let bank = bank.load().await;
+
+        let accounts = kamino::accounts::RefreshObligation {
+            obligation: bank.kamino_obligation,
+            lending_market: obligation.lending_market,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: kamino_mocks::kamino_lending::ID,
+            accounts,
+            data: kamino::args::RefreshObligation {}.data(),
         }
     }
 }

@@ -1,7 +1,10 @@
 use super::utils::load_and_deserialize;
-use crate::prelude::{
-    get_emissions_authority_address, get_emissions_token_account_address, MintFixture,
-    TokenAccountFixture,
+use crate::{
+    kamino::KaminoFixture,
+    prelude::{
+        get_emissions_authority_address, get_emissions_token_account_address, MintFixture,
+        TokenAccountFixture,
+    },
 };
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
@@ -30,6 +33,7 @@ pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
     pub mint: MintFixture,
+    pub kamino: Option<KaminoFixture>,
 }
 
 impl BankFixture {
@@ -37,11 +41,13 @@ impl BankFixture {
         ctx: Rc<RefCell<ProgramTestContext>>,
         key: Pubkey,
         mint_fixture: &MintFixture,
+        kamino: Option<KaminoFixture>,
     ) -> Self {
         Self {
             ctx,
             key,
             mint: mint_fixture.clone(),
+            kamino,
         }
     }
 

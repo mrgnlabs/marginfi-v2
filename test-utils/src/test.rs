@@ -1,11 +1,14 @@
 use super::marginfi_account::MarginfiAccountFixture;
 #[cfg(feature = "transfer-hook")]
 use crate::transfer_hook::TEST_HOOK_ID;
-use crate::{bank::BankFixture, marginfi_group::*, native, spl::*, utils::*};
+use crate::{
+    bank::BankFixture, kamino::KaminoFixture, marginfi_group::*, native, spl::*, utils::*,
+};
 
 use anchor_lang::prelude::*;
 use bincode::deserialize;
 use fixed::types::I80F48;
+use kamino_mocks::mock_kamino_lending_processor;
 use marginfi_type_crate::{
     constants::{MAX_ORACLE_KEYS, PYTH_PUSH_MIGRATED_DEPRECATED},
     types::{
@@ -71,6 +74,10 @@ impl TestSettings {
             },
             TestBankSetting {
                 mint: BankMint::SolEqIsolated,
+                ..TestBankSetting::default()
+            },
+            TestBankSetting {
+                mint: BankMint::KaminoUsdc,
                 ..TestBankSetting::default()
             },
         ];
@@ -183,6 +190,7 @@ pub enum BankMint {
     T22WithFee,
     PyUSD,
     SolEqIsolated,
+    KaminoUsdc,
 }
 
 impl Default for BankMint {
@@ -427,6 +435,8 @@ pub fn marginfi_entry<'info>(
     marginfi::entry(program_id, accounts, data)
 }
 
+pub const FAKE_KAMINO_PROGRAM_ID: Pubkey = pubkey!("KFake2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+
 impl TestFixture {
     pub async fn new(test_settings: Option<TestSettings>) -> TestFixture {
         TestFixture::new_with_t22_extension(test_settings, &[]).await
@@ -445,6 +455,18 @@ impl TestFixture {
         #[cfg(feature = "transfer-hook")]
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
         program.add_program("mocks", mocks::ID, None);
+
+        program.prefer_bpf(false);
+        program.add_program(
+            "kamino_lending",
+            kamino_mocks::kamino_lending::ID,
+            processor!(mock_kamino_lending_processor),
+        );
+        program.add_program(
+            "fake_kamino_lending",
+            FAKE_KAMINO_PROGRAM_ID,
+            processor!(mock_kamino_lending_processor),
+        );
 
         let usdc_keypair = Keypair::new();
         let fixed_keypair = Keypair::new();
@@ -693,6 +715,18 @@ impl TestFixture {
                     BankMint::SolEqIsolated => {
                         (&sol_equivalent_mint_f, *DEFAULT_SOL_EQ_ISO_TEST_BANK_CONFIG)
                     }
+                    BankMint::KaminoUsdc => (&usdc_mint_f, *DEFAULT_USDC_TEST_BANK_CONFIG),
+                };
+
+                let kamino_f = if matches!(bank.mint, BankMint::KaminoUsdc) {
+                    let kamino_usdc_f = KaminoFixture::new_from_files(
+                        Rc::clone(&context),
+                        "src/fixtures/kamino_usdc_reserve.json",
+                        "src/fixtures/kamino_usdc_obligation.json",
+                    );
+                    Some(kamino_usdc_f)
+                } else {
+                    None
                 };
                 let price: I80F48 = I80F48::from_num(get_mint_price(bank.mint.clone()));
 
@@ -701,6 +735,7 @@ impl TestFixture {
                     tester_group
                         .try_lending_pool_add_bank(
                             bank_mint,
+                            kamino_f,
                             bank.config.unwrap_or(default_config),
                             Some(price),
                         )
@@ -904,7 +939,7 @@ pub fn get_mint_price(mint: BankMint) -> f64 {
         BankMint::Fixed => 2.0,
         BankMint::FixedLow => 0.0001,
         // For USDC-based and PYUSD mints, the price is roughly 1.0.
-        BankMint::Usdc | BankMint::UsdcT22 | BankMint::PyUSD => 1.0,
+        BankMint::Usdc | BankMint::UsdcT22 | BankMint::PyUSD | BankMint::KaminoUsdc => 1.0,
         // For SOL and its equivalents, use the SOL price (here, roughly 10.0).
         BankMint::Sol
         | BankMint::SolSwbPull

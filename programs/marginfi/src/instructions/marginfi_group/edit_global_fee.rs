@@ -1,5 +1,6 @@
 // Global fee admin calls this to edit the fee rate or the fee wallet.
 use crate::utils::wrapped_i80f48_to_f64;
+use crate::MarginfiError;
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
@@ -54,7 +55,7 @@ pub struct EditFeeState<'info> {
         mut,
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::Unauthorized
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

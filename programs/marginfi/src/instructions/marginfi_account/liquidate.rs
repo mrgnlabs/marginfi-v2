@@ -463,13 +463,13 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub asset_bank: AccountLoader<'info, Bank>,
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = is_marginfi_asset_tag(liab_bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
@@ -477,8 +477,8 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized,
         constraint = {
             let a = liquidator_marginfi_account.load()?;
             !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -490,7 +490,7 @@ pub struct LendingAccountLiquidate<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = liquidatee_marginfi_account.load()?;
             !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)

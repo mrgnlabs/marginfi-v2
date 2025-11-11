@@ -108,7 +108,7 @@ impl<'info> UserAccount<'info> {
                         .unwrap()
                 };
 
-                // For Fixed-price banks: only bank account otherwise: include bank and oracle
+                // For Fixed-price banks: only bank account, otherwise: include bank and oracle
                 if bank.config.oracle_setup == OracleSetup::Fixed {
                     vec![bank_accounts.bank.clone()]
                 } else {

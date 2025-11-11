@@ -81,8 +81,8 @@ pub struct LendingAccountWithdrawEmissions<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -90,8 +90,8 @@ pub struct LendingAccountWithdrawEmissions<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = emissions_mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = emissions_mint @ MarginfiError::InvalidEmissionsMint,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
@@ -195,7 +195,7 @@ pub fn marginfi_account_update_emissions_destination_account<'info>(
 pub struct MarginfiAccountUpdateEmissionsDestinationAccount<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -291,14 +291,14 @@ pub struct LendingAccountWithdrawEmissionsPermissionless<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
     #[account(
         mut,
-        has_one = group,
-        has_one = emissions_mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = emissions_mint @ MarginfiError::InvalidEmissionsMint,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]

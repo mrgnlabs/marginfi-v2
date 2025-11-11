@@ -70,8 +70,8 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Note: You cannot have any instructions (except compute budget) before the start instruction. This
-// means the liquidator must either pre-configure anything they need to complete the tx or finish it
+// Note: You cannot have any instructions (except compute budget or kamino refreshes) before the start instruction.
+// This means the liquidator must either pre-configure anything they need to complete the tx or finish it
 // all between start and end!
 #[tokio::test]
 async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
@@ -121,10 +121,6 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
     let init_ix = liquidatee
         .make_init_liquidation_record_ix(record_pk, payer)
         .await;
-    // Sneaky Sneaky...
-    let deposit_ix = liquidator
-        .make_bank_deposit_ix(liq_usdc_account.key, usdc_bank, 1.0, None)
-        .await;
     let start_ix = liquidatee.make_start_liquidation_ix(record_pk, payer).await;
     let end_ix = liquidatee
         .make_end_liquidation_ix(
@@ -148,7 +144,13 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
         ctx.banks_client.process_transaction(init_tx).await?;
     } //release borrow of ctx
 
+    // Deposit ix is forbidden
     {
+        // Sneaky Sneaky...
+        let deposit_ix = liquidator
+            .make_bank_deposit_ix(liq_usdc_account.key, usdc_bank, 1.0, None)
+            .await;
+
         let ctx = test_f.context.borrow_mut();
 
         let tx = Transaction::new_signed_with_payer(
@@ -185,8 +187,42 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
         assert_custom_error!(res.unwrap_err(), MarginfiError::StartRepeats);
     } // drop borrow of ctx
 
-    // Compute budget ix IS permitted before start
+    let kamino_usdc_bank = test_f.get_bank(&BankMint::KaminoUsdc);
+
+    // Impostor Kamino refreshes are forbidden
+    {
+        let mut fake_kamino_refresh_ix = liquidator
+            .make_kamino_refresh_reserve_ix(kamino_usdc_bank)
+            .await;
+        // Sneaky Sneaky...
+        fake_kamino_refresh_ix.program_id = FAKE_KAMINO_PROGRAM_ID;
+
+        let ctx = test_f.context.borrow_mut();
+
+        let tx = Transaction::new_signed_with_payer(
+            &[fake_kamino_refresh_ix, start_ix.clone(), end_ix.clone()],
+            Some(&payer),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        let res = ctx
+            .banks_client
+            .process_transaction_with_preflight(tx)
+            .await;
+        assert!(res.is_err());
+        assert_custom_error!(res.unwrap_err(), MarginfiError::StartNotFirst);
+    } // drop borrow of ctx
+
+    // Compute budget ix and genuine Kamino refreshes ARE permitted before start
     let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
+    // Note: we allow any kamino refreshes, not necessarily the ones for the banks participating in liquidation
+    let kamino_refresh_reserve_ix = liquidator
+        .make_kamino_refresh_reserve_ix(kamino_usdc_bank)
+        .await;
+    let kamino_refresh_obligation_ix = liquidator
+        .make_kamino_refresh_obligation_ix(kamino_usdc_bank)
+        .await;
     let liquidator_sol_acc = test_f.sol_mint.create_empty_token_account().await;
     let withdraw_ix = liquidatee
         .make_bank_withdraw_ix(liquidator_sol_acc.key, sol_bank, 0.105, None, true)
@@ -197,7 +233,15 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
 
     let ctx = test_f.context.borrow_mut();
     let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, start_ix, repay_ix, withdraw_ix, end_ix],
+        &[
+            compute_ix,
+            kamino_refresh_reserve_ix,
+            kamino_refresh_obligation_ix,
+            start_ix,
+            repay_ix,
+            withdraw_ix,
+            end_ix,
+        ],
         Some(&payer),
         &[&ctx.payer],
         ctx.last_blockhash,

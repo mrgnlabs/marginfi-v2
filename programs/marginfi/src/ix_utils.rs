@@ -28,17 +28,18 @@ pub fn get_discrim_hash(namespace: &str, name: &str) -> [u8; 8] {
     sighash
 }
 
-/// Validate the given ix hash is the first in the list of ixes, other than compute budget ixes,
-/// and appears only once.
+/// Validate the given ix hash is the first in the list of ixes, other than compute budget ixes
+/// and explicitly allowed ixes (e.g. Kamino refreshes), and appears only once.
 ///
 /// If the ix implements `Hashable`, use `get_hash()` to get the expected hash.
 pub fn validate_ix_first(
     ixes: &[Instruction],
     program_id: &Pubkey,
     expected_hash: &[u8],
+    allowed_ixs: &[(Pubkey, &[u8])],
 ) -> MarginfiResult<()> {
     let compute_budget_key = COMPUTE_PROGRAM_KEY;
-    let mut first_non_compute_ix_encountered = false;
+    let mut expected_ix_encountered = false;
 
     for instruction in ixes.iter() {
         if instruction.program_id == compute_budget_key {
@@ -53,10 +54,10 @@ pub fn validate_ix_first(
         let discrim = &instruction.data[0..8];
 
         // If this is the first non-compute ix, it is either the setup ix, or we fail
-        if !first_non_compute_ix_encountered {
+        if !expected_ix_encountered {
             if instruction.program_id == *program_id && discrim == expected_hash {
-                first_non_compute_ix_encountered = true;
-            } else {
+                expected_ix_encountered = true;
+            } else if !allowed_ixs.contains(&(instruction.program_id, discrim)) {
                 msg!(
                     "Expected ix from program: {:?} w/ hash: {:?}",
                     program_id,
@@ -79,7 +80,7 @@ pub fn validate_ix_first(
         }
     }
 
-    if first_non_compute_ix_encountered {
+    if expected_ix_encountered {
         Ok(())
     } else {
         msg!("Start IX was not found in the TX.");

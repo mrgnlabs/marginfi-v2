@@ -798,8 +798,8 @@ impl<'state> MarginfiFuzzContext<'state> {
             liquidatee_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]);
 
         // Note: this must happen before append because it mutably drains the source vec
-        let liquidator_accounts = liquidator_remaining_accounts.len() as u8;
-        let liquidatee_accounts = liquidatee_remaining_accounts.len() as u8;
+        let liquidator_accounts_num = liquidator_remaining_accounts.len() as u8;
+        let liquidatee_accounts_num = liquidatee_remaining_accounts.len() as u8;
         remaining_accounts.append(&mut liquidator_remaining_accounts);
         remaining_accounts.append(&mut liquidatee_remaining_accounts);
 
@@ -830,8 +830,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                 Default::default(),
             ),
             asset_amount.0,
-            liquidatee_accounts,
-            liquidator_accounts,
+            liquidatee_accounts_num,
+            liquidator_accounts_num,
         );
 
         let success = if let Err(error) = res {
@@ -1218,8 +1218,6 @@ mod tests {
                     &mut None,
                 )
                 .unwrap();
-
-            // println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
@@ -1279,8 +1277,6 @@ mod tests {
                     &mut None,
                 )
                 .unwrap();
-
-            // println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)

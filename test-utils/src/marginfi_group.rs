@@ -1,4 +1,5 @@
 use super::{bank::BankFixture, marginfi_account::MarginfiAccountFixture};
+use crate::kamino::KaminoFixture;
 use crate::prelude::{get_oracle_id_from_feed_id, MintFixture};
 use crate::utils::*;
 use anchor_lang::{prelude::*, solana_program::system_program, InstructionData};
@@ -166,13 +167,18 @@ impl MarginfiGroupFixture {
     pub async fn try_lending_pool_add_bank(
         &self,
         bank_asset_mint_fixture: &MintFixture,
+        kamino_fixture: Option<KaminoFixture>,
         bank_config: BankConfig,
         fixed_price: Option<I80F48>,
     ) -> Result<BankFixture, BanksClientError> {
         let bank_key = Keypair::new();
         let bank_mint = bank_asset_mint_fixture.key;
-        let bank_fixture =
-            BankFixture::new(self.ctx.clone(), bank_key.pubkey(), bank_asset_mint_fixture);
+        let bank_fixture = BankFixture::new(
+            self.ctx.clone(),
+            bank_key.pubkey(),
+            bank_asset_mint_fixture,
+            kamino_fixture,
+        );
         let config_compact: BankConfigCompact = bank_config.into();
 
         let accounts = marginfi::accounts::LendingPoolAddBank {
@@ -256,6 +262,7 @@ impl MarginfiGroupFixture {
     pub async fn try_lending_pool_add_bank_with_seed(
         &self,
         bank_asset_mint_fixture: &MintFixture,
+        kamino_fixture: Option<KaminoFixture>,
         bank_config: BankConfig,
         bank_seed: u64,
     ) -> Result<BankFixture, BanksClientError> {
@@ -273,7 +280,12 @@ impl MarginfiGroupFixture {
         );
 
         let bank_mint = bank_asset_mint_fixture.key;
-        let bank_fixture = BankFixture::new(self.ctx.clone(), pda, bank_asset_mint_fixture);
+        let bank_fixture = BankFixture::new(
+            self.ctx.clone(),
+            pda,
+            bank_asset_mint_fixture,
+            kamino_fixture,
+        );
         let config_compact: BankConfigCompact = bank_config.into();
 
         let accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
