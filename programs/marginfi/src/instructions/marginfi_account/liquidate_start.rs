@@ -128,7 +128,6 @@ pub fn validate_instructions(
         start_ix,
         &[
             (
-                // TODO: think if this is an overkill since we already filtered out unwanted programs above
                 kamino_mocks::kamino_lending::ID,
                 kamino::RefreshReserve::DISCRIMINATOR,
             ),
