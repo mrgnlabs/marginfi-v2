@@ -9,7 +9,6 @@ Be aware of:
 - Our TS packages:
   - https://www.npmjs.com/package/@mrgnlabs/marginfi-client-v2
   - https://www.npmjs.com/package/@mrgnlabs/mrgn-common
-- Our RUST CLI: https://github.com/mrgnlabs/marginfi-v2/tree/main/clients/rust/marginfi-cli
 - Our example scripts: https://github.com/mrgnlabs/mrgn-ts-scripts/tree/master/scripts
 - Rust and TS examples of all instructions are available in our test suites, just search this repo
   for the instruction name (or remember to change to camelCase if searching for TS examples)
