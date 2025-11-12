@@ -11,7 +11,6 @@ mod liquidate_end;
 mod liquidate_start;
 mod pulse_health;
 mod repay;
-mod sort_balances;
 mod transfer_account;
 mod withdraw;
 
@@ -28,6 +27,5 @@ pub use liquidate_end::*;
 pub use liquidate_start::*;
 pub use pulse_health::*;
 pub use repay::*;
-pub use sort_balances::*;
 pub use transfer_account::*;
 pub use withdraw::*;
