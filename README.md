@@ -29,17 +29,18 @@ as Kamino.
   are always sorted in byte order by the corresponding `Bank`'s Public Key.
 - **Asset Weight** - Each asset available to lend has two rates: The "Initial" and "Maintenance"
   rates. The Maintenance rate is always higher. If attempting to execute a borrow, collateral is
-  valued at (price x initial rate). If a liquidator is attempting a liquidation, collateral is
-  valued at (price x maintenance rate). The range between these is sometimes called the health
+  valued at (price x initial weight). If a liquidator is attempting a liquidation, collateral is
+  valued at (price x maintenance weight). The range between these is sometimes called the health
   buffer. For example, if a user has collateral worth \$10, and init/maint rates are 50\% and 60\%
   respectively, the user can borrow \$10 x .5 = \$5 in collateral. For liquidation purposes, their
   collateral is worth \$10 x .6 = \$6. The LTV you see on app.0.xyz is the "Initial" Weight, while
   the health displayed on the portfolio page uses the "Maintenance" Weight.
 - **Liability Weight** - Each asset also has a liability weight! Like the `Asset Weight`, this is
   split into "Initial" and "Maintenance", where the Maintenance rate is always lower. If attempting
-  to execute a borrow, liabilities are valued at (price x initial rate). If a liquidator is
-  attempting a liquidation, liabilities are valued at (price x maintenance rate). Liability Weights
-  are typically hidden on the front end to avoid ux complexity, but can be read on-chain.
+  to execute a borrow, liabilities are valued at (price x initial weight). If a liquidator is
+  attempting a liquidation, liabilities are valued at (price x maintenance weight). On the borrowing
+  page, this value is displayed as "LTV", which is (1/Initial Liability Weight), i.e. the LTV you
+  would get if lending an asset with an Asset Weight of 1.
 - **Oracle** - Each `Bank` has an oracle it uses to determine the price of the asset it transacts
   in. The `Group` admin is responsible for picking and maintaining the Oracle. Typically,
   Switchboard is the oracle provider, but Pyth is also supported, and some banks have a Fixed price.
@@ -301,11 +302,11 @@ bitwise order by Bank key, the same way they appear in the user's Balances.
 
 Each oracle must not be stale. For Pyth oracles, the caller typically has no obligations, Pyth
 oracles are kept up-to-date by their administrator. For Switchboard Oracles, the caller must call a
-crank instruction, typically just before the tx consuming that price. Some callers prefer to use
-bundles for this, but it typically suffices to send a crank instruction and briefly wait. When tx
-size permits, callers might even prepend the Switchboard crank to the tx consuming the Oracle data,
-although this runs into account and CU constraints for larger txes. For Kamino banks,
-refresh_reserve must also execute within 1 slot.
+crank instruction just before the tx consuming that price. Some callers prefer to use bundles for
+this, but it typically suffices to send a crank instruction and briefly wait. When tx size permits,
+callers might even prepend the Switchboard crank to the tx consuming the Oracle data, although this
+runs into account and CU constraints for larger txes. For Kamino banks, refresh_reserve must also
+execute within 1 slot.
 
 In some instructions, limited Oracle staleness is permitted. For example, when borrowing, the caller
 can pass enough non-stale oracle data to demonstrate collateral is sufficient. For example, if the
@@ -346,7 +347,6 @@ benefit with SOL, so when LST is used to borrow SOL, it supports much higher LTV
 used to borrow e.g. USDC. An Account's Emode benefit for a given token being lent is always based on
 the worst benefit across all the assets they are borrowing, this means in some instances it makes
 more sense to break assets into multiple accounts.
-
 
 ## Notable Bank States
 
