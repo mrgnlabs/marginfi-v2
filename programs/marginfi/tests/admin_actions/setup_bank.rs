@@ -1,8 +1,7 @@
-use anchor_lang::error::ErrorCode;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
+use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::INIT_BANK_ORIGINATION_FEE_DEFAULT,
     prelude::MarginfiError,
