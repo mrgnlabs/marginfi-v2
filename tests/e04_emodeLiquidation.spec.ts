@@ -1,5 +1,10 @@
 import { BN } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import {
   bankrunContext,
   bankrunProgram,
@@ -203,6 +208,8 @@ describe("Emode liquidation", () => {
           ]),
         ],
         amount: new BN(0.001 * 10 ** ecosystem.wsolDecimals),
+        liquidateeAccounts: 4,
+        liquidatorAccounts: 8,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -330,6 +337,8 @@ describe("Emode liquidation", () => {
           ]),
         ],
         amount: new BN(0.1000001 * 10 ** ecosystem.wsolDecimals),
+        liquidateeAccounts: 4,
+        liquidatorAccounts: 8,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -440,6 +449,8 @@ describe("Emode liquidation", () => {
           ]),
         ],
         amount: new BN(0.1000002 * 10 ** ecosystem.wsolDecimals),
+        liquidateeAccounts: 4,
+        liquidatorAccounts: 8,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -522,6 +533,12 @@ describe("Emode liquidation", () => {
       ComputeBudgetProgram.setComputeUnitLimit({
         units: 260_000,
       }),
+      // dummy ix to trick bankrun
+      SystemProgram.transfer({
+        fromPubkey: liquidator.wallet.publicKey,
+        toPubkey: bankrunProgram.provider.publicKey,
+        lamports: 5678,
+      }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
         liabilityBankKey,
@@ -544,6 +561,8 @@ describe("Emode liquidation", () => {
           ]),
         ],
         amount: new BN(0.1000003 * 10 ** ecosystem.wsolDecimals),
+        liquidateeAccounts: 4,
+        liquidatorAccounts: 6,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

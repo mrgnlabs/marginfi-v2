@@ -955,11 +955,10 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     // Add USDC borrow position
     liquidateePositions.push([regularBank, oracles.usdcOracle.publicKey]);
 
-    // Add liquidator accounts
-    remainingForLiq.push(...composeRemainingAccounts(liquidatorPositions));
-
-    // Add liquidatee accounts
-    remainingForLiq.push(...composeRemainingAccounts(liquidateePositions));
+    const liquidatorAccounts = composeRemainingAccounts(liquidatorPositions);
+    remainingForLiq.push(...liquidatorAccounts);
+    const liquidateeAccounts = composeRemainingAccounts(liquidateePositions);
+    remainingForLiq.push(...liquidateeAccounts);
 
     const liquidateInstruction = await liquidateIx(
       liquidator.mrgnBankrunProgram,
@@ -970,6 +969,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
         liquidateeMarginfiAccount: liquidateeAccount,
         remaining: remainingForLiq,
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       }
     );
 
@@ -1184,8 +1185,10 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     }
     liquidateePositions.push([regularBank, oracles.usdcOracle.publicKey]);
 
-    remainingForLiq.push(...composeRemainingAccounts(liquidatorPositions));
-    remainingForLiq.push(...composeRemainingAccounts(liquidateePositions));
+    const liquidatorAccounts = composeRemainingAccounts(liquidatorPositions);
+    remainingForLiq.push(...liquidatorAccounts);
+    const liquidateeAccounts = composeRemainingAccounts(liquidateePositions);
+    remainingForLiq.push(...liquidateeAccounts);
 
     const liqIx = await liquidateIx(liquidator.mrgnBankrunProgram, {
       assetBankKey: assetBank,
@@ -1194,6 +1197,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       liquidateeMarginfiAccount: liquidateeAccount,
       remaining: remainingForLiq,
       amount: liqAmount,
+      liquidateeAccounts: liquidateeAccounts.length,
+      liquidatorAccounts: liquidatorAccounts.length,
     });
 
     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({

@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use marginfi_type_crate::{constants::FEE_STATE_SEED, types::FeeState};
 
 use crate::state::panic_state::PanicStateImpl;
+use crate::MarginfiError;
 
 pub fn panic_unpause(ctx: Context<PanicUnpause>) -> Result<()> {
     let mut fee_state = ctx.accounts.fee_state.load_mut()?;
@@ -45,7 +46,7 @@ pub struct PanicUnpause<'info> {
         mut,
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::Unauthorized
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

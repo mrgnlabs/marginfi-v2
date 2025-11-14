@@ -108,7 +108,8 @@ impl KaminoConfigCompact {
             oracle_max_age: self.oracle_max_age,
             _padding0: [0; 2],
             oracle_max_confidence: self.oracle_max_confidence,
-            _padding1: [0; 32],
+            fixed_price: I80F48::ZERO.into(),
+            _padding1: [0; 16],
         }
     }
 }

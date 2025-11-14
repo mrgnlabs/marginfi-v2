@@ -120,7 +120,7 @@ pub struct EndLiquidation<'info> {
     /// Account under liquidation
     #[account(
         mut,
-        has_one = liquidation_record,
+        has_one = liquidation_record @ MarginfiError::InvalidLiquidationRecord,
         constraint = {
             let acc = marginfi_account.load()?;
             acc.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -133,7 +133,7 @@ pub struct EndLiquidation<'info> {
     /// The associated liquidation record PDA for the given `marginfi_account`
     #[account(
         mut,
-        has_one = liquidation_receiver
+        has_one = liquidation_receiver @ MarginfiError::InvalidLiquidationReceiver
     )]
     pub liquidation_record: AccountLoader<'info, LiquidationRecord>,
 
@@ -145,7 +145,7 @@ pub struct EndLiquidation<'info> {
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_wallet
+        has_one = global_fee_wallet @ MarginfiError::InvalidFeeWallet
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 

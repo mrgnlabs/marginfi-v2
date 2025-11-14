@@ -215,7 +215,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
@@ -223,7 +223,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             !marginfi_account.load()?.get_flag(ACCOUNT_IN_RECEIVERSHIP)
         } @MarginfiError::UnexpectedLiquidationState,

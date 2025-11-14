@@ -261,7 +261,6 @@ impl AccountsState {
         rent: Rent,
     ) -> AccountInfo {
         let data_len = unpadded_len;
-        println!("len: {:?}", data_len);
         self.new_dex_owned_account_with_lamports(
             unpadded_len,
             rent.minimum_balance(data_len),

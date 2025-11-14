@@ -70,8 +70,10 @@ This is much slower than the remix test command, but stable on any system.
 ### Customize Your Rust testing experience:
 
 ```
-./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta
+./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta -j 8
 ```
+
+Where the number after j is how many threads you want to use. More threads = more likely to experience random failures for no reason, but it sure is faster!
 
 This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running. It is approximately 10x faster than test-program.sh, so use this one if you value your time and sanity. Feel free to add your flex below:
 
@@ -83,6 +85,10 @@ Benchmarks:
 
 0.1.4
 | 9700X | `[  12.203s] 226 tests run: 226 passed, 0 skipped`
+
+0.1.6
+| 9700X (8 threads)  | `[  27.718s] 373 tests run: 373 passed, 0 skipped`
+| 9700X (16 threads) | `[  19.343s] 373 tests run: 373 passed (3 flaky), 0 skipped`
 
 ### To run just one Rust test:
 

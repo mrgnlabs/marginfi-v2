@@ -184,6 +184,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (admin only)
+    pub fn lending_pool_set_fixed_oracle_price(
+        ctx: Context<LendingPoolSetFixedOraclePrice>,
+        price: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
+    }
+
     /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
@@ -309,8 +317,15 @@ pub mod marginfi {
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
+        liquidatee_accounts: u8,
+        liquidator_accounts: u8,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(
+            ctx,
+            asset_amount,
+            liquidatee_accounts,
+            liquidator_accounts,
+        )
     }
 
     pub fn lending_account_start_flashloan(
@@ -415,16 +430,6 @@ pub mod marginfi {
         ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_pulse_health(ctx)
-    }
-
-    /// (Permissionless) Sorts the lending account balances in descending order and removes the "gaps"
-    /// (i.e. inactive balances in between the active ones), if any.
-    /// This is necessary to ensure any legacy marginfi accounts are compliant with the
-    /// "gapless and sorted" requirements we now have.
-    pub fn lending_account_sort_balances<'info>(
-        ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_sort_balances(ctx)
     }
 
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
