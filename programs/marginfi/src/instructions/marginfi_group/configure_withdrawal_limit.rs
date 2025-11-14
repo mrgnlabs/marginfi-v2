@@ -30,7 +30,10 @@ pub fn configure_deleverage_withdrawal_limit(
 
 #[derive(Accounts)]
 pub struct ConfigureDeleverageWithdrawalLimit<'info> {
-    #[account(mut, has_one = admin)]
+    #[account(
+        mut,
+        has_one = admin @ MarginfiError::Unauthorized
+    )]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     pub admin: Signer<'info>,

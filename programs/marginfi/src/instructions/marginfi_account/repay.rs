@@ -15,7 +15,7 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::TOKENLESS_REPAYMENTS_ALLOWED,
+    constants::{TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE},
     types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
 };
 
@@ -78,9 +78,21 @@ pub fn lending_account_repay<'info>(
     };
     marginfi_account.last_update = clock.unix_timestamp as u64;
 
-    if authority.key() == group.risk_admin && bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED) {
+    if authority.key() == group.risk_admin
+        && bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+        && repay_all
+    {
         // In some rare cases (e.g. super illiquid token sunset) we allow risk admin
         // to "repay" the debt with nothing. Hence we skip the actual transfer here.
+
+        // repay_all must be enabled: this enables the risk admin to voluntarily pay when it wants,
+        // but in general, once the risk admin is prepared to use this feature, there's no point in
+        // not repaying the entire balance!
+
+        // Note: Doing this means there will not be enough funds left for lenders to withdraw! This
+        // state is irrecoverable. Lenders will be paid out on a first-come-first-served basis as
+        // they withdraw. Remaining lenders will either absorb the loss - or more likely - be repaid
+        // through some OTC claims portal using assets seized from borrowers
     } else {
         let repay_amount_pre_fee = maybe_bank_mint
             .as_ref()
@@ -103,6 +115,14 @@ pub fn lending_account_repay<'info>(
             token_program.to_account_info(),
             ctx.remaining_accounts,
         )?;
+    }
+
+    // During deleverage, once the last repayment is complete, and the bank's debts have been fully
+    // discharged, the risk admin becomes empowered to purge the balances of lenders
+    if bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+        && bank.total_liability_shares == I80F48::ZERO.into()
+    {
+        bank.update_flag(true, TOKENLESS_REPAYMENTS_COMPLETE);
     }
 
     bank.update_bank_cache(group)?;

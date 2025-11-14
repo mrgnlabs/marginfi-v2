@@ -78,7 +78,9 @@ describe("Bank bankruptcy tests", () => {
     throwawayGroup = result.throwawayGroup;
 
     // Crank oracles so that the prices are not stale
-    let now = Math.floor(Date.now() / 1000);
+    let now = Number(
+      (await bankrunContext.banksClient.getClock()).unixTimestamp
+    );
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
     await initOrUpdatePriceUpdateV2(

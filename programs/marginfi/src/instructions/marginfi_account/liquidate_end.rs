@@ -147,7 +147,7 @@ pub fn end_receivership<'info>(
     let repaid: I80F48 = pre_liabs_equity - post_liabilities_equity;
 
     // clear receivership
-    marginfi_account.unset_flag(ACCOUNT_IN_RECEIVERSHIP);
+    marginfi_account.unset_flag(ACCOUNT_IN_RECEIVERSHIP, false);
     liq_record.liquidation_receiver = Pubkey::default();
 
     let seized_f64 = seized.to_num::<f64>();

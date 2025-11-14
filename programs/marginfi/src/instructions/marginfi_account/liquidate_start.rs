@@ -98,7 +98,7 @@ pub fn start_receivership<'info>(
     let (assets_equity, liabs_equity) = risk_engine
         .get_account_health_components(RiskRequirementType::Equity, &mut Some(&mut health_cache))?;
     marginfi_account.health_cache = health_cache;
-    marginfi_account.set_flag(ACCOUNT_IN_RECEIVERSHIP);
+    marginfi_account.set_flag(ACCOUNT_IN_RECEIVERSHIP, false);
 
     // Snapshot values to use in later checks
     liq_record.cache.asset_value_maint = assets.into();

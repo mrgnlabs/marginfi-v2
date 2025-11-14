@@ -332,6 +332,8 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
 
 /// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
 /// any risk check. Errors if the bank is not found.
+///
+/// * Errors if bank/oracles don't appear in the slice in the correct order
 pub fn fetch_asset_price_for_bank<'info>(
     bank_key: &Pubkey,
     bank: &Bank,

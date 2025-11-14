@@ -335,28 +335,20 @@ export type RepayIxArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;
   tokenAccount: PublicKey;
-  // TODO repay doesn't actually need these it doesn't check risk
-  remaining: PublicKey[];
   amount: BN;
+  // TODO repay doesn't actually need these it doesn't check risk
+  remaining?: PublicKey[];
   repayAll?: boolean;
 };
 
 /**
  * Repay debt to a bank
  * * `authority` - MarginfiAccount's authority must sign and own the `tokenAccount`
- * * `remaining` - pass bank/oracles for each bank the user is involved with, in the SAME ORDER they
- *   appear in userAcc.balances (e.g. `[bank0, oracle0, bank1, oracle1]`). For Token22 assets, pass
- *   the mint first, then the oracles/banks as described earlier.
  * @param program
  * @param args
  * @returns
  */
 export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
-  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => ({
-    pubkey,
-    isSigner: false,
-    isWritable: false,
-  }));
   // False is the same as null, so if false we'll just pass null
   const all = args.repayAll === true ? true : null;
   const ix = program.methods
@@ -371,7 +363,6 @@ export const repayIx = (program: Program<Marginfi>, args: RepayIxArgs) => {
       // bankLiquidityVault = deriveLiquidityVault(id, bank)
       tokenProgram: TOKEN_PROGRAM_ID,
     })
-    .remainingAccounts(oracleMeta)
     .instruction();
   return ix;
 };
@@ -681,6 +672,26 @@ export const transferAccountAuthorityPdaIx = (
   const ix = program.methods
     .transferToNewAccountPda(args.accountIndex, args.thirdPartyId || null)
     .accounts(accounts)
+    .instruction();
+
+  return ix;
+};
+
+export type PurgeDevelerageArgs = {
+  account: PublicKey;
+  bank: PublicKey;
+};
+
+export const purgeDeveleragedBalance = (
+  program: Program<Marginfi>,
+  args: PurgeDevelerageArgs
+) => {
+  const ix = program.methods
+    .purgeDeleverageBalance()
+    .accounts({
+      marginfiAccount: args.account,
+      bank: args.bank,
+    })
     .instruction();
 
   return ix;

@@ -574,6 +574,25 @@ pub mod marginfi {
         marginfi_group::migrate_curve(ctx)
     }
 
+    /// (group admin only) Set the daily withdrawal limit for deleverages per group.
+    pub fn configure_deleverage_withdrawal_limit(
+        ctx: Context<ConfigureDeleverageWithdrawalLimit>,
+        limit: u32,
+    ) -> MarginfiResult {
+        marginfi_group::configure_deleverage_withdrawal_limit(ctx, limit)
+    }
+
+    // TODO deprecate and incorporate this functionality into forced-withdraw in 1.7+
+    /// (risk admin only) Purge a user's lending balance without withdrawing anything. Only usable
+    /// after all the debt has been settled on a bank in deleveraging mode, e.g. when
+    /// `TOKENLESS_REPAYMENTS_ALLOWED` and `TOKENLESS_REPAYMENTS_COMPLETE`. used to purge remaining
+    /// lending assets in a now-worthless bank before it is fully sunset.
+    pub fn purge_deleverage_balance(
+        ctx: Context<LendingAccountPurgeDelevBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_purge_delev_balance(ctx)
+    }
+
     /****** Kamino integration instructions *****/
 
     /// (permissionless) Initialize a Kamino obligation for a marginfi bank
@@ -625,14 +644,6 @@ pub mod marginfi {
         reward_index: u64,
     ) -> MarginfiResult {
         kamino::kamino_harvest_reward(ctx, reward_index)
-    }
-
-    /// (group admin only) Set the daily withdrawal limit for deleverages per group.
-    pub fn configure_deleverage_withdrawal_limit(
-        ctx: Context<ConfigureDeleverageWithdrawalLimit>,
-        limit: u32,
-    ) -> MarginfiResult {
-        marginfi_group::configure_deleverage_withdrawal_limit(ctx, limit)
     }
 }
 

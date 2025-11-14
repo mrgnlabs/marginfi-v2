@@ -18,11 +18,14 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
-use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use anchor_spl::{
+    token::accessor,
+    token_interface::{TokenAccount, TokenInterface},
+};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, TOKENLESS_REPAYMENTS_COMPLETE},
     types::{
         Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
         ACCOUNT_IN_RECEIVERSHIP,
@@ -79,12 +82,12 @@ pub fn lending_account_withdraw<'info>(
                 ctx.remaining_accounts,
             )?;
 
-            // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
+            // Validate price is non-zero during liquidation/deleverage to prevent exploits
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
             price
         } else {
-            // TODO: force users to always pass the oracle, even in case of withdraw_all, to correctly update withdrawn equity.
+            // TODO: force callers to pass oracle, to support tracking withdraws outside delev
             I80F48::ZERO
         };
 
@@ -119,6 +122,14 @@ pub fn lending_account_withdraw<'info>(
 
             bank_account.withdraw(I80F48::from_num(amount_pre_fee))?;
 
+            amount_pre_fee
+        };
+
+        // If in deleverage mode and deleverage is complete, you get what's left!
+        let amount_pre_fee = if bank.get_flag(TOKENLESS_REPAYMENTS_COMPLETE) {
+            let actual = accessor::amount(&bank_liquidity_vault.to_account_info())?;
+            u64::min(amount_pre_fee, actual)
+        } else {
             amount_pre_fee
         };
 

@@ -48,7 +48,7 @@ import {
   startDeleverageIx,
   endDeleverageIx,
 } from "./utils/user-instructions";
-import { deriveGlobalFeeState, deriveLiquidationRecord } from "./utils/pdas";
+import { deriveLiquidationRecord } from "./utils/pdas";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   bytesToF64,
@@ -58,11 +58,8 @@ import {
 } from "./utils/tools";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { getEpochAndSlot } from "./utils/stake-utils";
-import { Clock } from "solana-bankrun";
 import {
   assertBankrunTxFailed,
-  assertBNApproximately,
-  assertBNEqual,
   assertKeyDefault,
   assertKeysEqual,
 } from "./utils/genericTests";
@@ -513,10 +510,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
         newRiskAdmin: riskAdmin.wallet.publicKey,
       })
     );
-
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, throwawayGroup);
-    await banksClient.processTransaction(tx);
+    await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
   });
 
   it("(admin) Deleverages user 0 by fully repaying bank 2's liabs", async () => {
@@ -632,17 +626,16 @@ describe("Limits on number of accounts, with emode in effect", () => {
     let config = defaultBankConfigOptRaw();
     config.tokenlessRepaymentsAllowed = true;
 
+    let tx = new Transaction();
     for (const i of [3, 4]) {
-      let tx = new Transaction().add(
+      tx.add(
         await configureBank(groupAdmin.mrgnBankrunProgram, {
           bank: banks[i],
           bankConfigOpt: config,
         })
       );
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(groupAdmin.wallet);
-      await banksClient.processTransaction(tx);
     }
+    await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
   });
 
   it("(admin) Deleverages user 0 by fully (tokenlessly) repaying bank 3's liabs", async () => {
@@ -760,9 +753,7 @@ describe("Limits on number of accounts, with emode in effect", () => {
         limit: 1 * ecosystem.lstAlphaPrice - 1, // borrowAmount is 1 LST Alpha
       })
     );
-    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet);
-    await banksClient.processTransaction(tx);
+    await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
   });
 
   it("(admin) Tries to deleverage user 0 by fully (tokenlessly) repaying bank 4's liabs - limit exceeded", async () => {
