@@ -103,7 +103,6 @@ describe("Bank e2e sunset due to illiquid asset", () => {
 
   it("(admin) Sets banks 0/1 asset weights to 0.9", async () => {
     let config = blankBankConfigOptRaw();
-    banks[0];
     config.assetWeightInit = bigNumberToWrappedI80F48(0.9); // 90%
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.9); // 90%
 
@@ -220,7 +219,7 @@ describe("Bank e2e sunset due to illiquid asset", () => {
   });
 
   // Note: here the admin pays during repayment, because tokenless repay is not enabled yet.
-  it("(risk admin) Tries to deleverage tokenlessly -- happy path", async () => {
+  it("(risk admin) Deleverages user 0 - happy path", async () => {
     const withdrawn = 2000;
     const repaid = 1998;
     const deleveragee = users[0];

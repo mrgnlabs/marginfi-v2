@@ -122,7 +122,6 @@ describe("Bank bankruptcy tests", () => {
 
   it("(admin) Sets both banks' asset weights to 0.9", async () => {
     let config = blankBankConfigOptRaw();
-    banks[0];
     config.assetWeightInit = bigNumberToWrappedI80F48(0.9); // 90%
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.9); // 90%
 
