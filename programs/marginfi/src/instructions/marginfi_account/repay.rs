@@ -15,7 +15,9 @@ use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE},
+    constants::{
+        TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE, ZERO_AMOUNT_THRESHOLD,
+    },
     types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
 };
 
@@ -119,9 +121,8 @@ pub fn lending_account_repay<'info>(
 
     // During deleverage, once the last repayment is complete, and the bank's debts have been fully
     // discharged, the risk admin becomes empowered to purge the balances of lenders
-    if bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
-        && bank.total_liability_shares == I80F48::ZERO.into()
-    {
+    let liabs: I80F48 = bank.total_liability_shares.into();
+    if bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED) && liabs.abs() < ZERO_AMOUNT_THRESHOLD {
         bank.update_flag(true, TOKENLESS_REPAYMENTS_COMPLETE);
     }
 
