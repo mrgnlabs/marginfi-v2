@@ -1,3 +1,4 @@
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::prelude::MarginfiError;
@@ -8,10 +9,9 @@ use marginfi_type_crate::{
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
-use fixed::types::I80F48 as RuntimeI80F48;
 
 // Helper function to convert shares to UI amounts
-fn shares_to_ui(shares: RuntimeI80F48, decimals: u8) -> RuntimeI80F48 {
+fn shares_to_ui(shares: I80F48, decimals: u8) -> I80F48 {
     let scale = *EXP_10_I80F48
         .get(decimals as usize)
         .expect("mint decimals exceed lookup table bounds");
@@ -432,21 +432,21 @@ async fn marginfi_group_bank_reduce_only_maintains_worth_for_existing_loans() ->
 
     // Verify the exact amounts remain unchanged (no interest accrual yet)
     let usdc_assets_ui = shares_to_ui(
-        RuntimeI80F48::from(usdc_balance.asset_shares),
+        I80F48::from(usdc_balance.asset_shares),
         usdc_bank_f.mint.mint.decimals,
     );
     let sol_liabilities_ui = shares_to_ui(
-        RuntimeI80F48::from(sol_balance.liability_shares),
+        I80F48::from(sol_balance.liability_shares),
         sol_bank_f.mint.mint.decimals,
     );
     assert_eq!(
         usdc_assets_ui,
-        RuntimeI80F48::from_num(100_000),
+        I80F48::from_num(100_000),
         "USDC asset shares should equal the initial 100k deposit"
     );
     assert_eq!(
         sol_liabilities_ui,
-        RuntimeI80F48::from_num(1),
+        I80F48::from_num(1),
         "SOL liability shares should equal the 1 SOL borrow"
     );
 
@@ -589,48 +589,48 @@ async fn marginfi_group_bank_reduce_only_can_borrow_with_other_collateral() -> a
         .unwrap();
 
     let usdc_assets_ui = shares_to_ui(
-        RuntimeI80F48::from(usdc_balance.asset_shares),
+        I80F48::from(usdc_balance.asset_shares),
         usdc_bank_f.mint.mint.decimals,
     );
     let sol_assets_ui = shares_to_ui(
-        RuntimeI80F48::from(sol_balance.asset_shares),
+        I80F48::from(sol_balance.asset_shares),
         sol_bank_f.mint.mint.decimals,
     );
     let pyusd_liabilities_ui = shares_to_ui(
-        RuntimeI80F48::from(pyusd_balance.liability_shares),
+        I80F48::from(pyusd_balance.liability_shares),
         pyusd_bank_f.mint.mint.decimals,
     );
 
     // USDC (ReduceOnly) should have assets but no liabilities
     assert_eq!(
         usdc_assets_ui,
-        RuntimeI80F48::from_num(50_000),
+        I80F48::from_num(50_000),
         "USDC asset shares should equal the original 50k deposit"
     );
     assert_eq!(
-        RuntimeI80F48::from(usdc_balance.liability_shares),
-        RuntimeI80F48::ZERO
+        I80F48::from(usdc_balance.liability_shares),
+        I80F48::ZERO
     );
 
     // SOL should have only assets (used as collateral, not borrowed)
     assert_eq!(
         sol_assets_ui,
-        RuntimeI80F48::from_num(5),
+        I80F48::from_num(5),
         "SOL asset shares should equal the original 5 SOL deposit"
     );
     assert_eq!(
-        RuntimeI80F48::from(sol_balance.liability_shares),
-        RuntimeI80F48::ZERO
+        I80F48::from(sol_balance.liability_shares),
+        I80F48::ZERO
     );
 
     // PyUSD should have only liabilities (borrowed)
     assert_eq!(
-        RuntimeI80F48::from(pyusd_balance.asset_shares),
-        RuntimeI80F48::ZERO
+        I80F48::from(pyusd_balance.asset_shares),
+        I80F48::ZERO
     );
     assert_eq!(
         pyusd_liabilities_ui,
-        RuntimeI80F48::from_num(1),
+        I80F48::from_num(1),
         "PyUSD liability shares should equal the 1 PyUSD borrow"
     );
 
