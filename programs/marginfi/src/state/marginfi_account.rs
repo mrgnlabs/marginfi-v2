@@ -14,8 +14,8 @@ use marginfi_type_crate::{
         MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
-        reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,OracleSetup,
-        HealthCache, LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED,
+        reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
+        HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
         ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
     },
 };
