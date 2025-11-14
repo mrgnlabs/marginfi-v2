@@ -261,21 +261,6 @@ async fn deleverage_tokenless_up_to_limit() -> anyhow::Result<()> {
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::ZeroWithdrawalLimit);
 
-    test_f
-        .marginfi_group
-        .try_update_deleverage_withdrawal_limit(10)
-        .await?; // cap the deleverages by $10
-    test_f
-        .marginfi_group
-        .try_lending_pool_configure_bank(
-            usdc_bank,
-            BankConfigOpt {
-                tokenless_repayments_allowed: Some(true), // enable repayments with no USDC on the account
-                ..BankConfigOpt::default()
-            },
-        )
-        .await?;
-
     // LP provides initial liquidity
     let lp_usdc_acc = test_f.usdc_mint.create_token_account_and_mint_to(200).await;
     lp.try_bank_deposit(lp_usdc_acc.key, usdc_bank, 100, None)
@@ -294,13 +279,28 @@ async fn deleverage_tokenless_up_to_limit() -> anyhow::Result<()> {
         .try_bank_borrow(user_token_usdc.key, usdc_bank, 20.0)
         .await?;
 
+    test_f
+        .marginfi_group
+        .try_update_deleverage_withdrawal_limit(10)
+        .await?; // cap the deleverages by $10
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            usdc_bank,
+            BankConfigOpt {
+                tokenless_repayments_allowed: Some(true), // enable repayments with no USDC on the account
+                ..BankConfigOpt::default()
+            },
+        )
+        .await?;
+
     let (record_pk, _bump) = Pubkey::find_program_address(
         &[LIQUIDATION_RECORD_SEED.as_bytes(), deleveragee.key.as_ref()],
         &marginfi::ID,
     );
 
     // Risk admin will withdraw some sol and will "repay" some usdc (in fact there is no usdc on the ATA, so it will be tokenless)
-    let risk_admin_usdc_acc = test_f.usdc_mint.create_empty_token_account().await;
+    let risk_admin_usdc_acc = test_f.usdc_mint.create_token_account_and_mint_to(10).await;
     let risk_admin_sol_acc = test_f.sol_mint.create_empty_token_account().await;
 
     // Note: deleveraging also (like liquidation) uses liquidation record - to ensure we do not worsen the account health.
@@ -317,7 +317,7 @@ async fn deleverage_tokenless_up_to_limit() -> anyhow::Result<()> {
         .make_bank_withdraw_ix(risk_admin_sol_acc.key, sol_bank, 1.0, None, true)
         .await;
 
-    // "Repay" $10 with nothing
+    // Repay $10 (even though tokenless repayments are allowed, if withdraw_all is false, we will repay WITH tokens)
     let repay_ix = deleveragee
         .make_bank_repay_ix(risk_admin_usdc_acc.key, usdc_bank, 10.0, None)
         .await;
@@ -345,7 +345,7 @@ async fn deleverage_tokenless_up_to_limit() -> anyhow::Result<()> {
     let risk_admin_sol_tokens = risk_admin_sol_acc.balance().await;
     assert_eq!(risk_admin_sol_tokens, native!(1.0, "SOL", f64));
     let risk_admin_usdc_tokens = risk_admin_usdc_acc.balance().await;
-    assert_eq!(risk_admin_usdc_tokens, native!(0, "USDC")); // still nothing, well, sad but true!
+    assert_eq!(risk_admin_usdc_tokens, native!(0, "USDC"));
 
     // Now let's try to seize more (and thus "repay" more) and see it failing due to daily withdrawal limit reach
     let start_ix = deleveragee
