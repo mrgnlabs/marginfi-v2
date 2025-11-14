@@ -9,7 +9,6 @@ use marginfi_type_crate::{
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
 
-
 // Helper function to convert shares to UI amounts
 fn shares_to_ui(shares: I80F48, decimals: u8) -> I80F48 {
     let scale = *EXP_10_I80F48
@@ -607,10 +606,7 @@ async fn marginfi_group_bank_reduce_only_can_borrow_with_other_collateral() -> a
         I80F48::from_num(50_000),
         "USDC asset shares should equal the original 50k deposit"
     );
-    assert_eq!(
-        I80F48::from(usdc_balance.liability_shares),
-        I80F48::ZERO
-    );
+    assert_eq!(I80F48::from(usdc_balance.liability_shares), I80F48::ZERO);
 
     // SOL should have only assets (used as collateral, not borrowed)
     assert_eq!(
@@ -618,16 +614,10 @@ async fn marginfi_group_bank_reduce_only_can_borrow_with_other_collateral() -> a
         I80F48::from_num(5),
         "SOL asset shares should equal the original 5 SOL deposit"
     );
-    assert_eq!(
-        I80F48::from(sol_balance.liability_shares),
-        I80F48::ZERO
-    );
+    assert_eq!(I80F48::from(sol_balance.liability_shares), I80F48::ZERO);
 
     // PyUSD should have only liabilities (borrowed)
-    assert_eq!(
-        I80F48::from(pyusd_balance.asset_shares),
-        I80F48::ZERO
-    );
+    assert_eq!(I80F48::from(pyusd_balance.asset_shares), I80F48::ZERO);
     assert_eq!(
         pyusd_liabilities_ui,
         I80F48::from_num(1),
