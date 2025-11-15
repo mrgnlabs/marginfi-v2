@@ -1,5 +1,10 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  Transaction,
+} from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairSol,
@@ -53,7 +58,7 @@ describe("Liquidate user (including staked assets)", () => {
   before(async () => {
     // Refresh oracles to ensure they're up to date
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
-    
+
     [settingsKey] = deriveStakedSettings(
       program.programId,
       marginfiGroup.publicKey
@@ -258,6 +263,31 @@ describe("Liquidate user (including staked assets)", () => {
         (shareValueSol * wsolHighPrice)) *
       10 ** oracles.wsolDecimals;
 
+    let liquidatorAccounts = composeRemainingAccounts([
+      [liabilityBankKey, oracles.wsolOracle.publicKey],
+      [
+        assetBankKey,
+        oracles.wsolOracle.publicKey,
+        validators[0].splMint,
+        validators[0].splSolPool,
+      ],
+    ]);
+    let liquidateeAccounts = composeRemainingAccounts([
+      [
+        assetBankKey,
+        oracles.wsolOracle.publicKey,
+        validators[0].splMint,
+        validators[0].splSolPool,
+      ],
+      [
+        validators[1].bank,
+        oracles.wsolOracle.publicKey,
+        validators[1].splMint,
+        validators[1].splSolPool,
+      ],
+      [liabilityBankKey, oracles.wsolOracle.publicKey],
+    ]);
+
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
@@ -270,34 +300,12 @@ describe("Liquidate user (including staked assets)", () => {
           validators[0].splMint,
           validators[0].splSolPool,
           oracles.wsolOracle.publicKey,
-          // liquidator accounts
-          ...composeRemainingAccounts([
-            [liabilityBankKey, oracles.wsolOracle.publicKey],
-            [
-              assetBankKey,
-              oracles.wsolOracle.publicKey,
-              validators[0].splMint,
-              validators[0].splSolPool,
-            ],
-          ]),
-          // liquidatee accounts
-          ...composeRemainingAccounts([
-            [
-              assetBankKey,
-              oracles.wsolOracle.publicKey,
-              validators[0].splMint,
-              validators[0].splSolPool,
-            ],
-            [
-              validators[1].bank,
-              oracles.wsolOracle.publicKey,
-              validators[1].splMint,
-              validators[1].splSolPool,
-            ],
-            [liabilityBankKey, oracles.wsolOracle.publicKey],
-          ]),
+          ...liquidatorAccounts,
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmountSol_native,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

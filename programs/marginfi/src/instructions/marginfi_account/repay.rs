@@ -14,8 +14,11 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{
-    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+use marginfi_type_crate::{
+    constants::{
+        TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE, ZERO_AMOUNT_THRESHOLD,
+    },
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
 };
 
 /// 1. Accrue interest
@@ -77,27 +80,51 @@ pub fn lending_account_repay<'info>(
     };
     marginfi_account.last_update = clock.unix_timestamp as u64;
 
-    let repay_amount_pre_fee = maybe_bank_mint
-        .as_ref()
-        .map(|mint| {
-            utils::calculate_pre_fee_spl_deposit_amount(
-                mint.to_account_info(),
-                repay_amount_post_fee,
-                clock.epoch,
-            )
-        })
-        .transpose()?
-        .unwrap_or(repay_amount_post_fee);
+    if authority.key() == group.risk_admin
+        && bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+        && repay_all
+    {
+        // In some rare cases (e.g. super illiquid token sunset) we allow risk admin
+        // to "repay" the debt with nothing. Hence we skip the actual transfer here.
 
-    bank.deposit_spl_transfer(
-        repay_amount_pre_fee,
-        signer_token_account.to_account_info(),
-        bank_liquidity_vault.to_account_info(),
-        authority.to_account_info(),
-        maybe_bank_mint.as_ref(),
-        token_program.to_account_info(),
-        ctx.remaining_accounts,
-    )?;
+        // repay_all must be enabled: this enables the risk admin to voluntarily pay when it wants,
+        // but in general, once the risk admin is prepared to use this feature, there's no point in
+        // not repaying the entire balance!
+
+        // Note: Doing this means there will not be enough funds left for lenders to withdraw! This
+        // state is irrecoverable. Lenders will be paid out on a first-come-first-served basis as
+        // they withdraw. Remaining lenders will either absorb the loss - or more likely - be repaid
+        // through some OTC claims portal using assets seized from borrowers
+    } else {
+        let repay_amount_pre_fee = maybe_bank_mint
+            .as_ref()
+            .map(|mint| {
+                utils::calculate_pre_fee_spl_deposit_amount(
+                    mint.to_account_info(),
+                    repay_amount_post_fee,
+                    clock.epoch,
+                )
+            })
+            .transpose()?
+            .unwrap_or(repay_amount_post_fee);
+
+        bank.deposit_spl_transfer(
+            repay_amount_pre_fee,
+            signer_token_account.to_account_info(),
+            bank_liquidity_vault.to_account_info(),
+            authority.to_account_info(),
+            maybe_bank_mint.as_ref(),
+            token_program.to_account_info(),
+            ctx.remaining_accounts,
+        )?;
+    }
+
+    // During deleverage, once the last repayment is complete, and the bank's debts have been fully
+    // discharged, the risk admin becomes empowered to purge the balances of lenders
+    let liabs: I80F48 = bank.total_liability_shares.into();
+    if bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED) && liabs.abs() < ZERO_AMOUNT_THRESHOLD {
+        bank.update_flag(true, TOKENLESS_REPAYMENTS_COMPLETE);
+    }
 
     bank.update_bank_cache(group)?;
 
@@ -138,10 +165,10 @@ pub struct LendingAccountRepay<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Must be marginfi_account's authority, unless in liquidation receivership
+    /// Must be marginfi_account's authority, unless in liquidation/deleverage receivership
     ///
-    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
-    /// long as the invariants checked at the end of liquidation are met.
+    /// Note: during receivership, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of receivership are met.
     pub authority: Signer<'info>,
 
     #[account(

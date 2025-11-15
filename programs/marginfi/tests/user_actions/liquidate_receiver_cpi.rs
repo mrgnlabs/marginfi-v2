@@ -181,7 +181,7 @@ async fn liquidate_start_then_cpi_start_on_different_accounts_exploit() -> anyho
             .process_transaction_with_preflight(tx)
             .await;
         assert!(res.is_err());
-        assert_custom_error!(res.unwrap_err(), MarginfiError::NotAllowedInCPI);
+        assert_custom_error!(res.unwrap_err(), MarginfiError::ForbiddenIx);
     }
 
     // Sanity: receivership flag should not remain set on either account after tx fails.

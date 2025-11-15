@@ -202,6 +202,12 @@ pub enum MarginfiError {
     InvalidMint,
     #[msg("Invalid fee wallet: account constraint violated")] // 6099
     InvalidFeeWallet,
+    #[msg("Fixed oracle price must be zero or greater")] // 6100
+    FixedOraclePriceNegative,
+    #[msg("Daily withdrawal limit exceeded: try again later")] // 6101
+    DailyWithdrawalLimitExceeded,
+    #[msg("Cannot set daily withdrawal limit to zero")] // 6102
+    ZeroWithdrawalLimit,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -358,6 +364,9 @@ impl From<u32> for MarginfiError {
             6097 => MarginfiError::InvalidEmissionsMint,
             6098 => MarginfiError::InvalidMint,
             6099 => MarginfiError::InvalidFeeWallet,
+            6100 => MarginfiError::FixedOraclePriceNegative,
+            6101 => MarginfiError::DailyWithdrawalLimitExceeded,
+            6102 => MarginfiError::ZeroWithdrawalLimit,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

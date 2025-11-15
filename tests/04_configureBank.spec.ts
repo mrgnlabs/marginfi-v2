@@ -32,9 +32,9 @@ import {
   CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
-  InterestRateConfig1_6,
   InterestRateConfigOpt1_6,
   makeRatePoints,
+  TOKENLESS_REPAYMENTS_ALLOWED,
 } from "./utils/types";
 import { deriveBankMetadata } from "./utils/pdas";
 
@@ -73,6 +73,7 @@ describe("Lending pool configure bank", () => {
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
       oracleMaxConfidence: 420000,
+      tokenlessRepaymentsAllowed: true,
     };
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -130,6 +131,11 @@ describe("Lending pool configure bank", () => {
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
     assert.equal(config.oracleMaxAge, 150);
     assert.equal(config.oracleMaxConfidence, 420000);
+    // Note: The CLOSE_ENABLED_FLAG is never unset
+    assertBNEqual(
+      bank.flags,
+      TOKENLESS_REPAYMENTS_ALLOWED + CLOSE_ENABLED_FLAG
+    );
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {

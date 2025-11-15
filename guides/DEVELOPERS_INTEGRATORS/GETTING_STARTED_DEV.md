@@ -70,8 +70,10 @@ This is much slower than the remix test command, but stable on any system.
 ### Customize Your Rust testing experience:
 
 ```
-./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta
+./scripts/test-program-remix.sh -p marginfi -l warn -c mainnet-beta -f mainnet-beta -j 8
 ```
+
+Where the number after j is how many threads you want to use. More threads = more likely to experience random failures for no reason, but it sure is faster!
 
 This will throttle your CPU and may error sporadically as a reminder to buy a better CPU if you try to do anything else (like say, compile another Rust repo) while this is running. It is approximately 10x faster than test-program.sh, so use this one if you value your time and sanity. Feel free to add your flex below:
 
@@ -82,7 +84,12 @@ Benchmarks:
 | Apple M4 Pro | `[  11.038s] 225 tests run: 225 passed, 0 skipped` |
 
 0.1.4
+
 | 9700X | `[  12.203s] 226 tests run: 226 passed, 0 skipped`
+
+0.1.6
+| 9700X (8 threads)  | `[  27.718s] 373 tests run: 373 passed, 0 skipped`
+| 9700X (16 threads) | `[  19.343s] 373 tests run: 373 passed (3 flaky), 0 skipped`
 
 ### To run just one Rust test:
 
@@ -140,6 +147,10 @@ error[E0786]: found invalid metadata files for crate `transfer_hook`
 ```
 
 Just `anchor clean` and rebuild. This is particularly likely to occur when switching between build environments e.g. cargo test --lib then anchor build because the former does not use SBF and the latter does.
+
+### Rust tests fail with `Error: simulation error: BlockhashNotFound, logs: [], units_consumed: 0`
+
+Ensure your machine is not in Low Power battery mode (or in any other mode decreasing performance).
 
 ## Common Footguns
 

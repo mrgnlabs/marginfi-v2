@@ -21,6 +21,8 @@ use test_case::test_case;
 #[test_case(0.0, BankMint::T22WithFee)]
 #[test_case(0.05, BankMint::T22WithFee)]
 #[test_case(15_002.0, BankMint::T22WithFee)]
+#[test_case(0.05, BankMint::Fixed)]
+#[test_case(5_000., BankMint::FixedLow)]
 #[tokio::test]
 async fn marginfi_account_deposit_success(
     deposit_amount: f64,
@@ -120,6 +122,8 @@ async fn marginfi_account_deposit_success(
 #[test_case(1_000., 456., 2345., BankMint::PyUSD)]
 #[test_case(1_000., 456., 2345., BankMint::T22WithFee)]
 #[test_case(1_000., 999.999999, 1000., BankMint::T22WithFee)]
+#[test_case(1_000., 456., 2345., BankMint::Fixed)]
+#[test_case(1_000., 456., 2345., BankMint::FixedLow)]
 #[tokio::test]
 async fn marginfi_account_deposit_failure_capacity_exceeded(
     deposit_cap: f64,

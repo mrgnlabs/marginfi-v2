@@ -89,7 +89,10 @@ pub struct BankConfig {
     /// * A %, as u32, e.g. 100% = u32::MAX, 50% = u32::MAX/2, etc.
     pub oracle_max_confidence: u32,
 
-    pub _padding1: [u8; 32],
+    /// Stored oracle price for `OracleSetup::Fixed`, otherwise does nothing
+    pub fixed_price: WrappedI80F48,
+
+    pub _padding1: [u8; 16],
 }
 
 impl Default for BankConfig {
@@ -114,7 +117,8 @@ impl Default for BankConfig {
             oracle_max_age: 0,
             _padding0: [0; 2],
             oracle_max_confidence: 0,
-            _padding1: [0; 32],
+            fixed_price: I80F48::ZERO.into(),
+            _padding1: [0; 16],
         }
     }
 }
@@ -146,8 +150,8 @@ pub struct BankConfigOpt {
     pub oracle_max_age: Option<u16>,
 
     pub permissionless_bad_debt_settlement: Option<bool>,
-
     pub freeze_settings: Option<bool>,
+    pub tokenless_repayments_allowed: Option<bool>,
 }
 
 #[repr(C)]
@@ -258,7 +262,8 @@ impl From<BankConfigCompact> for BankConfig {
             oracle_max_age: config.oracle_max_age,
             _padding0: [0; 2],
             oracle_max_confidence: config.oracle_max_confidence,
-            _padding1: [0; 32],
+            fixed_price: I80F48::ZERO.into(),
+            _padding1: [0; 16],
         }
     }
 }

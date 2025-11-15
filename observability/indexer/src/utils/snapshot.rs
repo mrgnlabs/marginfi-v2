@@ -216,7 +216,7 @@ impl Snapshot {
                     vec![bank.liquidity_vault, bank.insurance_vault, bank.fee_vault];
 
                 match bank.config.oracle_setup {
-                    OracleSetup::None => (),
+                    OracleSetup::None | OracleSetup::Fixed => (),
                     OracleSetup::PythPushOracle => {
                         let feed_id = bank.config.oracle_keys[0].to_bytes();
                         let (pyth_sponsored_oracle_address, _) =

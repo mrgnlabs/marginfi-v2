@@ -99,6 +99,7 @@ pub mod marginfi {
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
@@ -109,6 +110,7 @@ pub mod marginfi {
             new_limit_admin,
             new_emissions_admin,
             new_metadata_admin,
+            new_risk_admin,
             is_arena_group,
         )
     }
@@ -184,6 +186,14 @@ pub mod marginfi {
         oracle: Pubkey,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
+    }
+
+    /// (admin only)
+    pub fn lending_pool_set_fixed_oracle_price(
+        ctx: Context<LendingPoolSetFixedOraclePrice>,
+        price: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
     }
 
     /// (emode_admin only)
@@ -311,8 +321,15 @@ pub mod marginfi {
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
+        liquidatee_accounts: u8,
+        liquidator_accounts: u8,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(
+            ctx,
+            asset_amount,
+            liquidatee_accounts,
+            liquidator_accounts,
+        )
     }
 
     pub fn lending_account_start_flashloan(
@@ -419,16 +436,6 @@ pub mod marginfi {
         marginfi_account::lending_account_pulse_health(ctx)
     }
 
-    /// (Permissionless) Sorts the lending account balances in descending order and removes the "gaps"
-    /// (i.e. inactive balances in between the active ones), if any.
-    /// This is necessary to ensure any legacy marginfi accounts are compliant with the
-    /// "gapless and sorted" requirements we now have.
-    pub fn lending_account_sort_balances<'info>(
-        ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_sort_balances(ctx)
-    }
-
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(
@@ -525,6 +532,18 @@ pub mod marginfi {
         marginfi_account::end_liquidation(ctx)
     }
 
+    pub fn start_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_deleverage(ctx)
+    }
+
+    pub fn end_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_deleverage(ctx)
+    }
+
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
         marginfi_group::panic_pause(ctx)
     }
@@ -557,6 +576,23 @@ pub mod marginfi {
         description: Option<Vec<u8>>,
     ) -> MarginfiResult {
         marginfi_group::write_bank_metadata(ctx, ticker, description)
+    /// (group admin only) Set the daily withdrawal limit for deleverages per group.
+    pub fn configure_deleverage_withdrawal_limit(
+        ctx: Context<ConfigureDeleverageWithdrawalLimit>,
+        limit: u32,
+    ) -> MarginfiResult {
+        marginfi_group::configure_deleverage_withdrawal_limit(ctx, limit)
+    }
+
+    // TODO deprecate and incorporate this functionality into forced-withdraw in 1.7+
+    /// (risk admin only) Purge a user's lending balance without withdrawing anything. Only usable
+    /// after all the debt has been settled on a bank in deleveraging mode, e.g. when
+    /// `TOKENLESS_REPAYMENTS_ALLOWED` and `TOKENLESS_REPAYMENTS_COMPLETE`. used to purge remaining
+    /// lending assets in a now-worthless bank before it is fully sunset.
+    pub fn purge_deleverage_balance(
+        ctx: Context<LendingAccountPurgeDelevBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_purge_delev_balance(ctx)
     }
 
     /****** Kamino integration instructions *****/

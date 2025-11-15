@@ -1,9 +1,8 @@
-use anchor_lang::error::ErrorCode;
 use anchor_spl::token_2022::spl_token_2022::extension::{
     transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
 };
 use fixtures::{
-    assert_anchor_error, assert_custom_error,
+    assert_custom_error,
     spl::TokenAccountFixture,
     test::{BankMint, TestFixture, TestSettings},
 };

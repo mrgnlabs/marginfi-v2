@@ -187,6 +187,8 @@ describe("Liquidation with gaps in accounts", () => {
           ]),
         ],
         amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
+        liquidateeAccounts: 6,
+        liquidatorAccounts: 8,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
