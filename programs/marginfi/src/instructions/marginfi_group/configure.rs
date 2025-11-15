@@ -17,6 +17,7 @@ pub fn configure(
     new_curve_admin: Pubkey,
     new_limit_admin: Pubkey,
     new_emissions_admin: Pubkey,
+    new_risk_admin: Pubkey,
     is_arena_group: bool,
 ) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
@@ -26,10 +27,16 @@ pub fn configure(
     marginfi_group.update_curve_admin(new_curve_admin);
     marginfi_group.update_limit_admin(new_limit_admin);
     marginfi_group.update_emissions_admin(new_emissions_admin);
+    marginfi_group.update_risk_admin(new_risk_admin);
     marginfi_group.set_arena_group(is_arena_group)?;
 
-    let clock = Clock::get()?;
-    marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
+    // The fuzzer should ignore this because the "Clock" mock sysvar doesn't load until after the
+    // group is init. Eventually we might fix the fuzzer to load the clock first...
+    #[cfg(not(feature = "client"))]
+    {
+        let clock = Clock::get()?;
+        marginfi_group.fee_state_cache.last_update = clock.unix_timestamp;
+    }
 
     msg!("flags set to: {:?}", marginfi_group.group_flags);
 

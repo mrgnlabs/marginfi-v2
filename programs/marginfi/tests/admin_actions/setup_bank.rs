@@ -11,7 +11,10 @@ use marginfi::{
     },
 };
 use marginfi_type_crate::{
-    constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    constants::{
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        TOKENLESS_REPAYMENTS_ALLOWED,
+    },
     types::{
         make_points, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
         MarginfiGroup, OracleSetup, RatePoint, EMODE_ON, INTEREST_CURVE_SEVEN_POINT,
@@ -507,6 +510,7 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         oracle_max_confidence,
         permissionless_bad_debt_settlement,
         freeze_settings,
+        tokenless_repayments_allowed,
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {
@@ -565,6 +569,15 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             // If None check flag is unchanged
             .unwrap_or(bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS)));
 
+        assert!(tokenless_repayments_allowed
+            // If Some(...) check flag set properly
+            .map(|set| set == bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED))
+            // If None check flag is unchanged
+            .unwrap_or(
+                bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+                    == old_bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+            ));
+
         // Oracles no longer update in the standard config instruction
         assert_eq!(
             bank.config.oracle_keys, old_bank.config.oracle_keys,
@@ -592,6 +605,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.risk_admin,
             true,
         )
         .await;
@@ -648,6 +662,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.risk_admin,
             false,
         )
         .await;
@@ -700,6 +715,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.risk_admin,
             true,
         )
         .await;
@@ -719,6 +735,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     let new_curve_admin = Pubkey::new_unique();
     let new_limit_admin = Pubkey::new_unique();
     let new_emissions_admin = Pubkey::new_unique();
+    let new_risk_admin = Pubkey::new_unique();
 
     let res = test_f
         .marginfi_group
@@ -728,6 +745,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_risk_admin,
             false,
         )
         .await;
@@ -739,6 +757,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
     assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
     assert_eq!(group_after.delegate_emissions_admin, new_emissions_admin);
+    assert_eq!(group_after.risk_admin, new_risk_admin);
     Ok(())
 }
 
@@ -997,6 +1016,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
             Pubkey::new_unique(),
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.risk_admin,
             false,
         )
         .await?;
@@ -1062,6 +1082,7 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             Pubkey::new_unique(),
             group_before.delegate_emissions_admin,
+            group_before.risk_admin,
             false,
         )
         .await?;

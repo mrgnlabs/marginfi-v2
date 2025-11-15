@@ -98,6 +98,7 @@ pub mod marginfi {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
@@ -107,6 +108,7 @@ pub mod marginfi {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_risk_admin,
             is_arena_group,
         )
     }
@@ -528,6 +530,18 @@ pub mod marginfi {
         marginfi_account::end_liquidation(ctx)
     }
 
+    pub fn start_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_deleverage(ctx)
+    }
+
+    pub fn end_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_deleverage(ctx)
+    }
+
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
         marginfi_group::panic_pause(ctx)
     }
@@ -548,6 +562,25 @@ pub mod marginfi {
     /// on how interest accrues.
     pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
         marginfi_group::migrate_curve(ctx)
+    }
+
+    /// (group admin only) Set the daily withdrawal limit for deleverages per group.
+    pub fn configure_deleverage_withdrawal_limit(
+        ctx: Context<ConfigureDeleverageWithdrawalLimit>,
+        limit: u32,
+    ) -> MarginfiResult {
+        marginfi_group::configure_deleverage_withdrawal_limit(ctx, limit)
+    }
+
+    // TODO deprecate and incorporate this functionality into forced-withdraw in 1.7+
+    /// (risk admin only) Purge a user's lending balance without withdrawing anything. Only usable
+    /// after all the debt has been settled on a bank in deleveraging mode, e.g. when
+    /// `TOKENLESS_REPAYMENTS_ALLOWED` and `TOKENLESS_REPAYMENTS_COMPLETE`. used to purge remaining
+    /// lending assets in a now-worthless bank before it is fully sunset.
+    pub fn purge_deleverage_balance(
+        ctx: Context<LendingAccountPurgeDelevBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_purge_delev_balance(ctx)
     }
 
     /****** Kamino integration instructions *****/
