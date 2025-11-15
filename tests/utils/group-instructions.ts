@@ -939,7 +939,7 @@ export const writeBankMetadata = (
       // bank: args.bank, // implied from metadata
       // metadataAdmin: args.metadataAdmin, // implied from metadata
       metadata: args.metadata,
-          })
+    })
     .instruction();
 
   return ix;

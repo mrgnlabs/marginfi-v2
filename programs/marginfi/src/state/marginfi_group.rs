@@ -108,7 +108,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
                 new_meta_admin
             );
             self.metadata_admin = new_meta_admin;
-       }
+        }
     }
     fn update_risk_admin(&mut self, new_risk_admin: Pubkey) {
         if self.risk_admin == new_risk_admin {

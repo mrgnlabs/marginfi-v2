@@ -26,8 +26,8 @@ mod panic_unpause;
 mod panic_unpause_permissionless;
 mod propagate_fee_state;
 mod propagate_staked_settings;
-mod write_bank_metadata;
 mod set_fixed_oracle_price;
+mod write_bank_metadata;
 
 pub use accrue_bank_interest::*;
 pub use add_pool::*;
@@ -57,5 +57,5 @@ pub use panic_unpause::*;
 pub use panic_unpause_permissionless::*;
 pub use propagate_fee_state::*;
 pub use propagate_staked_settings::*;
-pub use write_bank_metadata::*;
 pub use set_fixed_oracle_price::*;
+pub use write_bank_metadata::*;
