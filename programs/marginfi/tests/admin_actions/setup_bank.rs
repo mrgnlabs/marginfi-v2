@@ -605,6 +605,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
             group_before.risk_admin,
             true,
         )
@@ -662,6 +663,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
             group_before.risk_admin,
             false,
         )
@@ -715,6 +717,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
             group_before.risk_admin,
             true,
         )
@@ -735,6 +738,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     let new_curve_admin = Pubkey::new_unique();
     let new_limit_admin = Pubkey::new_unique();
     let new_emissions_admin = Pubkey::new_unique();
+    let new_metadata_admin = Pubkey::new_unique();
     let new_risk_admin = Pubkey::new_unique();
 
     let res = test_f
@@ -745,6 +749,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             new_risk_admin,
             false,
         )
@@ -757,6 +762,7 @@ async fn config_group_admins() -> anyhow::Result<()> {
     assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
     assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
     assert_eq!(group_after.delegate_emissions_admin, new_emissions_admin);
+    assert_eq!(group_after.metadata_admin, new_metadata_admin);
     assert_eq!(group_after.risk_admin, new_risk_admin);
     Ok(())
 }
@@ -1016,6 +1022,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
             Pubkey::new_unique(),
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
             group_before.risk_admin,
             false,
         )
@@ -1082,6 +1089,7 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             Pubkey::new_unique(),
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
             group_before.risk_admin,
             false,
         )

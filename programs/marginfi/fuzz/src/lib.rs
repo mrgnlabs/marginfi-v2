@@ -1077,6 +1077,7 @@ fn initialize_marginfi_group<'a>(
         admin.key(), // curve_admin
         admin.key(), // limit_admin
         admin.key(), // emissions_admin
+        admin.key(), // metadata_admin
         admin.key(), // risk_admin
         false,       // is_arena_group
     )

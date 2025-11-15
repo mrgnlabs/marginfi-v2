@@ -490,6 +490,7 @@ async fn deleverage_not_risk_admin() -> anyhow::Result<()> {
             group.delegate_limit_admin,
             group.delegate_emissions_admin,
             Pubkey::new_unique(),
+            Pubkey::new_unique(),
             false,
         )
         .await;

@@ -13,6 +13,7 @@ pub trait MarginfiGroupImpl {
     fn update_curve_admin(&mut self, new_curve_admin: Pubkey);
     fn update_limit_admin(&mut self, new_limit_admin: Pubkey);
     fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey);
+    fn update_metadata_admin(&mut self, new_metadata_admin: Pubkey);
     fn update_risk_admin(&mut self, new_risk_admin: Pubkey);
     fn set_initial_configuration(&mut self, admin_pk: Pubkey);
     fn get_group_bank_config(&self) -> GroupBankConfig;
@@ -96,6 +97,19 @@ impl MarginfiGroupImpl for MarginfiGroup {
         }
     }
 
+    fn update_metadata_admin(&mut self, new_meta_admin: Pubkey) {
+        if self.metadata_admin == new_meta_admin {
+            msg!("No change to meta admin: {:?}", new_meta_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set meta admin from {:?} to {:?}",
+                self.metadata_admin,
+                new_meta_admin
+            );
+            self.metadata_admin = new_meta_admin;
+        }
+    }
     fn update_risk_admin(&mut self, new_risk_admin: Pubkey) {
         if self.risk_admin == new_risk_admin {
             msg!("No change to risk admin: {:?}", new_risk_admin);

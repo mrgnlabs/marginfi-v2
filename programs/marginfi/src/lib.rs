@@ -98,6 +98,7 @@ pub mod marginfi {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
@@ -108,6 +109,7 @@ pub mod marginfi {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             new_risk_admin,
             is_arena_group,
         )
@@ -562,6 +564,21 @@ pub mod marginfi {
     /// on how interest accrues.
     pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
         marginfi_group::migrate_curve(ctx)
+    }
+
+    /// (permissionless) pay the rent to open a bank's metadata.
+    pub fn init_bank_metadata(ctx: Context<InitBankMetadata>) -> MarginfiResult {
+        marginfi_group::init_bank_metadata(ctx)
+    }
+
+    /// (metadata admin only) Write ticker/descrption information for a bank on-chain. Optional, not
+    /// all Banks are guranteed to have metadata.
+    pub fn write_bank_metadata(
+        ctx: Context<WriteBankMetadata>,
+        ticker: Option<Vec<u8>>,
+        description: Option<Vec<u8>>,
+    ) -> MarginfiResult {
+        marginfi_group::write_bank_metadata(ctx, ticker, description)
     }
 
     /// (group admin only) Set the daily withdrawal limit for deleverages per group.

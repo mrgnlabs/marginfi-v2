@@ -96,6 +96,7 @@ pub enum GroupCommand {
         #[clap(long)]
         new_emissions_admin: Pubkey,
         #[clap(long)]
+        new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         #[clap(long)]
         is_arena_group: bool,
@@ -664,6 +665,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             new_risk_admin,
             is_arena_group,
         } => processor::group_configure(
@@ -674,6 +676,7 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
             new_risk_admin,
             is_arena_group,
         ),

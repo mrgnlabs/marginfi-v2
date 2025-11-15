@@ -39,9 +39,9 @@ import {
   estimateCollateralFromDeposit,
   getLiquidityExchangeRate,
 } from "./utils/kamino-utils";
-import { 
-  makeKaminoWithdrawIx, 
-  makeKaminoDepositIx 
+import {
+  makeKaminoWithdrawIx,
+  makeKaminoDepositIx,
 } from "./utils/kamino-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { processBankrunTransaction } from "./utils/tools";
@@ -61,7 +61,6 @@ const SCALE_1E9 = new BN(10).pow(new BN(9)); // scale exchangeRate to 1e9 like s
 const CONF_BPS = new BN(212); // 2.12% of RAW oracle price, matching d13/sl09
 const BPS_DEN = new BN(10_000);
 const PRECISION_DECIMALS = 9; // Use 9 decimals as baseline for precision
-
 
 /**
  * Lower-biased price (PriceBias::Low), matching d13/sl09:
@@ -307,6 +306,7 @@ describe("k16: Kamino Conversion Validation", () => {
     user1InitialCTokens = new BN(
       wrappedI80F48toBigNumber(balance1.assetShares).toString()
     );
+    // ??? This sometimes fails due to clock issues
     assertBNApproximately(
       user1InitialCTokens,
       expectedTokenACTokens,
@@ -319,7 +319,8 @@ describe("k16: Kamino Conversion Validation", () => {
     const tokenAReserveBefore = await fetchReserve(tokenAReserve);
 
     const usdcExchangeRateBefore = getLiquidityExchangeRate(usdcReserveBefore);
-    const tokenAExchangeRateBefore = getLiquidityExchangeRate(tokenAReserveBefore);
+    const tokenAExchangeRateBefore =
+      getLiquidityExchangeRate(tokenAReserveBefore);
 
     const currentClock = await banksClient.getClock();
     const currentSlot = Number(currentClock.slot);
@@ -380,7 +381,8 @@ describe("k16: Kamino Conversion Validation", () => {
     const tokenAReserveAfter = await fetchReserve(tokenAReserve);
 
     const usdcExchangeRateAfter = getLiquidityExchangeRate(usdcReserveAfter);
-    const tokenAExchangeRateAfter = getLiquidityExchangeRate(tokenAReserveAfter);
+    const tokenAExchangeRateAfter =
+      getLiquidityExchangeRate(tokenAReserveAfter);
 
     assert.ok(
       usdcExchangeRateAfter.gt(usdcExchangeRateBefore),
