@@ -164,8 +164,8 @@ pub enum MarginfiError {
     AccountAlreadyMigrated,
     #[msg("Protocol is paused")] // 6080
     ProtocolPaused,
-    #[msg("Reserved for future use")] // 6081
-    Placeholder81,
+    #[msg("Metadata is too long")] // 6081
+    MetadataTooLong,
     #[msg("Pause limit exceeded")] // 6082
     PauseLimitExceeded,
     #[msg("Protocol is not paused")] // 6083
@@ -204,6 +204,10 @@ pub enum MarginfiError {
     InvalidFeeWallet,
     #[msg("Fixed oracle price must be zero or greater")] // 6100
     FixedOraclePriceNegative,
+    #[msg("Daily withdrawal limit exceeded: try again later")] // 6101
+    DailyWithdrawalLimitExceeded,
+    #[msg("Cannot set daily withdrawal limit to zero")] // 6102
+    ZeroWithdrawalLimit,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -341,7 +345,7 @@ impl From<u32> for MarginfiError {
             6078 => MarginfiError::BankCannotClose,
             6079 => MarginfiError::AccountAlreadyMigrated,
             6080 => MarginfiError::ProtocolPaused,
-            6081 => MarginfiError::Placeholder81,
+            6081 => MarginfiError::MetadataTooLong,
             6082 => MarginfiError::PauseLimitExceeded,
             6083 => MarginfiError::ProtocolNotPaused,
             6084 => MarginfiError::BankKilledByBankruptcy,
@@ -361,6 +365,8 @@ impl From<u32> for MarginfiError {
             6098 => MarginfiError::InvalidMint,
             6099 => MarginfiError::InvalidFeeWallet,
             6100 => MarginfiError::FixedOraclePriceNegative,
+            6101 => MarginfiError::DailyWithdrawalLimitExceeded,
+            6102 => MarginfiError::ZeroWithdrawalLimit,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

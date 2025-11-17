@@ -34,7 +34,7 @@ use marginfi_type_crate::{
         CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
     },
     types::{
         Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
@@ -391,6 +391,14 @@ impl BankImpl for Bank {
                 config.freeze_settings.unwrap()
             );
             self.update_flag(flag, FREEZE_SETTINGS);
+        }
+
+        if let Some(flag) = config.tokenless_repayments_allowed {
+            msg!(
+                "setting tokenless repayments allowed: {:?}",
+                config.tokenless_repayments_allowed.unwrap()
+            );
+            self.update_flag(flag, TOKENLESS_REPAYMENTS_ALLOWED);
         }
 
         self.config.validate()?;

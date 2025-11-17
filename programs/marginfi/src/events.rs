@@ -194,3 +194,11 @@ pub struct LiquidationReceiverEvent {
     pub liquidatee_liability_repaid: f64,
     pub lamps_fee_paid: u32,
 }
+
+#[event]
+pub struct DeleverageEvent {
+    pub marginfi_account: Pubkey,
+    pub risk_admin: Pubkey,
+    pub deleveragee_assets_seized: f64,
+    pub deleveragee_liability_repaid: f64,
+}

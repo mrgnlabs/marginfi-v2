@@ -5,7 +5,7 @@ use anchor_lang::{
 };
 
 use crate::constants::COMPUTE_PROGRAM_KEY;
-use crate::{check, MarginfiError, MarginfiResult};
+use crate::{check, check_eq, MarginfiError, MarginfiResult};
 
 /// Structs that implement this trait have a `get_hash` tool that returns the function discriminator
 pub trait Hashable {
@@ -53,7 +53,7 @@ pub fn validate_ix_first(
         }
         let discrim = &instruction.data[0..8];
 
-        // If this is the first non-compute ix, it is either the setup ix, or we fail
+        // If this is the first non-allowed ix, it is either the start ix, or we fail
         if !expected_ix_encountered {
             if instruction.program_id == *program_id && discrim == expected_hash {
                 expected_ix_encountered = true;
@@ -68,7 +68,7 @@ pub fn validate_ix_first(
                     instruction.program_id,
                     instruction.data,
                 );
-                msg!("Start IX was not the first ix (other than compute).");
+                msg!("Start IX was not the first ix (other than allowed).");
                 return err!(MarginfiError::StartNotFirst);
             }
         } else {
@@ -103,9 +103,8 @@ pub fn validate_ix_last(
     }
     let discrim = &last_ix.data[0..8];
 
-    if !last_ix.program_id.eq(program_id) || discrim != expected_hash {
-        return err!(MarginfiError::EndNotLast);
-    }
+    check!(last_ix.program_id.eq(program_id), MarginfiError::EndNotLast);
+    check_eq!(discrim, expected_hash, MarginfiError::EndNotLast);
     Ok(())
 }
 
@@ -129,6 +128,7 @@ pub fn validate_ixes_exclusive(
         // If none of the allowed hashes match, reject
         let is_allowed = expected_hashes.iter().any(|&h| h == discrim);
         if !is_allowed {
+            msg!("Forbidden ix discrim: {:?}", discrim);
             return err!(MarginfiError::ForbiddenIx);
         }
     }
@@ -167,6 +167,7 @@ pub fn validate_program_allowed(
 ) -> MarginfiResult<()> {
     let id = &instruction.program_id;
     if !allowed_keys.iter().any(|key| key.eq(id)) {
+        msg!("Forbidden ix program: {:?}", id);
         return err!(MarginfiError::ForbiddenIx);
     }
     Ok(())
@@ -210,9 +211,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        EndLiquidation, InitLiquidationRecord, LendingAccountEndFlashloan, LendingAccountRepay,
-        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
-        LendingAccountWithdrawEmissions, StartLiquidation,
+        EndDeleverage, EndLiquidation, InitLiquidationRecord, LendingAccountEndFlashloan,
+        LendingAccountRepay, LendingAccountSettleEmissions, LendingAccountStartFlashloan,
+        LendingAccountWithdraw, LendingAccountWithdrawEmissions, StartDeleverage, StartLiquidation,
     };
 
     use super::*;
@@ -296,5 +297,15 @@ mod tests {
         let got_flash = LendingAccountEndFlashloan::get_hash();
         let want_flash = ix_discriminators::END_FLASHLOAN;
         assert_eq!(got_flash, want_flash);
+
+        // ─── StartDeleverage ────────────────────────────────────────────────────
+        let got_start = StartDeleverage::get_hash();
+        let want_start = ix_discriminators::START_DELEVERAGE;
+        assert_eq!(got_start, want_start);
+
+        // ─── EndDeleverage ──────────────────────────────────────────────────────
+        let got_end = EndDeleverage::get_hash();
+        let want_end = ix_discriminators::END_DELEVERAGE;
+        assert_eq!(got_end, want_end);
     }
 }

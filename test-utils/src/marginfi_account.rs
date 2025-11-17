@@ -1002,4 +1002,55 @@ impl MarginfiAccountFixture {
             data: kamino::args::RefreshObligation {}.data(),
         }
     }
+
+    pub async fn make_start_deleverage_ix(
+        &self,
+        liquidation_record: Pubkey,
+        risk_admin: Pubkey,
+    ) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::StartDeleverage {
+                marginfi_account: self.key,
+                liquidation_record,
+                group: marginfi_account.group,
+                risk_admin,
+                instruction_sysvar: sysvar::instructions::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::StartDeleverage {}.data(),
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
+    }
+
+    pub async fn make_end_deleverage_ix(
+        &self,
+        liquidation_record: Pubkey,
+        risk_admin: Pubkey,
+        exclude_banks: Vec<Pubkey>,
+    ) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::EndDeleverage {
+                marginfi_account: self.key,
+                liquidation_record,
+                group: marginfi_account.group,
+                risk_admin,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::EndDeleverage {}.data(),
+        };
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![], exclude_banks)
+                .await,
+        );
+        ix
+    }
 }

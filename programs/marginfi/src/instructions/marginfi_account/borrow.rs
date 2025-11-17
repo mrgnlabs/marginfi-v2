@@ -21,7 +21,7 @@ use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, TOKENLESS_REPAYMENTS_ALLOWED},
     types::{
         Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
         ACCOUNT_IN_RECEIVERSHIP,
@@ -226,7 +226,10 @@ pub struct LendingAccountBorrow<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
-            @ MarginfiError::WrongAssetTagForStandardInstructions
+            @ MarginfiError::WrongAssetTagForStandardInstructions,
+        // Prevents footgun where admin forgot to put a deleveraging bank into reduce-only mode
+        constraint = !bank.load()?.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+            @MarginfiError::ForbiddenIx
     )]
     pub bank: AccountLoader<'info, Bank>,
 
