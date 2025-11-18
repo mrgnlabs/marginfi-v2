@@ -195,6 +195,8 @@ impl MinimalReserve {
 
     /// Convert collateral tokens to equivalent liquidity tokens
     /// * Returns liquidity tokens (uses `mint_decimals`)
+    /// * Uses floor rounding to match Kamino's actual CPI behavior
+    /// * Note: Less precise than Kamino's U256 math, so allow ±2 tolerance when validating
     pub fn collateral_to_liquidity(&self, collateral: u64) -> Result<u64> {
         let (total_liq, total_col) = self.scaled_supplies()?;
 
@@ -204,6 +206,7 @@ impl MinimalReserve {
             .checked_div(total_col)
             .ok_or_else(math_error!())?;
 
+        // Floor rounding (truncation) matches Kamino's mul-div pattern
         liquidity
             .checked_to_num::<u64>()
             .ok_or(KaminoMocksError::MathError.into())
@@ -211,6 +214,8 @@ impl MinimalReserve {
 
     /// Convert liquidity tokens to equivalent value in collateral token.
     /// * Returns collateral equivalent (in `mint_decimals`)
+    /// * Uses floor rounding to match Kamino's actual CPI behavior
+    /// * Note: Less precise than Kamino's U256 math, so allow ±2 tolerance when validating
     pub fn liquidity_to_collateral(&self, liquidity: u64) -> Result<u64> {
         let (total_liq, total_col) = self.scaled_supplies()?;
 
@@ -220,6 +225,7 @@ impl MinimalReserve {
             .checked_div(total_liq)
             .ok_or_else(math_error!())?;
 
+        // Floor rounding (truncation) matches Kamino's mul-div pattern
         collateral
             .checked_to_num::<u64>()
             .ok_or(KaminoMocksError::MathError.into())
