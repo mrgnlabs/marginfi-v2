@@ -248,8 +248,9 @@ describe("k16: Kamino Conversion Validation", () => {
       wrappedI80F48toBigNumber(balance0.assetShares).toString()
     );
 
-    // Use a more reasonable tolerance for USDC deposits due to rounding in exchange rate calculations
-    assertBNApproximately(user0InitialCTokens, expectedUsdcCTokens, new BN(1000000));
+    // Allow ±2 tolerance for precision differences between I80F48 mock math and Kamino's U256 math
+    // This accounts for legitimate precision differences, not security issues
+    assertBNApproximately(user0InitialCTokens, expectedUsdcCTokens, new BN(2));
 
     user1DepositAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
 
@@ -308,11 +309,12 @@ describe("k16: Kamino Conversion Validation", () => {
     user1InitialCTokens = new BN(
       wrappedI80F48toBigNumber(balance1.assetShares).toString()
     );
-    // Use a more reasonable tolerance for TokenA deposits due to rounding in exchange rate calculations
+    // Allow ±2 tolerance for precision differences between I80F48 mock math and Kamino's U256 math
+    // This accounts for legitimate precision differences, not security issues
     assertBNApproximately(
       user1InitialCTokens,
       expectedTokenACTokens,
-      new BN(1000000)
+      new BN(2)
     );
   });
 
