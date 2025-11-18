@@ -316,6 +316,34 @@ async fn marginfi_group_bank_reduce_only_worthless_for_new_loans() -> anyhow::Re
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::RiskEngineInitRejected);
 
+    borrower_mfi_account
+        .try_lending_account_pulse_health()
+        .await?;
+
+    let borrower_account_data = test_f
+        .load_and_deserialize::<marginfi_type_crate::types::MarginfiAccount>(
+            &borrower_mfi_account.key,
+        )
+        .await;
+
+    // Check that health_cache shows the account is healthy
+    assert!(
+        borrower_account_data.health_cache.is_healthy(),
+        "Account should be healthy (HEALTHY flag set) even though new borrows are rejected"
+    );
+
+    // Verify that assetValueMaint > liabilityValueMaint (no liabilities yet)
+    let asset_value_maint = I80F48::from(borrower_account_data.health_cache.asset_value_maint);
+    let liability_value_maint =
+        I80F48::from(borrower_account_data.health_cache.liability_value_maint);
+
+    assert!(
+        asset_value_maint > liability_value_maint,
+        "Asset value (maint) should be greater than liability value (maint). Assets: {}, Liabilities: {}",
+        asset_value_maint,
+        liability_value_maint
+    );
+
     usdc_bank_f
         .update_config(
             BankConfigOpt {

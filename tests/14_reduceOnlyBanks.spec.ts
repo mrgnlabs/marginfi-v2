@@ -1,13 +1,14 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
 import { configureBank } from "./utils/group-instructions";
 import { Keypair, Transaction } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
+import { Marginfi } from "../target/types/marginfi"; 
 import { bankKeypairA, bankKeypairSol, bankKeypairUsdc, ecosystem, groupAdmin, marginfiGroup, oracles, users } from "./rootHooks";
 import { expectFailedTxWithError } from "./utils/genericTests";
 import { assert } from "chai";
-import { defaultBankConfigOptRaw } from "./utils/types";
-import { accountInit, borrowIx, composeRemainingAccounts, depositIx, withdrawIx } from "./utils/user-instructions";
+import { CONF_INTERVAL_MULTIPLE, defaultBankConfigOptRaw, ORACLE_CONF_INTERVAL } from "./utils/types";
+import { accountInit, borrowIx, composeRemainingAccounts, depositIx, healthPulse, withdrawIx } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Reduce-Only Bank Tests", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
@@ -82,8 +83,6 @@ describe("Reduce-Only Bank Tests", () => {
       );
 
 
-      bank = await program.account.bank.fetch(bankKey);
-      assert.deepEqual(bank.config.operationalState, { operational: {} });
     } finally {
       // Ensure cleanup even if test fails
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -126,6 +125,37 @@ describe("Reduce-Only Bank Tests", () => {
         )
       );
 
+      // Health pulse BEFORE configuring bank to ReduceOnly
+      await user.mrgnProgram.provider.sendAndConfirm!(
+        new Transaction().add(
+          await healthPulse(user.mrgnProgram, {
+            marginfiAccount: userAccount,
+            remaining: composeRemainingAccounts([
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            ]),
+          })
+        )
+      );
+
+      const accBefore = await program.account.marginfiAccount.fetch(userAccount);
+      const cacheBefore = accBefore.healthCache;
+      const assetValueBefore = wrappedI80F48toBigNumber(cacheBefore.assetValue);
+      const assetValueMaintBefore = wrappedI80F48toBigNumber(cacheBefore.assetValueMaint);
+
+
+      const confidence = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+      const adjustedAssetPrice = oracles.tokenAPrice * (1.0 - confidence);
+      const bankA = await program.account.bank.fetch(bankKeypairA.publicKey);
+      const assetWeightInit = wrappedI80F48toBigNumber(bankA.config.assetWeightInit).toNumber();
+      const expectedAssetValue = depositAmountTokenA * adjustedAssetPrice * assetWeightInit;
+
+      // Verify assetValue matches expected calculation before ReduceOnly
+      assert.approximately(
+        assetValueBefore.toNumber(),
+        expectedAssetValue,
+        0.01,
+        "Asset value should match expected calculation before ReduceOnly"
+      );
 
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
@@ -139,6 +169,33 @@ describe("Reduce-Only Bank Tests", () => {
             },
           })
         )
+      );
+
+      // Health pulse AFTER configuring bank to ReduceOnly
+      await user.mrgnProgram.provider.sendAndConfirm!(
+        new Transaction().add(
+          await healthPulse(user.mrgnProgram, {
+            marginfiAccount: userAccount,
+            remaining: composeRemainingAccounts([
+              [bankKeypairA.publicKey, oracles.tokenAOracle.publicKey],
+            ]),
+          })
+        )
+      );
+
+      const accAfter = await program.account.marginfiAccount.fetch(userAccount);
+      const cacheAfter = accAfter.healthCache;
+      const assetValueAfter = wrappedI80F48toBigNumber(cacheAfter.assetValue);
+      const assetValueMaintAfter = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
+
+      // Verify assetValue drops to 0 after ReduceOnly
+      assert.equal(assetValueAfter.toNumber(), 0, "Asset value should be 0 after ReduceOnly");
+
+      // Verify assetValueMaint is unchanged
+      assert.equal(
+        assetValueMaintBefore.toNumber(),
+        assetValueMaintAfter.toNumber(),
+        "Asset value (maint) should remain unchanged"
       );
 
 

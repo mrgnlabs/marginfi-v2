@@ -1003,6 +1003,35 @@ impl MarginfiAccountFixture {
         }
     }
 
+    pub async fn try_lending_account_pulse_health(
+        &self,
+    ) -> std::result::Result<(), BanksClientError> {
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::PulseHealth {
+                marginfi_account: self.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountPulseHealth {}.data(),
+        };
+
+        // Add bank and oracle accounts for pulse_health (need to pass banks and oracles for all active balances)
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+
+        let ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+    }
+
     pub async fn make_start_deleverage_ix(
         &self,
         liquidation_record: Pubkey,
