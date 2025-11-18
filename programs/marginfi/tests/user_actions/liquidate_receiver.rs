@@ -70,7 +70,7 @@ async fn liquidate_start_fails_on_healthy_account() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Note: You cannot have any instructions (except compute budget or kamino refreshes) before the start instruction.
+// Note: You cannot have any instructions (except init, compute budget or kamino refreshes) before the start instruction.
 // This means the liquidator must either pre-configure anything they need to complete the tx or finish it
 // all between start and end!
 #[tokio::test]
@@ -211,7 +211,7 @@ async fn liquidate_start_must_be_first() -> anyhow::Result<()> {
             .process_transaction_with_preflight(tx)
             .await;
         assert!(res.is_err());
-        assert_custom_error!(res.unwrap_err(), MarginfiError::StartNotFirst);
+        assert_custom_error!(res.unwrap_err(), MarginfiError::ForbiddenIx);
     } // drop borrow of ctx
 
     // Compute budget ix and genuine Kamino refreshes ARE permitted before start

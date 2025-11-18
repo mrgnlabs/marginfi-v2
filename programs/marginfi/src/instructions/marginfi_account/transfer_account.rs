@@ -60,7 +60,7 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
     old_account.migrated_to = ctx.accounts.new_marginfi_account.key();
     old_account.last_update = current_timestamp;
     old_account.lending_account = LendingAccount::zeroed();
-    old_account.set_flag(ACCOUNT_DISABLED);
+    old_account.set_flag(ACCOUNT_DISABLED, true);
 
     emit!(MarginfiAccountTransferToNewAccount {
         header: AccountEventHeader {
@@ -187,7 +187,7 @@ pub fn transfer_to_new_account_pda(
     old_account.migrated_to = ctx.accounts.new_marginfi_account.key();
 
     old_account.lending_account = LendingAccount::zeroed();
-    old_account.set_flag(ACCOUNT_DISABLED);
+    old_account.set_flag(ACCOUNT_DISABLED, true);
 
     emit!(MarginfiAccountTransferToNewAccount {
         header: AccountEventHeader {

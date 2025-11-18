@@ -272,6 +272,8 @@ pub fn group_configure(
     new_curve_admin: Pubkey,
     new_limit_admin: Pubkey,
     new_emissions_admin: Pubkey,
+    new_metadata_admin: Pubkey,
+    new_risk_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -297,6 +299,8 @@ pub fn group_configure(
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
             is_arena_group,
         })
         .instructions()?;

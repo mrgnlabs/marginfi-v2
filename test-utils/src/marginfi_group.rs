@@ -8,10 +8,14 @@ use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Result;
 use bytemuck::bytes_of;
 use fixed::types::I80F48;
-use marginfi::constants::{
-    INIT_BANK_ORIGINATION_FEE_DEFAULT, LIQUIDATION_BONUS_FEE_MINIMUM, LIQUIDATION_FLAT_FEE_DEFAULT,
+use marginfi::{
+    constants::{
+        INIT_BANK_ORIGINATION_FEE_DEFAULT, LIQUIDATION_BONUS_FEE_MINIMUM,
+        LIQUIDATION_FLAT_FEE_DEFAULT,
+    },
+    instruction::*,
+    state::bank::BankVaultType,
 };
-use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::constants::{
     FEE_STATE_SEED, PROTOCOL_FEE_FIXED_DEFAULT, PROTOCOL_FEE_RATE_DEFAULT,
 };
@@ -63,7 +67,7 @@ impl MarginfiGroupFixture {
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::MarginfiGroupInitialize {
+                data: MarginfiGroupInitialize {
                     is_arena_group: false,
                 }
                 .data(),
@@ -76,7 +80,7 @@ impl MarginfiGroupFixture {
                     admin,
                 }
                 .to_account_metas(Some(true)),
-                data: marginfi::instruction::MarginfiGroupConfigure {
+                data: MarginfiGroupConfigure {
                     // Payer is all admins in most test cases for simplicity, generally this is not
                     // true in production - the MS is the main admin and others are lower-impact
                     // wallets with a smaller threshold.
@@ -85,6 +89,8 @@ impl MarginfiGroupFixture {
                     new_curve_admin: admin,
                     new_limit_admin: admin,
                     new_emissions_admin: admin,
+                    new_metadata_admin: admin,
+                    new_risk_admin: admin,
                     is_arena_group: false,
                 }
                 .data(),
@@ -126,7 +132,7 @@ impl MarginfiGroupFixture {
                         system_program: system_program::id(),
                     }
                     .to_account_metas(Some(true)),
-                    data: marginfi::instruction::InitGlobalFeeState {
+                    data: InitGlobalFeeState {
                         admin: ctx.payer.pubkey(),
                         fee_wallet: fee_wallet.pubkey(),
                         bank_init_flat_sol_fee: INIT_BANK_ORIGINATION_FEE_DEFAULT,
@@ -203,7 +209,7 @@ impl MarginfiGroupFixture {
         let init_ix = Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolAddBank {
+            data: LendingPoolAddBank {
                 bank_config: config_compact,
             }
             .data(),
@@ -310,7 +316,7 @@ impl MarginfiGroupFixture {
         let init_ix = Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolAddBankWithSeed {
+            data: LendingPoolAddBankWithSeed {
                 bank_config: config_compact,
                 bank_seed,
             }
@@ -366,7 +372,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBank { bank_config_opt }.data(),
+            data: LendingPoolConfigureBank { bank_config_opt }.data(),
         }
     }
 
@@ -392,7 +398,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBankOracle { setup, oracle }.data(),
+            data: LendingPoolConfigureBankOracle { setup, oracle }.data(),
         }
     }
 
@@ -411,7 +417,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolSetFixedOraclePrice { price }.data(),
+            data: LendingPoolSetFixedOraclePrice { price }.data(),
         }
     }
 
@@ -452,7 +458,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBankInterestOnly {
+            data: LendingPoolConfigureBankInterestOnly {
                 interest_rate_config,
             }
             .data(),
@@ -498,7 +504,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBankLimitsOnly {
+            data: LendingPoolConfigureBankLimitsOnly {
                 deposit_limit,
                 borrow_limit,
                 total_asset_value_init_limit,
@@ -575,8 +581,7 @@ impl MarginfiGroupFixture {
         Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolConfigureBankEmode { emode_tag, entries }
-                .data(),
+            data: LendingPoolConfigureBankEmode { emode_tag, entries }.data(),
         }
     }
 
@@ -614,7 +619,7 @@ impl MarginfiGroupFixture {
                 bank: bank.key,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingPoolAccrueBankInterest {}.data(),
+            data: LendingPoolAccrueBankInterest {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -636,6 +641,8 @@ impl MarginfiGroupFixture {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
@@ -645,15 +652,47 @@ impl MarginfiGroupFixture {
                 admin: self.ctx.borrow().payer.pubkey(),
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::MarginfiGroupConfigure {
+            data: MarginfiGroupConfigure {
                 new_admin,
                 new_emode_admin,
                 new_curve_admin,
                 new_limit_admin,
                 new_emissions_admin,
+                new_metadata_admin,
+                new_risk_admin,
                 is_arena_group,
             }
             .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.ctx.borrow().payer.pubkey().clone()),
+            &[&self.ctx.borrow().payer],
+            self.ctx.borrow().last_blockhash,
+        );
+
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction(tx)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn try_update_deleverage_withdrawal_limit(
+        &self,
+        limit: u32,
+    ) -> Result<(), BanksClientError> {
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::ConfigureDeleverageWithdrawalLimit {
+                marginfi_group: self.key,
+                admin: self.ctx.borrow().payer.pubkey(),
+            }
+            .to_account_metas(Some(true)),
+            data: ConfigureDeleverageWithdrawalLimit { limit }.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -700,7 +739,7 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolCollectBankFees {}.data(),
+            data: LendingPoolCollectBankFees {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -756,7 +795,7 @@ impl MarginfiGroupFixture {
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts,
-            data: marginfi::instruction::LendingPoolHandleBankruptcy {}.data(),
+            data: LendingPoolHandleBankruptcy {}.data(),
         };
 
         let nonce_ix = ComputeBudgetInstruction::set_compute_unit_price(nonce);
@@ -806,7 +845,7 @@ impl MarginfiGroupFixture {
                 fee_state: self.fee_state,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::PanicPause {}.data(),
+            data: PanicPause {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -831,7 +870,7 @@ impl MarginfiGroupFixture {
                 fee_state: self.fee_state,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::PanicUnpause {}.data(),
+            data: PanicUnpause {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(
@@ -856,7 +895,7 @@ impl MarginfiGroupFixture {
                 marginfi_group: self.key,
             }
             .to_account_metas(Some(true)),
-            data: marginfi::instruction::PropagateFeeState {}.data(),
+            data: PropagateFeeState {}.data(),
         };
 
         let tx = Transaction::new_signed_with_payer(

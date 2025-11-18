@@ -1058,6 +1058,31 @@ fn initialize_marginfi_group<'a>(
 
     set_discriminator::<MarginfiGroup>(marginfi_group.clone());
 
+    marginfi::instructions::marginfi_group::configure(
+        Context::new(
+            &marginfi::ID,
+            &mut marginfi::instructions::MarginfiGroupConfigure {
+                marginfi_group: AccountLoader::try_from_unchecked(
+                    &program_id,
+                    airls(&marginfi_group),
+                )
+                .unwrap(),
+                admin: Signer::try_from(airls(&admin)).unwrap(),
+            },
+            &[],
+            Default::default(),
+        ),
+        admin.key(), // admin
+        admin.key(), // emode_admin
+        admin.key(), // curve_admin
+        admin.key(), // limit_admin
+        admin.key(), // emissions_admin
+        admin.key(), // metadata_admin
+        admin.key(), // risk_admin
+        false,       // is_arena_group
+    )
+    .unwrap();
+
     marginfi_group
 }
 

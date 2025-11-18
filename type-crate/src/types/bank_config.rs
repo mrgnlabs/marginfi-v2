@@ -150,8 +150,8 @@ pub struct BankConfigOpt {
     pub oracle_max_age: Option<u16>,
 
     pub permissionless_bad_debt_settlement: Option<bool>,
-
     pub freeze_settings: Option<bool>,
+    pub tokenless_repayments_allowed: Option<bool>,
 }
 
 #[repr(C)]

@@ -82,6 +82,8 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     /// - FREEZE_SETTINGS: 8
+    /// - CLOSE_ENABLED_FLAG: 16
+    /// - TOKENLESS_REPAYMENTS_ACTIVE: 32
     ///
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens

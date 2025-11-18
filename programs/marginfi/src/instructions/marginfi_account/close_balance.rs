@@ -37,7 +37,8 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
     bank.update_bank_cache(group)?;
 
-    let lending_account = &mut marginfi_account.lending_account;
+    let lending_account: &mut marginfi_type_crate::types::LendingAccount =
+        &mut marginfi_account.lending_account;
     let mut bank_account =
         BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
