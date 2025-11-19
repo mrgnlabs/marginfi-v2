@@ -92,6 +92,7 @@ impl MarginfiGroupFixture {
                     new_metadata_admin: admin,
                     new_risk_admin: admin,
                     is_arena_group: false,
+                    emode_max_leverage: None,
                 }
                 .data(),
             };
@@ -645,6 +646,32 @@ impl MarginfiGroupFixture {
         new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
+        self.try_update_with_emode_leverage(
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
+            is_arena_group,
+            None,
+        )
+        .await
+    }
+
+    pub async fn try_update_with_emode_leverage(
+        &self,
+        new_admin: Pubkey,
+        new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
+        new_risk_admin: Pubkey,
+        is_arena_group: bool,
+        emode_max_leverage: Option<WrappedI80F48>,
+    ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::MarginfiGroupConfigure {
@@ -661,6 +688,7 @@ impl MarginfiGroupFixture {
                 new_metadata_admin,
                 new_risk_admin,
                 is_arena_group,
+                emode_max_leverage,
             }
             .data(),
         };

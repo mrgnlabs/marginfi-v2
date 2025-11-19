@@ -152,6 +152,7 @@ export type GroupConfigureArgs = {
   newRiskAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
+  emodeMaxLeverage?: WrappedI80F48 | null; // optional; max leverage for emode configurations
 };
 
 export const groupConfigure = async (
@@ -168,6 +169,7 @@ export const groupConfigure = async (
   const newMetadataAdmin = args.newMetadataAdmin ?? group.metadataAdmin;
   const newRiskAdmin = args.newRiskAdmin ?? group.riskAdmin;
   const isArena = args.isArena ?? false;
+  const emodeMaxLeverage = args.emodeMaxLeverage ?? null;
 
   const ix = program.methods
     .marginfiGroupConfigure(
@@ -178,7 +180,8 @@ export const groupConfigure = async (
       newEmissionsAdmin,
       newMetadataAdmin,
       newRiskAdmin,
-      isArena
+      isArena,
+      emodeMaxLeverage
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,

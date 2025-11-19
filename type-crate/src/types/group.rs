@@ -57,7 +57,9 @@ pub struct MarginfiGroup {
     /// Can modify a Bank's metadata, and nothing else.
     pub metadata_admin: Pubkey,
 
-    pub _padding_0: [[u64; 2]; 12],
+    pub emode_max_leverage_cache: WrappedI80F48,
+
+    pub _padding_0: [[u64; 2]; 11],
     pub _padding_1: [[u64; 2]; 32],
 }
 
