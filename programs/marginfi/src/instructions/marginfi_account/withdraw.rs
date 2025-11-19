@@ -64,6 +64,7 @@ pub fn lending_account_withdraw<'info>(
 
     let bank_key = bank_loader.key();
     let maybe_bank_mint;
+    let oracle_price;
 
     {
         let bank = bank_loader.load()?;
@@ -71,10 +72,12 @@ pub fn lending_account_withdraw<'info>(
         maybe_bank_mint =
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
-        if in_liquidation {
-            // Note: we don't care about the price we are just validating non-zero...
-            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-        }
+        oracle_price = if in_liquidation {
+            // Fetch price during liquidation to cache it and validate non-zero
+            Some(fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?)
+        } else {
+            None
+        };
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     } // release immutable borrow of bank
 
@@ -134,7 +137,7 @@ pub fn lending_account_withdraw<'info>(
             ctx.remaining_accounts,
         )?;
 
-        bank.update_bank_cache(group)?;
+        bank.update_bank_cache(group, oracle_price, oracle_price.map(|_| crate::state::price::PriceBias::Low))?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {

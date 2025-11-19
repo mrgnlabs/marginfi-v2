@@ -10,7 +10,10 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
+    utils::{
+        self, fetch_liability_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
+        InstructionKind,
+    },
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -174,7 +177,11 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?
     .repay(bad_debt)?;
 
-    bank.update_bank_cache(group)?;
+    // Fetch liability price to cache it (bankruptcy handles bad debt which is a liability)
+    let bank_key = bank_loader.key();
+    let liability_price = fetch_liability_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+
+    bank.update_bank_cache(group, Some(liability_price), Some(crate::state::price::PriceBias::High))?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
     marginfi_account.last_update = clock.unix_timestamp as u64;

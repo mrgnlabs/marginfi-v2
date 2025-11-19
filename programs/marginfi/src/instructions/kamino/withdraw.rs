@@ -81,6 +81,7 @@ pub fn kamino_withdraw<'info>(
 
     let collateral_amount;
     let bank_key = ctx.accounts.bank.key();
+    let oracle_price;
     {
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
@@ -96,10 +97,12 @@ pub fn kamino_withdraw<'info>(
 
         // Validate price is non-zero during liquidation to prevent exploits with stale oracles
         let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        if in_liquidation {
-            // Note: we don't care about the price value, just validating it's non-zero
-            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-        }
+        oracle_price = if in_liquidation {
+            // Fetch price during liquidation to cache it and validate non-zero
+            Some(fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?)
+        } else {
+            None
+        };
 
         let mut bank_account = BankAccountWrapper::find(
             &ctx.accounts.bank.key(),
@@ -115,7 +118,7 @@ pub fn kamino_withdraw<'info>(
         };
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
-        bank.update_bank_cache(group)?;
+        bank.update_bank_cache(group, oracle_price, oracle_price.map(|_| crate::state::price::PriceBias::Low))?;
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }

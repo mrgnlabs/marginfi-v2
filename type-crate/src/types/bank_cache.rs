@@ -35,7 +35,28 @@ pub struct BankCache {
     /// * in token, in native decimals, as I80F48
     pub accumulated_since_last_update: WrappedI80F48,
 
-    _reserved0: [u8; 128],
+    /// Oracle price used in the last instruction that modified this bank's shares
+    /// * Only updated when instruction modifies shares AND uses oracle price
+    /// * Not updated for operations that don't require prices (e.g., deposit, repay)
+    /// * Price in USD (or quote currency) per token, as I80F48
+    /// * Zero if never updated
+    pub oracle_price_used: WrappedI80F48,
+
+    /// Unix timestamp (seconds) when oracle_price_used was last updated
+    /// * Used to determine staleness of cached price
+    /// * Zero if never updated
+    pub oracle_price_timestamp: i64,
+
+    /// Price bias used when oracle_price_used was fetched
+    /// * 0 = None/Unknown
+    /// * 1 = Low (conservative for assets)
+    /// * 2 = High (conservative for liabilities)
+    pub oracle_price_bias: u8,
+
+    /// Padding for 8-byte alignment
+    _padding: [u8; 7],
+
+    _reserved0: [u8; 96],
 }
 
 impl Default for BankCache {

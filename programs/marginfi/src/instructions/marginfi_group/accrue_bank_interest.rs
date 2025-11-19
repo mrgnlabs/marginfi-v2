@@ -16,7 +16,7 @@ pub fn lending_pool_accrue_bank_interest(
         ctx.accounts.bank.key(),
     )?;
 
-    bank.update_bank_cache(group)?;
+    bank.update_bank_cache(group, None, None)?;  // Interest accrual doesn't use oracle prices
 
     Ok(())
 }

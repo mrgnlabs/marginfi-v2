@@ -84,7 +84,12 @@ pub trait BankImpl {
         group: &MarginfiGroup,
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()>;
-    fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()>;
+    fn update_bank_cache(
+        &mut self,
+        group: &MarginfiGroup,
+        oracle_price: Option<I80F48>,
+        price_bias: Option<crate::state::price::PriceBias>,
+    ) -> MarginfiResult<()>;
     fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
@@ -499,10 +504,20 @@ impl BankImpl for Bank {
         Ok(())
     }
 
-    /// Updates bank cache with the actual values for interest/fee rates.
+    /// Updates bank cache with the actual values for interest/fee rates and oracle price.
     ///
     /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
-    fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
+    ///
+    /// # Arguments
+    /// * `group` - The marginfi group
+    /// * `oracle_price` - Optional oracle price that was used in this instruction (if any)
+    /// * `price_bias` - Optional price bias that was applied (Low for assets, High for liabilities)
+    fn update_bank_cache(
+        &mut self,
+        group: &MarginfiGroup,
+        oracle_price: Option<I80F48>,
+        price_bias: Option<crate::state::price::PriceBias>,
+    ) -> MarginfiResult<()> {
         let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities_amount =
             self.get_liability_amount(self.total_liability_shares.into())?;
@@ -525,6 +540,18 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?;
 
         update_interest_rates(&mut self.cache, &interest_rates);
+
+        // Update oracle price if provided
+        if let Some(price) = oracle_price {
+            self.cache.oracle_price_used = price.into();
+            self.cache.oracle_price_timestamp = Clock::get()?.unix_timestamp;
+            self.cache.oracle_price_bias = match price_bias {
+                Some(crate::state::price::PriceBias::Low) => 1,
+                Some(crate::state::price::PriceBias::High) => 2,
+                None => 0,
+            };
+        }
+
         Ok(())
     }
 

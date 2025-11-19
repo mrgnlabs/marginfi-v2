@@ -12,7 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+        self, fetch_liability_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
+        validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
@@ -138,7 +139,11 @@ pub fn lending_account_borrow<'info>(
             ctx.remaining_accounts,
         )?;
 
-        bank.update_bank_cache(group)?;
+        // Fetch liability price to cache it (borrow creates a liability)
+        let bank_key = bank_loader.key();
+        let liability_price = fetch_liability_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+
+        bank.update_bank_cache(group, Some(liability_price), Some(crate::state::price::PriceBias::High))?;
 
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
