@@ -298,10 +298,11 @@ pub fn group_configure(
             new_emode_admin,
             new_curve_admin,
             new_limit_admin,
-            new_emissions_admin,
+            new_emissions_admin, 
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
+            emode_max_leverage: None
         })
         .instructions()?;
 

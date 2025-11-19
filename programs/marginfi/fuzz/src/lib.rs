@@ -1068,6 +1068,7 @@ fn initialize_marginfi_group<'a>(
                 )
                 .unwrap(),
                 admin: Signer::try_from(airls(&admin)).unwrap(),
+                
             },
             &[],
             Default::default(),
