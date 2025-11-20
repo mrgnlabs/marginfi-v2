@@ -22,6 +22,7 @@ spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # cloned from so
 # liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 kamino_lending = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
 kamino_farms = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
+exponent = "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
 
 [programs.mainnet]
 # liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -84,6 +85,10 @@ program = "tests/fixtures/kamino_farms.so"
 [[test.genesis]]
 address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
 program = "tests/fixtures/spl_single_pool.so"
+
+[[test.genesis]]
+address = "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
+program = "tests/fixtures/exponent_core.so"
 
 [test.validator]
 bind_address = "0.0.0.0"
