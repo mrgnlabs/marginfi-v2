@@ -1,4 +1,3 @@
-use crate::state::bank::BankImpl;
 use crate::state::emode::EmodeSettingsImpl;
 use crate::MarginfiError;
 use crate::MarginfiResult;
@@ -27,11 +26,11 @@ pub fn lending_pool_configure_bank_emode(
     bank.emode.emode_config.entries = sorted_entries;
     bank.emode.timestamp = Clock::get()?.unix_timestamp;
 
-    // Update bank cache to get latest max_emode_leverage from group
-    bank.update_bank_cache(&group)?;
-
-    bank.emode
-        .validate_entries_with_liability_weights(&bank.config, &bank.cache)?;
+    bank.emode.validate_entries_with_liability_weights(
+        &bank.config,
+        group.emode_max_init_leverage,
+        group.emode_max_maint_leverage,
+    )?;
 
     if bank.emode.emode_config.has_entries() {
         msg!("emode entries detected and activated");

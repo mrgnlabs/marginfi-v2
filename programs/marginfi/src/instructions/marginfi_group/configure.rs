@@ -1,10 +1,10 @@
 use crate::events::{GroupEventHeader, MarginfiGroupConfigureEvent};
-use crate::state::emode::DEFAULT_MAX_EMODE_LEVERAGE;
+use crate::state::emode::{DEFAULT_INIT_MAX_EMODE_LEVERAGE, DEFAULT_MAINT_MAX_EMODE_LEVERAGE};
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{MarginfiGroup, WrappedI80F48};
+use marginfi_type_crate::types::{basis_to_u32, MarginfiGroup, WrappedI80F48};
 
 /// Configure margin group.
 ///
@@ -22,7 +22,8 @@ pub fn configure(
     new_metadata_admin: Pubkey,
     new_risk_admin: Pubkey,
     is_arena_group: bool,
-    emode_max_leverage: Option<WrappedI80F48>,
+    emode_max_init_leverage: Option<WrappedI80F48>,
+    emode_max_maint_leverage: Option<WrappedI80F48>,
 ) -> MarginfiResult {
     let marginfi_group = &mut ctx.accounts.marginfi_group.load_mut()?;
 
@@ -36,18 +37,41 @@ pub fn configure(
     marginfi_group.set_arena_group(is_arena_group)?;
 
     // Update emode max leverage - if None, set to default max emode leverage
-    let max_leverage = emode_max_leverage.unwrap_or_else(|| DEFAULT_MAX_EMODE_LEVERAGE.into());
-    let leverage_value: I80F48 = max_leverage.into();
+    let max_init_leverage =
+        emode_max_init_leverage.unwrap_or_else(|| DEFAULT_INIT_MAX_EMODE_LEVERAGE.into());
+    let max_maint_leverage =
+        emode_max_maint_leverage.unwrap_or_else(|| DEFAULT_MAINT_MAX_EMODE_LEVERAGE.into());
 
-    // Validate that (1 <= leverage <= 100)
-    require!(leverage_value >= I80F48::ONE, MarginfiError::BadEmodeConfig);
+    let init_leverage_value: I80F48 = max_init_leverage.into();
+    let maint_leverage_value: I80F48 = max_maint_leverage.into();
 
+    // Validate that (1 <= leverage <= 100) for both
     require!(
-        leverage_value <= I80F48::from_num(100),
+        init_leverage_value >= I80F48::ONE,
+        MarginfiError::BadEmodeConfig
+    );
+    require!(
+        init_leverage_value <= I80F48::from_num(100),
         MarginfiError::BadEmodeConfig
     );
 
-    marginfi_group.emode_max_leverage_cache = max_leverage;
+    require!(
+        maint_leverage_value >= I80F48::ONE,
+        MarginfiError::BadEmodeConfig
+    );
+    require!(
+        maint_leverage_value <= I80F48::from_num(100),
+        MarginfiError::BadEmodeConfig
+    );
+
+    // Validate that init < maint
+    require!(
+        init_leverage_value < maint_leverage_value,
+        MarginfiError::BadEmodeConfig
+    );
+
+    marginfi_group.emode_max_init_leverage = basis_to_u32(init_leverage_value);
+    marginfi_group.emode_max_maint_leverage = basis_to_u32(maint_leverage_value);
 
     // The fuzzer should ignore this because the "Clock" mock sysvar doesn't load until after the
     // group is init. Eventually we might fix the fuzzer to load the clock first...

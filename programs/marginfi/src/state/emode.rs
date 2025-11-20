@@ -1,22 +1,30 @@
 use anchor_lang::err;
 use fixed::types::I80F48;
+use fixed_macro::types::I80F48;
 use marginfi_type_crate::types::{BankConfig, EmodeSettings, EMODE_ON};
 
 use crate::{
     check, errors::MarginfiError, prelude::MarginfiResult, state::bank_config::BankConfigImpl,
     state::marginfi_account::RequirementType,
 };
+use marginfi_type_crate::types::u32_to_basis;
 
-/// Default Maximum allowed theoretical leverage for emode configurations.
+/// Default Maximum allowed theoretical leverage for emode configurations (initial).
+/// L = 1 / (1 - CW/LW) where CW is collateral weight and LW is liability weight.
+/// A value of 15 means positions can theoretically leverage up to 15x through recursive borrowing.
+pub const DEFAULT_INIT_MAX_EMODE_LEVERAGE: I80F48 = I80F48!(15);
+
+/// Default Maximum allowed theoretical leverage for emode configurations (maintenance).
 /// L = 1 / (1 - CW/LW) where CW is collateral weight and LW is liability weight.
 /// A value of 20 means positions can theoretically leverage up to 20x through recursive borrowing.
-pub const DEFAULT_MAX_EMODE_LEVERAGE: I80F48 = I80F48::lit("20");
+pub const DEFAULT_MAINT_MAX_EMODE_LEVERAGE: I80F48 = I80F48!(20);
 
 pub trait EmodeSettingsImpl {
     fn validate_entries_with_liability_weights(
         &self,
         bank_config: &BankConfig,
-        bank_cache: &marginfi_type_crate::types::BankCache,
+        emode_max_init_leverage: u32,
+        emode_max_maint_leverage: u32,
     ) -> MarginfiResult;
     fn check_dupes(&self) -> MarginfiResult;
     fn is_enabled(&self) -> bool;
@@ -51,14 +59,10 @@ pub fn calculate_max_leverage(
     );
 
     //  ratio =  CW/LW
-    let ratio = collateral_weight
-        .checked_div(liability_weight)
-        .ok_or(MarginfiError::MathError)?;
+    let ratio = collateral_weight / liability_weight;
 
     // denominator = 1 - CW/LW
-    let denominator = I80F48::ONE
-        .checked_sub(ratio)
-        .ok_or(MarginfiError::MathError)?;
+    let denominator = I80F48::ONE - ratio;
 
     check!(denominator > I80F48::ZERO, MarginfiError::BadEmodeConfig);
 
@@ -74,7 +78,8 @@ impl EmodeSettingsImpl for EmodeSettings {
     fn validate_entries_with_liability_weights(
         &self,
         bank_config: &BankConfig,
-        bank_cache: &marginfi_type_crate::types::BankCache,
+        emode_max_init_leverage: u32,
+        emode_max_maint_leverage: u32,
     ) -> MarginfiResult {
         let liab_init_w: I80F48 = bank_config.get_weight(
             RequirementType::Initial,
@@ -85,7 +90,8 @@ impl EmodeSettingsImpl for EmodeSettings {
             marginfi_type_crate::types::BalanceSide::Liabilities,
         );
 
-        let max_allowed_leverage: I80F48 = bank_cache.max_emode_leverage.into();
+        let max_allowed_init_leverage: I80F48 = u32_to_basis(emode_max_init_leverage);
+        let max_allowed_maint_leverage: I80F48 = u32_to_basis(emode_max_maint_leverage);
 
         for entry in self.emode_config.entries {
             if entry.is_empty() {
@@ -103,13 +109,13 @@ impl EmodeSettingsImpl for EmodeSettings {
 
             let max_leverage_init = calculate_max_leverage(asset_init_w, liab_init_w)?;
             check!(
-                max_leverage_init <= max_allowed_leverage,
+                max_leverage_init <= max_allowed_init_leverage,
                 MarginfiError::BadEmodeConfig
             );
 
             let max_leverage_maint = calculate_max_leverage(asset_maint_w, liab_maint_w)?;
             check!(
-                max_leverage_maint <= max_allowed_leverage,
+                max_leverage_maint <= max_allowed_maint_leverage,
                 MarginfiError::BadEmodeConfig
             );
         }
@@ -157,10 +163,10 @@ mod tests {
     use super::*;
     use bytemuck::Zeroable;
     use fixed_macro::types::I80F48;
+    use marginfi_type_crate::types::{basis_to_u32, BankConfig};
     use marginfi_type_crate::types::{
         reconcile_emode_configs, EmodeConfig, EmodeEntry, MAX_EMODE_ENTRIES,
     };
-    use marginfi_type_crate::types::{BankCache, BankConfig};
     fn create_entry(tag: u16, flags: u8, init: f32, maint: f32) -> EmodeEntry {
         EmodeEntry {
             collateral_bank_emode_tag: tag,
@@ -180,18 +186,22 @@ mod tests {
     fn test_emode_valid_entries() {
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
         bank_config.liability_weight_maint = I80F48::from_num(1.0).into();
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         settings.emode_config.entries[0] = generic_entry(1);
         settings.emode_config.entries[1] = generic_entry(2);
         settings.emode_config.entries[2] = generic_entry(3);
         // Note: The remaining entries stay zeroed (and are skipped during validation).
         assert!(settings
-            .validate_entries_with_liability_weights(&bank_config, &bank_cache)
+            .validate_entries_with_liability_weights(
+                &bank_config,
+                emode_max_init_leverage,
+                emode_max_maint_leverage
+            )
             .is_ok());
     }
 
@@ -199,16 +209,20 @@ mod tests {
     fn test_emode_invalid_duplicate_tags() {
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
         bank_config.liability_weight_maint = I80F48::from_num(1.0).into();
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         settings.emode_config.entries[0] = generic_entry(1);
         settings.emode_config.entries[1] = generic_entry(1); // Duplicate tag: 1.
         settings.emode_config.entries[2] = generic_entry(2);
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
     }
@@ -217,11 +231,11 @@ mod tests {
     fn test_emode_invalid_weight_too_high() {
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
         bank_config.liability_weight_maint = I80F48::from_num(1.0).into();
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         // Using asset weight greater than liability weight is invalid (CW >= LW).
         let entry = EmodeEntry {
@@ -232,7 +246,11 @@ mod tests {
             asset_weight_maint: I80F48!(1.3).into(), // Exceeds liab_maint_w (invalid!)
         };
         settings.emode_config.entries[0] = entry;
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
     }
@@ -241,11 +259,11 @@ mod tests {
     fn test_emode_invalid_weight_main_le_init() {
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
         bank_config.liability_weight_maint = I80F48::from_num(1.0).into();
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         let entry = EmodeEntry {
             collateral_bank_emode_tag: 1,
@@ -255,7 +273,11 @@ mod tests {
             asset_weight_maint: I80F48!(0.7).into(),
         };
         settings.emode_config.entries[0] = entry;
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), MarginfiError::BadEmodeConfig.into());
     }
@@ -403,14 +425,13 @@ mod tests {
     #[test]
     fn test_validate_emode_with_liability_weights_valid() {
         use bytemuck::Zeroable;
-        use marginfi_type_crate::types::{BankCache, BankConfig};
 
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
-        // Set max emode leverage to default (20x)
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        // Set max emode leverage to default
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         // Set liability weights: init = 1.2, maint = 1.0
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
@@ -421,21 +442,24 @@ mod tests {
         // CW_maint = 0.9, LW_maint = 1.0 => L = 1/(1-0.9/1.0) = 1/0.1 = 10x
         settings.emode_config.entries[0] = create_entry(1, 0, 0.84, 0.9);
 
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(result.is_ok(), "Valid emode config should pass validation");
     }
 
     #[test]
     fn test_validate_emode_with_liability_weights_invalid_cw_exceeds_lw() {
         use bytemuck::Zeroable;
-        use marginfi_type_crate::types::{BankCache, BankConfig};
 
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
-        // Set max emode leverage to default (20x)
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        // Set max emode leverage to default
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         // Set liability weights
         bank_config.liability_weight_init = I80F48::from_num(1.2).into();
@@ -445,7 +469,11 @@ mod tests {
         // CW_init = 1.3 > LW_init = 1.2 (invalid!)
         settings.emode_config.entries[0] = create_entry(1, 0, 1.3, 0.9);
 
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(
             result.is_err(),
             "Should fail when asset_init_w >= liab_init_w"
@@ -455,14 +483,13 @@ mod tests {
     #[test]
     fn test_validate_emode_with_liability_weights_invalid_leverage_too_high() {
         use bytemuck::Zeroable;
-        use marginfi_type_crate::types::{BankCache, BankConfig};
 
         let mut settings = EmodeSettings::zeroed();
         let mut bank_config = BankConfig::zeroed();
-        let mut bank_cache = BankCache::zeroed();
 
-        // Set max emode leverage to default (20x)
-        bank_cache.max_emode_leverage = DEFAULT_MAX_EMODE_LEVERAGE.into();
+        // Set max emode leverage to default
+        let emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
+        let emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
 
         // Set liability weights
         bank_config.liability_weight_init = I80F48::from_num(1.0).into();
@@ -472,10 +499,14 @@ mod tests {
         // CW = 0.96, LW = 1.0 => L = 1/(1-0.96/1.0) = 1/0.04 = 25x (exceeds MAX_EMODE_LEVERAGE)
         settings.emode_config.entries[0] = create_entry(1, 0, 0.96, 0.96);
 
-        let result = settings.validate_entries_with_liability_weights(&bank_config, &bank_cache);
+        let result = settings.validate_entries_with_liability_weights(
+            &bank_config,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
+        );
         assert!(
             result.is_err(),
-            "Should fail when leverage exceeds MAX_EMODE_LEVERAGE (20x)"
+            "Should fail when leverage exceeds DEFAULT_MAINT_MAX_EMODE_LEVERAGE (20x)"
         );
     }
 }

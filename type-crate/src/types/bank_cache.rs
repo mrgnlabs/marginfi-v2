@@ -34,13 +34,8 @@ pub struct BankCache {
     ///   earned on that amount.
     /// * in token, in native decimals, as I80F48
     pub accumulated_since_last_update: WrappedI80F48,
-    /// Maximum allowed theoretical leverage for emode configurations.
-    /// L = 1 / (1 - CW/LW) where CW is collateral weight and LW is liability weight.
-    /// A value of 20 means positions can theoretically leverage up to 20x through recursive borrowing.
-    pub max_emode_leverage: WrappedI80F48,
 
-    _reserved: [u8; 16],
-    _reserved0: [u8; 96],
+    _reserved0: [u8; 128],
 }
 
 impl Default for BankCache {

@@ -92,7 +92,8 @@ impl MarginfiGroupFixture {
                     new_metadata_admin: admin,
                     new_risk_admin: admin,
                     is_arena_group: false,
-                    emode_max_leverage: None,
+                    emode_max_init_leverage: None,
+                    emode_max_maint_leverage: None,
                 }
                 .data(),
             };
@@ -656,6 +657,7 @@ impl MarginfiGroupFixture {
             new_risk_admin,
             is_arena_group,
             None,
+            None,
         )
         .await
     }
@@ -670,7 +672,8 @@ impl MarginfiGroupFixture {
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         is_arena_group: bool,
-        emode_max_leverage: Option<WrappedI80F48>,
+        emode_max_init_leverage: Option<WrappedI80F48>,
+        emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::ID,
@@ -688,7 +691,8 @@ impl MarginfiGroupFixture {
                 new_metadata_admin,
                 new_risk_admin,
                 is_arena_group,
-                emode_max_leverage,
+                emode_max_init_leverage,
+                emode_max_maint_leverage,
             }
             .data(),
         };

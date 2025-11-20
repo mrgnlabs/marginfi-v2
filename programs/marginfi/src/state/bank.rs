@@ -543,8 +543,6 @@ impl BankImpl for Bank {
 
         if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
             self.cache = BankCache::default();
-            // Still update max emode leverage from group cache even with default cache
-            self.cache.max_emode_leverage = group.emode_max_leverage_cache;
             return Ok(());
         }
 
@@ -561,9 +559,6 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?;
 
         update_interest_rates(&mut self.cache, &interest_rates);
-
-        // Update max emode leverage from group cache
-        self.cache.max_emode_leverage = group.emode_max_leverage_cache;
 
         Ok(())
     }

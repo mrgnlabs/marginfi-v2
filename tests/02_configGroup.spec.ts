@@ -53,6 +53,7 @@ describe("Config group", () => {
             PublicKey.default,
             PublicKey.default,
             false,
+            null,
             null
           )
           .accountsPartial({

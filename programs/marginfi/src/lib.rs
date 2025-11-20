@@ -101,7 +101,8 @@ pub mod marginfi {
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         is_arena_group: bool,
-        emode_max_leverage: Option<WrappedI80F48>,
+        emode_max_init_leverage: Option<WrappedI80F48>,
+        emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> MarginfiResult {
         marginfi_group::configure(
             ctx,
@@ -113,7 +114,8 @@ pub mod marginfi {
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
-            emode_max_leverage,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
         )
     }
 

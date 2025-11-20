@@ -13,7 +13,6 @@ import {
 } from "./rootHooks";
 import {
   assertBankrunTxFailed,
-  assertI80F48Approx,
 } from "./utils/genericTests";
 import {
   configBankEmode,
@@ -33,6 +32,12 @@ const seed = new BN(EMODE_SEED);
 let solBank: any;
 let lstABank: any;
 
+// Helper to convert u32 basis points back to actual leverage value (0-100 range)
+const u32ToBasis = (value: number): number => {
+  const ratio = value / 4294967295; // u32::MAX = 4294967295
+  return ratio * 100;
+};
+
 describe("Emode Max Leverage Configuration", () => {
   before(async () => {
     [solBank] = deriveBankWithSeed(
@@ -50,13 +55,15 @@ describe("Emode Max Leverage Configuration", () => {
   });
 
   describe("Group Configuration - Valid Max Leverage", () => {
-    it("(admin) Configure group with max leverage of 10x", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(10);
+    it("(admin) Configure group with max leverage of 10x for init and 15x for maint", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(10);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(15);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -67,16 +74,19 @@ describe("Emode Max Leverage Configuration", () => {
       const group = await bankrunProgram.account.marginfiGroup.fetch(
         emodeGroup.publicKey
       );
-      assertI80F48Approx(group.emodeMaxLeverageCache, 10);
+      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 10, 0.01);
+      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 15, 0.01); 
     });
 
-    it("(admin) Configure group with max leverage of 1x (minimum valid)", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(1);
+    it("(admin) Configure group with max leverage of 1x init, 2x maint (minimum valid)", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(1);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(2);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -87,16 +97,19 @@ describe("Emode Max Leverage Configuration", () => {
       const group = await bankrunProgram.account.marginfiGroup.fetch(
         emodeGroup.publicKey
       );
-      assertI80F48Approx(group.emodeMaxLeverageCache, 1);
+      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 1, 0.01);
+      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 2, 0.01);
     });
 
-    it("(admin) Configure group with max leverage of 100x (maximum valid)", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(100);
+    it("(admin) Configure group with max leverage of 99x init, 100x maint (maximum valid)", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(99);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(100);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -107,14 +120,16 @@ describe("Emode Max Leverage Configuration", () => {
       const group = await bankrunProgram.account.marginfiGroup.fetch(
         emodeGroup.publicKey
       );
-      assertI80F48Approx(group.emodeMaxLeverageCache, 100);
+      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 99, 0.01);
+      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 100, 0.01);
     });
 
-    it("(admin) Configure group with null max leverage (defaults to 20x)", async () => {
+    it("(admin) Configure group with null max leverage (defaults to 15x init, 20x maint)", async () => {
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: null,
+          emodeMaxInitLeverage: null,
+          emodeMaxMaintLeverage: null,
         })
       );
 
@@ -126,18 +141,21 @@ describe("Emode Max Leverage Configuration", () => {
         emodeGroup.publicKey
       );
 
-      assertI80F48Approx(group.emodeMaxLeverageCache, 20);
+      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 15, 0.01);
+      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 20, 0.01);
     });
   });
 
   describe("Group Configuration - Invalid Max Leverage", () => {
-    it("(admin) Configure group with max leverage < 1 - should fail", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(0.5);
+    it("(admin) Configure group with init max leverage < 1 - should fail", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(0.5);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(1);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -148,13 +166,15 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17bb");
     });
 
-    it("(admin) Configure group with max leverage > 100 - should fail", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(101);
+    it("(admin) Configure group with maint max leverage > 100 - should fail", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(100);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(101);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -165,13 +185,15 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17bb");
     });
 
-    it("(admin) Configure group with max leverage of 0 - should fail", async () => {
-      const maxLeverage = bigNumberToWrappedI80F48(0);
+    it("(admin) Configure group with init >= maint leverage - should fail", async () => {
+      const maxInitLeverage = bigNumberToWrappedI80F48(20);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(20);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -185,13 +207,15 @@ describe("Emode Max Leverage Configuration", () => {
 
   describe("Bank Emode Configuration - Leverage Validation", () => {
     before(async () => {
-      // Set group max leverage to 10x for these tests
-      const maxLeverage = bigNumberToWrappedI80F48(10);
+      // Set group max leverage to 10x init, 15x maint for these tests
+      const maxInitLeverage = bigNumberToWrappedI80F48(10);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(15);
 
       const tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -226,9 +250,10 @@ describe("Emode Max Leverage Configuration", () => {
       assert.equal(bank.emode.emodeTag, EMODE_SOL_TAG);
     });
 
-    it("(emode admin) Configure bank emode exactly at leverage limit (10x) - should succeed", async () => {
+    it("(emode admin) Configure bank emode near leverage limit (9.5x init, 14x maint) - should succeed", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
-      // To achieve exactly 10x leverage: L = 1/(1-CW/LW) => 10 = 1/(1-CW/1.0) => CW = 0.9
+      // To achieve 9.5x init leverage: L = 1/(1-CW/LW) => 9.5 = 1/(1-CW/1.0) => CW ≈ 0.8947
+      // To achieve 14x maint leverage: L = 1/(1-CW/LW) => 14 = 1/(1-CW/1.0) => CW ≈ 0.9286
       const tx = new Transaction().add(
         await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
           bank: solBank,
@@ -237,8 +262,8 @@ describe("Emode Max Leverage Configuration", () => {
             newEmodeEntry(
               EMODE_LST_TAG,
               EMODE_APPLIES_TO_ISOLATED,
-              bigNumberToWrappedI80F48(0.9),
-              bigNumberToWrappedI80F48(0.9)
+              bigNumberToWrappedI80F48(0.8947),
+              bigNumberToWrappedI80F48(0.9286)
             ),
           ],
         })
@@ -252,9 +277,10 @@ describe("Emode Max Leverage Configuration", () => {
       assert.equal(bank.emode.emodeTag, EMODE_SOL_TAG);
     });
 
-    it("(emode admin) Configure bank emode exceeding leverage limit (15x) - should fail", async () => {
+    it("(emode admin) Configure bank emode exceeding init leverage limit (11x init) - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
-      // To achieve 15x leverage: L = 1/(1-CW/LW) => 15 = 1/(1-CW/1.0) => CW ≈ 0.9333
+      // To achieve 11x init leverage: L = 1/(1-CW/LW) => 11 = 1/(1-CW/1.0) => CW ≈ 0.9091
+      // Group limit is 10x init, so this should fail
       const tx = new Transaction().add(
         await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
           bank: solBank,
@@ -263,8 +289,8 @@ describe("Emode Max Leverage Configuration", () => {
             newEmodeEntry(
               EMODE_LST_TAG,
               EMODE_APPLIES_TO_ISOLATED,
-              bigNumberToWrappedI80F48(0.9333),
-              bigNumberToWrappedI80F48(0.9333)
+              bigNumberToWrappedI80F48(0.9091),
+              bigNumberToWrappedI80F48(0.9286)
             ),
           ],
         })
@@ -277,10 +303,10 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17bb");
     });
 
-    it("(emode admin) Configure bank emode with very high leverage (25x) - should fail", async () => {
+    it("(emode admin) Configure bank emode exceeding maint leverage limit (18x maint) - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
-      // To achieve 25x leverage: L = 1/(1-CW/LW) => 25 = 1/(1-CW/1.0) => CW = 0.96
-      // This exceeds the group's 10x limit
+      // To achieve 18x maint leverage: L = 1/(1-CW/LW) => 18 = 1/(1-CW/1.0) => CW ≈ 0.9444
+      // Group limit is 15x maint, so this should fail
       const tx = new Transaction().add(
         await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
           bank: solBank,
@@ -289,8 +315,8 @@ describe("Emode Max Leverage Configuration", () => {
             newEmodeEntry(
               EMODE_LST_TAG,
               EMODE_APPLIES_TO_ISOLATED,
-              bigNumberToWrappedI80F48(0.96),
-              bigNumberToWrappedI80F48(0.96)
+              bigNumberToWrappedI80F48(0.8),
+              bigNumberToWrappedI80F48(0.9444)
             ),
           ],
         })
@@ -306,13 +332,15 @@ describe("Emode Max Leverage Configuration", () => {
 
   describe("Bank Cache Update - Max Leverage Propagation", () => {
     it("(verify) Bank cache reflects group max leverage after update", async () => {
-      // Set group max leverage to 15x
-      const maxLeverage = bigNumberToWrappedI80F48(15);
+      // Set group max leverage to 12x init, 18x maint
+      const maxInitLeverage = bigNumberToWrappedI80F48(12);
+      const maxMaintLeverage = bigNumberToWrappedI80F48(18);
 
       let tx = new Transaction().add(
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: emodeGroup.publicKey,
-          emodeMaxLeverage: maxLeverage,
+          emodeMaxInitLeverage: maxInitLeverage,
+          emodeMaxMaintLeverage: maxMaintLeverage,
         })
       );
 
@@ -321,7 +349,7 @@ describe("Emode Max Leverage Configuration", () => {
       await banksClient.processTransaction(tx);
 
       // Now configure the bank's emode, which should trigger bank cache update
-      // Use 5x leverage which is well within the 15x limit
+      // Use 5x leverage which is well within the 12x/18x limits
       tx = new Transaction().add(
         await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
           bank: solBank,
@@ -341,9 +369,12 @@ describe("Emode Max Leverage Configuration", () => {
       tx.sign(emodeAdmin.wallet);
       await banksClient.processTransaction(tx);
 
-      // Verify bank cache has the updated max leverage
-      const bank = await bankrunProgram.account.bank.fetch(solBank);
-      assertI80F48Approx(bank.cache.maxEmodeLeverage, 15);
+      // Verify group has the updated max leverage
+      const group = await bankrunProgram.account.marginfiGroup.fetch(
+        emodeGroup.publicKey
+      );
+      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 12, 0.01);
+      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 18, 0.01);
     });
 
 

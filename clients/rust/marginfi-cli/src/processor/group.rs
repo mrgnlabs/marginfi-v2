@@ -19,7 +19,7 @@ pub fn process_check_lookup_tables(
     profile: &Profile,
     existing_lookup_tables: Vec<Pubkey>,
 ) -> Result<()> {
-    let rpc = config.mfi_program.rpc(); 
+    let rpc = config.mfi_program.rpc();
     let marginfi_group = profile.marginfi_group.expect("group not set");
 
     let mut accounts: Vec<Account> = vec![];
