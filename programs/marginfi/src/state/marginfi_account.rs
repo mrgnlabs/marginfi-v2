@@ -14,8 +14,8 @@ use marginfi_type_crate::{
         MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
-        reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
-        LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
+        reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
+        HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
         ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
@@ -269,6 +269,16 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     ) -> MarginfiResult<(I80F48, I80F48, u32)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
+                // ReduceOnly banks should not be counted as collateral for new loans (Initial checks)
+                // but should maintain their value for existing positions (Maintenance checks)
+                if matches!(
+                    (bank.config.operational_state, requirement_type),
+                    (BankOperationalState::ReduceOnly, RequirementType::Initial)
+                ) {
+                    debug!("ReduceOnly bank assets worth 0 for Initial margin");
+                    return Ok((I80F48::ZERO, I80F48::ZERO, 0));
+                }
+
                 let (price_feed, err_code) = self.try_get_price_feed();
 
                 if matches!(
