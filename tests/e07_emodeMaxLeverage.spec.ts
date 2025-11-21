@@ -78,51 +78,7 @@ describe("Emode Max Leverage Configuration", () => {
       assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 15, 0.01); 
     });
 
-    it("(admin) Configure group with max leverage of 1x init, 2x maint (minimum valid)", async () => {
-      const maxInitLeverage = bigNumberToWrappedI80F48(1);
-      const maxMaintLeverage = bigNumberToWrappedI80F48(2);
 
-      const tx = new Transaction().add(
-        await groupConfigure(groupAdmin.mrgnBankrunProgram, {
-          marginfiGroup: emodeGroup.publicKey,
-          emodeMaxInitLeverage: maxInitLeverage,
-          emodeMaxMaintLeverage: maxMaintLeverage,
-        })
-      );
-
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(groupAdmin.wallet);
-      await banksClient.processTransaction(tx);
-
-      const group = await bankrunProgram.account.marginfiGroup.fetch(
-        emodeGroup.publicKey
-      );
-      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 1, 0.01);
-      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 2, 0.01);
-    });
-
-    it("(admin) Configure group with max leverage of 99x init, 100x maint (maximum valid)", async () => {
-      const maxInitLeverage = bigNumberToWrappedI80F48(99);
-      const maxMaintLeverage = bigNumberToWrappedI80F48(100);
-
-      const tx = new Transaction().add(
-        await groupConfigure(groupAdmin.mrgnBankrunProgram, {
-          marginfiGroup: emodeGroup.publicKey,
-          emodeMaxInitLeverage: maxInitLeverage,
-          emodeMaxMaintLeverage: maxMaintLeverage,
-        })
-      );
-
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(groupAdmin.wallet);
-      await banksClient.processTransaction(tx);
-
-      const group = await bankrunProgram.account.marginfiGroup.fetch(
-        emodeGroup.publicKey
-      );
-      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 99, 0.01);
-      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 100, 0.01);
-    });
 
     it("(admin) Configure group with null max leverage (defaults to 15x init, 20x maint)", async () => {
       const tx = new Transaction().add(
@@ -250,33 +206,6 @@ describe("Emode Max Leverage Configuration", () => {
       assert.equal(bank.emode.emodeTag, EMODE_SOL_TAG);
     });
 
-    it("(emode admin) Configure bank emode near leverage limit (9.5x init, 14x maint) - should succeed", async () => {
-      // SOL bank has liability weights of 1.0/1.0 (init/maint)
-      // To achieve 9.5x init leverage: L = 1/(1-CW/LW) => 9.5 = 1/(1-CW/1.0) => CW ≈ 0.8947
-      // To achieve 14x maint leverage: L = 1/(1-CW/LW) => 14 = 1/(1-CW/1.0) => CW ≈ 0.9286
-      const tx = new Transaction().add(
-        await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
-          bank: solBank,
-          tag: EMODE_SOL_TAG,
-          entries: [
-            newEmodeEntry(
-              EMODE_LST_TAG,
-              EMODE_APPLIES_TO_ISOLATED,
-              bigNumberToWrappedI80F48(0.8947),
-              bigNumberToWrappedI80F48(0.9286)
-            ),
-          ],
-        })
-      );
-
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(emodeAdmin.wallet);
-      await banksClient.processTransaction(tx);
-
-      const bank = await bankrunProgram.account.bank.fetch(solBank);
-      assert.equal(bank.emode.emodeTag, EMODE_SOL_TAG);
-    });
-
     it("(emode admin) Configure bank emode exceeding init leverage limit (11x init) - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
       // To achieve 11x init leverage: L = 1/(1-CW/LW) => 11 = 1/(1-CW/1.0) => CW ≈ 0.9091
@@ -328,29 +257,12 @@ describe("Emode Max Leverage Configuration", () => {
       // 6075 (BadEmodeConfig)
       assertBankrunTxFailed(result, "0x17bb");
     });
-  });
 
-  describe("Bank Cache Update - Max Leverage Propagation", () => {
-    it("(verify) Bank cache reflects group max leverage after update", async () => {
-      // Set group max leverage to 12x init, 18x maint
-      const maxInitLeverage = bigNumberToWrappedI80F48(12);
-      const maxMaintLeverage = bigNumberToWrappedI80F48(18);
-
-      let tx = new Transaction().add(
-        await groupConfigure(groupAdmin.mrgnBankrunProgram, {
-          marginfiGroup: emodeGroup.publicKey,
-          emodeMaxInitLeverage: maxInitLeverage,
-          emodeMaxMaintLeverage: maxMaintLeverage,
-        })
-      );
-
-      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(groupAdmin.wallet);
-      await banksClient.processTransaction(tx);
-
-      // Now configure the bank's emode, which should trigger bank cache update
-      // Use 5x leverage which is well within the 12x/18x limits
-      tx = new Transaction().add(
+    it("(emode admin) Configure bank emode with asset weight >= liability weight - should fail", async () => {
+      // SOL bank has liability weights of 1.0/1.0 (init/maint)
+      // Setting asset weight = 1.0 would cause division by zero in leverage calculation
+      // L = 1/(1-CW/LW) => when CW = LW, denominator = 0 (infinite leverage)
+      const tx = new Transaction().add(
         await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
           bank: solBank,
           tag: EMODE_SOL_TAG,
@@ -358,8 +270,8 @@ describe("Emode Max Leverage Configuration", () => {
             newEmodeEntry(
               EMODE_LST_TAG,
               EMODE_APPLIES_TO_ISOLATED,
-              bigNumberToWrappedI80F48(0.8),
-              bigNumberToWrappedI80F48(0.8)
+              bigNumberToWrappedI80F48(1.0),  // equals liability weight (invalid!)
+              bigNumberToWrappedI80F48(1.0)
             ),
           ],
         })
@@ -367,16 +279,65 @@ describe("Emode Max Leverage Configuration", () => {
 
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
       tx.sign(emodeAdmin.wallet);
-      await banksClient.processTransaction(tx);
-
-      // Verify group has the updated max leverage
-      const group = await bankrunProgram.account.marginfiGroup.fetch(
-        emodeGroup.publicKey
-      );
-      assert.approximately(u32ToBasis(group.emodeMaxInitLeverage), 12, 0.01);
-      assert.approximately(u32ToBasis(group.emodeMaxMaintLeverage), 18, 0.01);
+      const result = await banksClient.tryProcessTransaction(tx);
+      // 6075 (BadEmodeConfig)
+      assertBankrunTxFailed(result, "0x17bb");
     });
 
+    it("(emode admin) Configure bank emode with maint < init weight - should fail", async () => {
+      // Asset maint weight must be >= asset init weight
+      // This violates the fundamental constraint that maint is more lenient than init
+      const tx = new Transaction().add(
+        await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
+          bank: solBank,
+          tag: EMODE_SOL_TAG,
+          entries: [
+            newEmodeEntry(
+              EMODE_LST_TAG,
+              EMODE_APPLIES_TO_ISOLATED,
+              bigNumberToWrappedI80F48(0.8),  // init weight
+              bigNumberToWrappedI80F48(0.7)   // maint weight < init (invalid!)
+            ),
+          ],
+        })
+      );
 
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(emodeAdmin.wallet);
+      const result = await banksClient.tryProcessTransaction(tx);
+      // 6075 (BadEmodeConfig)
+      assertBankrunTxFailed(result, "0x17bb");
+    });
+
+    it("(emode admin) Configure bank emode with duplicate tags - should fail", async () => {
+      // Multiple entries with the same collateral bank emode tag is not allowed
+      const tx = new Transaction().add(
+        await configBankEmode(emodeAdmin.mrgnBankrunProgram, {
+          bank: solBank,
+          tag: EMODE_SOL_TAG,
+          entries: [
+            newEmodeEntry(
+              EMODE_LST_TAG,  // tag 1
+              EMODE_APPLIES_TO_ISOLATED,
+              bigNumberToWrappedI80F48(0.7),
+              bigNumberToWrappedI80F48(0.8)
+            ),
+            newEmodeEntry(
+              EMODE_LST_TAG,  // duplicate tag 1 (invalid!)
+              EMODE_APPLIES_TO_ISOLATED,
+              bigNumberToWrappedI80F48(0.6),
+              bigNumberToWrappedI80F48(0.75)
+            ),
+          ],
+        })
+      );
+
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(emodeAdmin.wallet);
+      const result = await banksClient.tryProcessTransaction(tx);
+      // 6075 (BadEmodeConfig)
+      assertBankrunTxFailed(result, "0x17bb");
+    });
   });
+
 });

@@ -606,7 +606,7 @@ async fn emode_borrows() -> anyhow::Result<()> {
         collateral_bank_emode_tag: sol_eq_emode_tag,
         flags: 0,
         pad0: [0, 0, 0, 0, 0],
-        asset_weight_init: I80F48!(0.9).into(),  // up from 0.4, gives 10x leverage
+        asset_weight_init: I80F48!(0.9).into(), // up from 0.4, gives 10x leverage
         asset_weight_maint: I80F48!(0.9).into(), // up from 0.4, gives 10x leverage
     }];
 
