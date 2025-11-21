@@ -102,51 +102,55 @@ mod tests {
     #[test]
     fn adjust_u64_returns_raw_when_zero_supply() {
         let bank = generic_reserve(0, 8, 0);
-        assert_eq!(bank.adjust_u64(123_456).unwrap(), 123_456);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
+        assert_eq!(bank.adjust_u64(123_456, total_liq, total_col).unwrap(), 123_456);
 
         // These are generally invalid states (all deposits of liquidity SHOULD have triggered
         // collateral tokens to be issued and vice-versa if there collateral tokens a deposit must
         // have happened).
         let bank = generic_reserve(5, 8, 0);
-        assert_eq!(bank.adjust_u64(123_456).unwrap(), 123_456); // The raw price
+        assert_eq!(bank.adjust_u64(123_456, total_liq, total_col).unwrap(), 123_456); // The raw price
         let bank = generic_reserve(0, 8, 5);
-        assert_eq!(bank.adjust_u64(123_456).unwrap(), 0); // 0 (the reserve is empty)
+        assert_eq!(bank.adjust_u64(123_456, total_liq, total_col).unwrap(), 0); // 0 (the reserve is empty)
     }
 
     #[test]
     fn adjust_i64_returns_raw_when_zero_supply() {
         let bank = generic_reserve(0, 8, 0);
-        assert_eq!(bank.adjust_i64(123_456).unwrap(), 123_456);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
+        assert_eq!(bank.adjust_i64(123_456, total_liq, total_col).unwrap(), 123_456);
 
         let bank = generic_reserve(5, 8, 0);
-        assert_eq!(bank.adjust_i64(123_456).unwrap(), 123_456);
+        assert_eq!(bank.adjust_i64(123_456, total_liq, total_col).unwrap(), 123_456);
         let bank = generic_reserve(0, 8, 5);
-        assert_eq!(bank.adjust_i64(123_456).unwrap(), 0);
+        assert_eq!(bank.adjust_i64(123_456, total_liq, total_col).unwrap(), 0);
     }
 
     #[test]
     fn adjust_i128_returns_raw_when_zero_supply() {
         let bank = generic_reserve(0, 8, 0);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
         assert_eq!(
-            bank.adjust_i128(123_456_789_012_345).unwrap(),
+            bank.adjust_i128(123_456_789_012_345, total_liq, total_col).unwrap(),
             123_456_789_012_345
         );
 
         let bank = generic_reserve(5, 8, 0);
         assert_eq!(
-            bank.adjust_i128(123_456_789_012_345).unwrap(),
+            bank.adjust_i128(123_456_789_012_345, total_liq, total_col).unwrap(),
             123_456_789_012_345
         );
         let bank = generic_reserve(0, 8, 5);
-        assert_eq!(bank.adjust_i128(123_456_789_012_345).unwrap(), 0);
+        assert_eq!(bank.adjust_i128(123_456_789_012_345, total_liq, total_col).unwrap(), 0);
     }
 
     #[test]
     fn adjust_u64_basic_scaling_produces_expected_ratio() {
         // 10:1
         let bank = generic_reserve(10_000_000, 8, 1_000_000);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
-        let got = bank.adjust_u64(42).unwrap();
+        let got = bank.adjust_u64(42, total_liq, total_col).unwrap();
         assert_eq!(got, 420);
     }
 
@@ -154,19 +158,21 @@ mod tests {
     fn adjust_i64_basic_scaling_produces_expected_ratio() {
         // 10:1
         let bank = generic_reserve(10_000_000, 8, 1_000_000);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
-        let got = bank.adjust_i64(42).unwrap();
+        let got = bank.adjust_i64(42, total_liq, total_col).unwrap();
         assert_eq!(got, 420);
     }
 
     #[test]
     fn adjust_i128_basic_scaling_produces_expected_ratio() {
         let bank = generic_reserve(10_000_000, 8, 1_000_000);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
         const ONE_E18: i128 = 1_000_000_000_000_000_000;
         let raw = 42 * ONE_E18;
 
-        let got = bank.adjust_i128(raw).unwrap();
+        let got = bank.adjust_i128(raw, total_liq, total_col).unwrap();
 
         let eps = i80f48_eps_bits(10_000_000, 1_000_000, 8);
         let k = (10_000_000u64 / 1_000_000u64) as i128; // = 10 for this fixture
@@ -178,21 +184,22 @@ mod tests {
     #[test]
     fn adjust_u64_no_overflows() {
         let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
-        let res = bank.adjust_u64(42);
+        let res = bank.adjust_u64(42, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 42);
 
         // Note: 2^15 is the largest value that wouldn't overflow (2^80 / 2^64), i.e. I80's max
         // whole component when multiplied by u64 max (the max possibly supply in practice)
-        let res = bank.adjust_u64(32768);
+        let res = bank.adjust_u64(32768, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32768);
 
         // Note: More typical decimal values go longer before overflow
         let bank = generic_reserve(u64::MAX, 8, u64::MAX);
 
-        let res = bank.adjust_u64(32_76_800_000_000);
+        let res = bank.adjust_u64(32_76_800_000_000, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32_76_800_000_000);
     }
@@ -200,18 +207,19 @@ mod tests {
     #[test]
     fn adjust_i64_no_overflows() {
         let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
-        let res = bank.adjust_i64(42);
+        let res = bank.adjust_i64(42, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 42);
 
-        let res = bank.adjust_i64(32768);
+        let res = bank.adjust_i64(32768, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32768);
 
         let bank = generic_reserve(u64::MAX, 8, u64::MAX);
 
-        let res = bank.adjust_i64(32_76_800_000_000);
+        let res = bank.adjust_i64(32_76_800_000_000, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32_76_800_000_000);
     }
@@ -219,15 +227,16 @@ mod tests {
     #[test]
     fn adjust_i128_no_overflows() {
         let bank = generic_reserve(u64::MAX, 0, u64::MAX);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
-        let res = bank.adjust_i128(42_000_000_000_000_000_000i128);
+        let res = bank.adjust_i128(42_000_000_000_000_000_000i128, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 42_000_000_000_000_000_000i128);
 
         let bank = generic_reserve(u64::MAX, 8, u64::MAX);
 
         // Large Switchboard value with 18 decimals
-        let res = bank.adjust_i128(32_768_000_000_000_000_000_000i128);
+        let res = bank.adjust_i128(32_768_000_000_000_000_000_000i128, total_liq, total_col);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 32_768_000_000_000_000_000_000i128);
     }
@@ -236,16 +245,17 @@ mod tests {
     fn adjust_u64_overflow_detected_as_error() {
         // ratio > 1 ensures we can trigger overflow on the output cast
         let bank = generic_reserve(200_000_000, 8, 1_000_000); // ~200:1
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
         let safe = largest_safe_raw_for_u64_exact(&bank);
         assert!(
-            bank.adjust_u64(safe).is_ok(),
+            bank.adjust_u64(safe, total_liq, total_col).is_ok(),
             "largest safe raw should succeed"
         );
 
         let ovf = overflow_raw_for_u64_exact(&bank);
         assert!(
-            bank.adjust_u64(ovf).is_err(),
+            bank.adjust_u64(ovf, total_liq, total_col).is_err(),
             "raw above threshold must overflow"
         );
     }
@@ -253,18 +263,20 @@ mod tests {
     #[test]
     fn adjust_i64_overflow_detected_as_error() {
         let bank = generic_reserve(200_000_000, 8, 1_000_000);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
 
         let safe = largest_safe_raw_for_i64_exact(&bank);
-        assert!(bank.adjust_i64(safe).is_ok());
+        assert!(bank.adjust_i64(safe, total_liq, total_col).is_ok());
 
         let ovf = overflow_raw_for_i64_exact(&bank);
-        assert!(bank.adjust_i64(ovf).is_err());
+        assert!(bank.adjust_i64(ovf, total_liq, total_col).is_err());
     }
 
     #[test]
     fn adjust_i128_overflow_detected_as_error_on_input_conversion() {
         let bank = generic_reserve(200_000_000, 8, 1_000_000);
-        let res = bank.adjust_i128(i128::MAX);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
+        let res = bank.adjust_i128(i128::MAX, total_liq, total_col);
         assert!(res.is_err()); // no panic, clean Err
     }
 
@@ -278,7 +290,8 @@ mod tests {
         // floor(MAX / ratio) in integer domain for raw
         let safe_raw = (max_bits / rb) as i128;
         let raw = safe_raw.saturating_add(1);
-        let res = bank.adjust_i128(raw);
+        let (total_liq, total_col) = bank.scaled_supplies().unwrap();
+        let res = bank.adjust_i128(raw, total_liq, total_col);
         assert!(res.is_err());
     }
 

@@ -137,13 +137,11 @@ impl MinimalReserve {
     }
 
     /// Adjust a raw oracle value by the bank's collateral↔liquidity exchange rate.
-    pub fn adjust_oracle_value(&self, raw: I80F48) -> Result<I80F48> {
+    pub fn adjust_oracle_value(&self, raw: I80F48, total_liq: I80F48, total_col: I80F48) -> Result<I80F48> {
         // Prevent division by zero on reserves that have no assets
         if self.mint_total_supply == 0 {
             return Ok(raw);
         }
-
-        let (total_liq, total_col) = self.scaled_supplies()?;
 
         // Calc ratio first to minimize overflow risk
         let ratio = total_liq.checked_div(total_col).ok_or_else(math_error!())?;
@@ -166,24 +164,24 @@ impl MinimalReserve {
 
     /// Wrapper for i128 values (used by Switchboard)
     #[inline]
-    pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
+    pub fn adjust_i128(&self, raw: i128, total_liq: I80F48, total_col: I80F48) -> Result<i128> {
         let raw_fx = Self::i80_from_i128_checked(raw).ok_or_else(math_error!())?;
-        let adj_fx = self.adjust_oracle_value(raw_fx)?;
+        let adj_fx = self.adjust_oracle_value(raw_fx, total_liq, total_col)?;
         Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
     }
 
     /// Wrapper for i64 values (used by Pyth prices)
     #[inline]
-    pub fn adjust_i64(&self, raw: i64) -> Result<i64> {
-        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
+    pub fn adjust_i64(&self, raw: i64, total_liq: I80F48, total_col: I80F48) -> Result<i64> {
+        let adj = self.adjust_oracle_value(I80F48::from_num(raw), total_liq, total_col)?;
         adj.checked_to_num::<i64>()
             .ok_or(KaminoMocksError::MathError.into())
     }
 
     /// Wrapper for u64 values (used by Pyth confidence)
     #[inline]
-    pub fn adjust_u64(&self, raw: u64) -> Result<u64> {
-        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
+    pub fn adjust_u64(&self, raw: u64, total_liq: I80F48, total_col: I80F48) -> Result<u64> {
+        let adj = self.adjust_oracle_value(I80F48::from_num(raw), total_liq, total_col)?;
         adj.checked_to_num::<u64>()
             .ok_or(KaminoMocksError::MathError.into())
     }
