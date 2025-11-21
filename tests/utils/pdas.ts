@@ -1,6 +1,17 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { KLEND_PROGRAM_ID } from "./types";
+import { EXPONENT_PROGRAM_ID, KLEND_PROGRAM_ID } from "./types";
+
+const AUTHORITY_SEED = "authority";
+const MINT_PT_SEED = "mint_pt";
+const MINT_YT_SEED = "mint_yt";
+const MINT_LP_SEED = "mint_lp";
+const ESCROW_YT_SEED = "escrow_yt";
+const ESCROW_PT_SEED = "escrow_pt";
+const ESCROW_SY_MARKET_SEED = "escrow_sy";
+const ESCROW_LP_SEED = "escrow_lp";
+const YIELD_POSITION_SEED = "yield_position";
+const MARKET_SEED = "market";
 
 export const deriveLiquidityVaultAuthority = (
   programId: PublicKey,
@@ -9,6 +20,87 @@ export const deriveLiquidityVaultAuthority = (
   return PublicKey.findProgramAddressSync(
     [Buffer.from("liquidity_vault_auth", "utf-8"), bank.toBuffer()],
     programId
+  );
+};
+
+export const deriveExponentAuthority = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(AUTHORITY_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentMintPt = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(MINT_PT_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentMintYt = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(MINT_YT_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentMintLp = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(MINT_LP_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentEscrowYt = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(ESCROW_YT_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentEscrowPt = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(ESCROW_PT_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentEscrowSyForMarket = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(ESCROW_SY_MARKET_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentEscrowLp = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(ESCROW_LP_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentVaultYieldPosition = (vault: PublicKey, authority: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [
+      Buffer.from(YIELD_POSITION_SEED, "utf-8"),
+      vault.toBuffer(),
+      authority.toBuffer(),
+    ],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentUserYieldPosition = (vault: PublicKey, owner: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(YIELD_POSITION_SEED, "utf-8"), vault.toBuffer(), owner.toBuffer()],
+    EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentMarket = (vault: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(MARKET_SEED, "utf-8"), vault.toBuffer()],
+    EXPONENT_PROGRAM_ID
   );
 };
 

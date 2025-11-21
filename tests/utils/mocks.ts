@@ -17,6 +17,7 @@ import {
 import { Marginfi } from "../../target/types/marginfi";
 import { Mocks } from "../../target/types/mocks";
 import { KaminoLending } from "../fixtures/kamino_lending";
+import { ExponentCore } from "../fixtures/exponent_core";
 import { ProgramTestContext } from "solana-bankrun";
 import { processBankrunTransaction } from "./tools";
 
@@ -144,6 +145,8 @@ export type MockUser = {
   mrgnBankrunProgram: Program<Marginfi> | undefined;
   /** A Kamino bankrun program that uses the user's wallet */
   klendBankrunProgram: Program<KaminoLending> | undefined;
+  /** An Exponent bankrun program that uses the user's wallet */
+  exponentBankrunProgram: Program<ExponentCore> | undefined;
   /** A map to store arbitrary accounts related to the user using a string key */
   accounts: Map<string, PublicKey>;
 };
@@ -298,6 +301,7 @@ export const setupTestUser = async (
       : undefined,
     mrgnBankrunProgram: undefined,
     klendBankrunProgram: undefined,
+    exponentBankrunProgram: undefined,
     accounts: new Map<string, PublicKey>(),
   };
   return user;

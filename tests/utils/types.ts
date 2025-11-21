@@ -18,6 +18,12 @@ export const KLEND_PROGRAM_ID = new PublicKey(
 export const FARMS_PROGRAM_ID = new PublicKey(
   "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
 );
+export const EXPONENT_PROGRAM_ID = new PublicKey(
+  "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
+);
+export const EXPONENT_ADMIN_PROGRAM_ID = new PublicKey(
+  "3D6ojc8vBfDteLBDTTRznZbZRh7bkEGQaYqNkudoTCBQ"
+);
 
 export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;

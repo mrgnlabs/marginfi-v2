@@ -48,6 +48,8 @@ import { initGlobalFeeState } from "./utils/group-instructions";
 import { deriveGlobalFeeState } from "./utils/pdas";
 import { KaminoLending } from "./fixtures/kamino_lending";
 import klendIdl from "./fixtures/kamino_lending.json";
+import { ExponentCore } from "./fixtures/exponent_core";
+import exponentIdl from "./fixtures/exponent_core.json";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -114,6 +116,7 @@ export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
 export let klendBankrunProgram: Program<KaminoLending>;
+export let exponentBankrunProgram: Program<ExponentCore>;
 export let banksClient: BanksClient;
 /** A mainnet Pyth pull feed (Jup's Sol feed) */
 export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
@@ -402,10 +405,18 @@ export const mochaHooks = {
       klendIdl as KaminoLending,
       bankRunProvider
     );
+    exponentBankrunProgram = new Program<ExponentCore>(
+      exponentIdl as ExponentCore,
+      bankRunProvider
+    );
     for (let i = 0; i < numUsers; i++) {
       const wal = new Wallet(users[i].wallet);
       const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
       users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
+      users[i].exponentBankrunProgram = new Program<ExponentCore>(
+        exponentIdl as ExponentCore,
+        prov
+      );
     }
     banksClient = bankrunContext.banksClient;
 
