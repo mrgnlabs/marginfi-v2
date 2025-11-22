@@ -67,10 +67,7 @@ impl MarginfiGroupFixture {
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
-                data: MarginfiGroupInitialize {
-                    is_arena_group: false,
-                }
-                .data(),
+                data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
             };
 
             let configure_marginfi_group_ix = Instruction {
@@ -91,7 +88,6 @@ impl MarginfiGroupFixture {
                     new_emissions_admin: admin,
                     new_metadata_admin: admin,
                     new_risk_admin: admin,
-                    is_arena_group: false,
                 }
                 .data(),
             };
@@ -643,7 +639,6 @@ impl MarginfiGroupFixture {
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
-        is_arena_group: bool,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::ID,
@@ -660,7 +655,6 @@ impl MarginfiGroupFixture {
                 new_emissions_admin,
                 new_metadata_admin,
                 new_risk_admin,
-                is_arena_group,
             }
             .data(),
         };

@@ -84,11 +84,8 @@ pub use id_crate::ID;
 pub mod marginfi {
     use super::*;
 
-    pub fn marginfi_group_initialize(
-        ctx: Context<MarginfiGroupInitialize>,
-        is_arena_group: bool,
-    ) -> MarginfiResult {
-        marginfi_group::initialize_group(ctx, is_arena_group)
+    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
+        marginfi_group::initialize_group(ctx)
     }
 
     pub fn marginfi_group_configure(
@@ -100,7 +97,6 @@ pub mod marginfi {
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
-        is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
             ctx,
@@ -111,7 +107,6 @@ pub mod marginfi {
             new_emissions_admin,
             new_metadata_admin,
             new_risk_admin,
-            is_arena_group,
         )
     }
 
