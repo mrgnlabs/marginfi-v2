@@ -262,12 +262,19 @@ impl OraclePriceFeedAdapter {
                     PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
                 let (total_liq, total_col) = reserve.scaled_supplies()?;
+                if total_col > I80F48::ZERO {
+                    let liq_to_col_ratio = total_liq / total_col;
 
-                // Adjust Pyth prices & confidence in place
-                price_feed.price.price = reserve.adjust_i64(price_feed.price.price, total_liq, total_col)?;
-                price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price, total_liq, total_col)?;
-                price_feed.price.conf = reserve.adjust_u64(price_feed.price.conf, total_liq, total_col)?;
-                price_feed.ema_price.conf = reserve.adjust_u64(price_feed.ema_price.conf, total_liq, total_col)?;
+                    // Adjust prices & confidence in place
+                    price_feed.price.price =
+                        reserve.adjust_i64(price_feed.price.price, liq_to_col_ratio)?;
+                    price_feed.ema_price.price =
+                        reserve.adjust_i64(price_feed.ema_price.price, liq_to_col_ratio)?;
+                    price_feed.price.conf =
+                        reserve.adjust_u64(price_feed.price.conf, liq_to_col_ratio)?;
+                    price_feed.ema_price.conf =
+                        reserve.adjust_u64(price_feed.ema_price.conf, liq_to_col_ratio)?;
+                }
 
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
             }
@@ -306,11 +313,16 @@ impl OraclePriceFeedAdapter {
                     max_age,
                 )?;
 
-                // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
                 let (total_liq, total_col) = reserve.scaled_supplies()?;
-                price_feed.feed.result.value = reserve.adjust_i128(price_feed.feed.result.value, total_liq, total_col)?;
-                price_feed.feed.result.std_dev =
-                    reserve.adjust_i128(price_feed.feed.result.std_dev, total_liq, total_col)?;
+                if total_col > I80F48::ZERO {
+                    let liq_to_col_ratio = total_liq / total_col;
+
+                    // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
+                    price_feed.feed.result.value =
+                        reserve.adjust_i128(price_feed.feed.result.value, liq_to_col_ratio)?;
+                    price_feed.feed.result.std_dev =
+                        reserve.adjust_i128(price_feed.feed.result.std_dev, liq_to_col_ratio)?;
+                }
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
