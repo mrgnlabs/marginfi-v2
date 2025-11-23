@@ -67,9 +67,7 @@ pub fn calculate_max_leverage(
     check!(denominator > I80F48::ZERO, MarginfiError::BadEmodeConfig);
 
     //  leverage: 1 / (1 - CW/LW)
-    let leverage = I80F48::ONE
-        .checked_div(denominator)
-        .ok_or(MarginfiError::MathError)?;
+    let leverage = I80F48::ONE / denominator;
 
     Ok(leverage)
 }
@@ -103,9 +101,6 @@ impl EmodeSettingsImpl for EmodeSettings {
             // Basic sanity checks
             check!(asset_init_w >= I80F48::ZERO, MarginfiError::BadEmodeConfig);
             check!(asset_maint_w >= asset_init_w, MarginfiError::BadEmodeConfig);
-
-            check!(asset_init_w < liab_init_w, MarginfiError::BadEmodeConfig);
-            check!(asset_maint_w < liab_maint_w, MarginfiError::BadEmodeConfig);
 
             let max_leverage_init = calculate_max_leverage(asset_init_w, liab_init_w)?;
             check!(
