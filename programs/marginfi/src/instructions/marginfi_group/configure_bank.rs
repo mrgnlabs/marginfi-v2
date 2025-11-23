@@ -20,7 +20,6 @@ pub fn lending_pool_configure_bank(
     bank_config: BankConfigOpt,
 ) -> MarginfiResult {
     let mut bank = ctx.accounts.bank.load_mut()?;
-    let group = ctx.accounts.group.load()?;
 
     // If settings are frozen, you can only update the deposit and borrow limits, everything else is ignored.
     if bank.get_flag(FREEZE_SETTINGS) {
