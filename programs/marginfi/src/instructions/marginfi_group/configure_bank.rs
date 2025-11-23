@@ -58,9 +58,6 @@ pub fn lending_pool_configure_bank(
         });
     }
 
-    // Update bank cache to sync max_emode_leverage from group
-    bank.update_bank_cache(&group)?;
-
     Ok(())
 }
 
