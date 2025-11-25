@@ -8,3 +8,10 @@ macro_rules! pool_auth_signer_seeds {
         ]
     };
 }
+
+#[macro_export]
+macro_rules! state_signer_seeds {
+    ($state:expr) => {
+        &[b"state", $state.admin.as_ref(), &[$state.bump]]
+    };
+}

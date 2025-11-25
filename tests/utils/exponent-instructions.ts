@@ -1,7 +1,12 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import {
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ExponentCore } from "../fixtures/exponent_core";
+import { ExponentAdmin } from "../fixtures/exponent_admin";
 
 export type ExponentCpiInterfaceContext = {
   altIndex: number;
@@ -24,6 +29,113 @@ export const emptyCpiAccounts = (): ExponentCpiAccounts => ({
   claimEmission: [],
   getPositionState: [],
 });
+
+export type InitializeAdminArgs = {
+  adminAccount: PublicKey;
+  feePayer: PublicKey;
+};
+
+export const initializeAdminIx = async (
+  program: Program<ExponentAdmin>,
+  args: InitializeAdminArgs
+): Promise<TransactionInstruction> => {
+  return program.methods
+    .initializeAdmin()
+    .accounts({
+      adminAccount: args.adminAccount,
+      feePayer: args.feePayer,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+};
+
+export type InviteAdminArgs = {
+  adminAccount: PublicKey;
+  uberAdmin: PublicKey;
+  proposedAdmin: PublicKey;
+};
+
+export const inviteAdminIx = async (
+  program: Program<ExponentAdmin>,
+  args: InviteAdminArgs
+): Promise<TransactionInstruction> => {
+  return program.methods
+    .inviteAdmin()
+    .accounts({
+      adminAccount: args.adminAccount,
+      uberAdmin: args.uberAdmin,
+      proposedAdmin: args.proposedAdmin,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+};
+
+export type AcceptAdminArgs = {
+  adminAccount: PublicKey;
+  newUberAdmin: PublicKey;
+};
+
+export const acceptAdminIx = async (
+  program: Program<ExponentAdmin>,
+  args: AcceptAdminArgs
+): Promise<TransactionInstruction> => {
+  return program.methods
+    .acceptInvitation()
+    .accounts({
+      adminAccount: args.adminAccount,
+      newUberAdmin: args.newUberAdmin,
+    })
+    .instruction();
+};
+
+export type Principle =
+  | { marginfiStandard: {} }
+  | { collectTreasury: {} }
+  | { kaminoLendStandard: {} }
+  | { exponentCore: {} }
+  | { changeStatusFlags: {} }
+  | { jitoRestaking: {} };
+
+export type AddPrincipleAdminArgs = {
+  adminAccount: PublicKey;
+  newAdmin: PublicKey;
+  feePayer: PublicKey;
+  uberAdmin: PublicKey;
+  principle: Principle;
+};
+
+export const addPrincipleAdminIx = async (
+  program: Program<ExponentAdmin>,
+  args: AddPrincipleAdminArgs
+): Promise<TransactionInstruction> => {
+  return program.methods
+    .addPrincipleAdmin(args.principle)
+    .accounts({
+      adminAccount: args.adminAccount,
+      newAdmin: args.newAdmin,
+      feePayer: args.feePayer,
+      uberAdmin: args.uberAdmin,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+};
+
+// #[derive(Accounts)]
+// pub struct AddPrincipleAdmin<'info> {
+//     #[account(
+//         mut,
+//         realloc = admin_account.to_account_info().data_len() + 32,
+//         realloc::payer = fee_payer,
+//         realloc::zero = false
+//     )]
+//     pub admin_account: Account<'info, Admin>,
+//     /// CHECK:
+//     pub new_admin: UncheckedAccount<'info>,
+//     #[account(mut)]
+//     pub fee_payer: Signer<'info>,
+//     pub uber_admin: Signer<'info>,
+//     pub system_program: Program<'info, System>,
+// }
 
 export type ExponentNumber = {
   mantissa: BN | number | bigint;
@@ -51,12 +163,16 @@ export type InitializeVaultArgs = {
   duration: number;
   interestBpsFee: number;
   cpiAccounts: ExponentCpiAccounts;
-  minOpSizeStrip: BN | number | bigint;
-  minOpSizeMerge: BN | number | bigint;
+  minOpSizeStrip: BN;
+  minOpSizeMerge: BN;
   ptMetadataName: string;
   ptMetadataSymbol: string;
   ptMetadataUri: string;
-  remainingAccounts?: { pubkey: PublicKey; isWritable: boolean; isSigner: boolean }[];
+  remainingAccounts?: {
+    pubkey: PublicKey;
+    isWritable: boolean;
+    isSigner: boolean;
+  }[];
 };
 
 export const initializeVaultIx = async (

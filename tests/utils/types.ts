@@ -24,6 +24,9 @@ export const EXPONENT_PROGRAM_ID = new PublicKey(
 export const EXPONENT_ADMIN_PROGRAM_ID = new PublicKey(
   "3D6ojc8vBfDteLBDTTRznZbZRh7bkEGQaYqNkudoTCBQ"
 );
+export const MOCKS_PROGRAM_ID = new PublicKey(
+  "5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C"
+);
 
 export const EMISSIONS_FLAG_NONE = 0;
 export const EMISSIONS_FLAG_BORROW_ACTIVE = 1;

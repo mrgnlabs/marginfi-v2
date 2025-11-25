@@ -5,9 +5,20 @@ import {
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import { ExponentCore } from "./fixtures/exponent_core";
-import { ecosystem, exponentBankrunProgram, users } from "./rootHooks";
+import {
+  bankrunContext,
+  banksClient,
+  ecosystem,
+  exponentBankrunProgram,
+  users,
+} from "./rootHooks";
 import {
   emptyCpiAccounts,
   ExponentNumber,
@@ -26,15 +37,12 @@ import {
   deriveExponentMintYt,
   deriveExponentVaultYieldPosition,
 } from "./utils/pdas";
-import { EXPONENT_ADMIN_PROGRAM_ID } from "./utils/types";
+import { EXPONENT_ADMIN_PROGRAM_ID, MOCKS_PROGRAM_ID } from "./utils/types";
 import { assert } from "chai";
-
-const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
-  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-);
+import { processBankrunTransaction } from "./utils/tools";
 
 // Deterministic vault to re-use across the Exponent suite
-const VAULT_SEED = Buffer.from("EXPONENT_VAULT_SEED_0000000000000000");
+const VAULT_SEED = Buffer.from("VAULT_E_BANK_SEED_00000000000000");
 const vaultKeypair = Keypair.fromSeed(VAULT_SEED);
 
 // Deterministic admin account derived from the Exponent admin program seed
@@ -56,62 +64,71 @@ const vaultYieldPosition = deriveExponentVaultYieldPosition(
   vaultKeypair.publicKey,
   vaultAuthority
 )[0];
-const metadata = PublicKey.findProgramAddressSync(
-  [
-    Buffer.from("metadata"),
-    TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-    mintPt.toBuffer(),
-  ],
-  TOKEN_METADATA_PROGRAM_ID
-)[0];
 
 const lookupTable = Keypair.generate().publicKey;
 
-const program = exponentBankrunProgram as Program<ExponentCore>;
-
+// TODO init sy program state
 describe("exponent::init", () => {
-  it("builds initialize vault instruction", async () => {
+  it("initialize exponent YT vault", async () => {
+    const user = users[0];
+    const program = user.exponentBankrunProgram;
+
     const escrowSyVault = getAssociatedTokenAddressSync(
       ecosystem.usdcMint.publicKey,
       vaultAuthority,
       true
     );
+    const personal = Keypair.generate();
+    const remainingAccounts = [
+      { pubkey: personal.publicKey, isWritable: true, isSigner: true },
+      { pubkey: user.wallet.publicKey, isWritable: true, isSigner: true },
+      { pubkey: SystemProgram.programId, isWritable: false, isSigner: false },
+    ];
 
-    const ix = await initializeVaultIx(program, {
-      payer: users[0].wallet.publicKey,
-      admin: adminPda,
-      authority: vaultAuthority,
-      vault: vaultKeypair.publicKey,
-      mintPt,
-      mintYt,
-      escrowYt,
-      escrowSy: escrowSyVault,
-      mintSy: ecosystem.usdcMint.publicKey,
-      treasuryTokenAccount: users[0].usdcAccount,
-      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      syProgram: program.programId,
-      addressLookupTable: lookupTable,
-      yieldPosition: vaultYieldPosition,
-      metadata,
-      tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-      startTimestamp: 1,
-      duration: 60,
-      interestBpsFee: 0,
-      cpiAccounts: emptyCpiAccounts(),
-      minOpSizeStrip: new BN(1_000_000),
-      minOpSizeMerge: new BN(1_000_000),
-      ptMetadataName: "Exponent PT",
-      ptMetadataSymbol: "ePT",
-      ptMetadataUri: "https://example.com/metadata.json",
-    });
+    const tx = new Transaction().add(
+      await initializeVaultIx(program, {
+        payer: user.wallet.publicKey,
+        admin: adminPda,
+        authority: vaultAuthority,
+        vault: vaultKeypair.publicKey,
+        mintPt,
+        mintYt,
+        escrowYt,
+        escrowSy: escrowSyVault,
+        mintSy: ecosystem.usdcMint.publicKey,
+        treasuryTokenAccount: user.usdcAccount,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        syProgram: MOCKS_PROGRAM_ID,
+        addressLookupTable: lookupTable,
+        yieldPosition: vaultYieldPosition,
+        // It's less annoying to skip all metadata initiation on localnet.
+        metadata: PublicKey.default,
+        tokenMetadataProgram: PublicKey.default,
+        startTimestamp: 1,
+        duration: 60,
+        interestBpsFee: 0,
+        cpiAccounts: emptyCpiAccounts(),
+        minOpSizeStrip: new BN(1_000_000),
+        minOpSizeMerge: new BN(1_000_000),
+        ptMetadataName: "Exponent PT",
+        ptMetadataSymbol: "ePT",
+        ptMetadataUri: "https://example.com/metadata.json",
+        remainingAccounts: remainingAccounts,
+      })
+    );
 
-    assert.equal(ix.programId.toBase58(), program.programId.toBase58());
-    const authorityMeta = ix.keys.find((k) => k.pubkey.equals(vaultAuthority));
-    assert.isDefined(authorityMeta, "authority pda must be wired");
+    await processBankrunTransaction(
+      bankrunContext,
+      tx,
+      [user.wallet, vaultKeypair, personal],
+      true,
+      true
+    );
   });
 
   it("initializes a market for trading PT and YT", async () => {
     const user = users[0];
+    const program = user.exponentBankrunProgram;
     const ptSrc = getAssociatedTokenAddressSync(mintPt, user.wallet.publicKey);
     const sySrc = user.usdcAccount;
     const lpDst = getAssociatedTokenAddressSync(mintLp, user.wallet.publicKey);

@@ -1025,8 +1025,7 @@ export type ExponentCore = {
           "writable": true
         },
         {
-          "name": "metadata",
-          "writable": true
+          "name": "metadata"
         },
         {
           "name": "tokenMetadataProgram"

@@ -1,6 +1,10 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { EXPONENT_PROGRAM_ID, KLEND_PROGRAM_ID } from "./types";
+import {
+  EXPONENT_ADMIN_PROGRAM_ID,
+  EXPONENT_PROGRAM_ID,
+  KLEND_PROGRAM_ID,
+} from "./types";
 
 const AUTHORITY_SEED = "authority";
 const MINT_PT_SEED = "mint_pt";
@@ -12,6 +16,7 @@ const ESCROW_SY_MARKET_SEED = "escrow_sy";
 const ESCROW_LP_SEED = "escrow_lp";
 const YIELD_POSITION_SEED = "yield_position";
 const MARKET_SEED = "market";
+const ADMIN_SEED = "admin";
 
 export const deriveLiquidityVaultAuthority = (
   programId: PublicKey,
@@ -79,7 +84,10 @@ export const deriveExponentEscrowLp = (vault: PublicKey) => {
   );
 };
 
-export const deriveExponentVaultYieldPosition = (vault: PublicKey, authority: PublicKey) => {
+export const deriveExponentVaultYieldPosition = (
+  vault: PublicKey,
+  authority: PublicKey
+) => {
   return PublicKey.findProgramAddressSync(
     [
       Buffer.from(YIELD_POSITION_SEED, "utf-8"),
@@ -90,9 +98,16 @@ export const deriveExponentVaultYieldPosition = (vault: PublicKey, authority: Pu
   );
 };
 
-export const deriveExponentUserYieldPosition = (vault: PublicKey, owner: PublicKey) => {
+export const deriveExponentUserYieldPosition = (
+  vault: PublicKey,
+  owner: PublicKey
+) => {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from(YIELD_POSITION_SEED, "utf-8"), vault.toBuffer(), owner.toBuffer()],
+    [
+      Buffer.from(YIELD_POSITION_SEED, "utf-8"),
+      vault.toBuffer(),
+      owner.toBuffer(),
+    ],
     EXPONENT_PROGRAM_ID
   );
 };
@@ -101,6 +116,13 @@ export const deriveExponentMarket = (vault: PublicKey) => {
   return PublicKey.findProgramAddressSync(
     [Buffer.from(MARKET_SEED, "utf-8"), vault.toBuffer()],
     EXPONENT_PROGRAM_ID
+  );
+};
+
+export const deriveExponentAdminAccount = () => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from(ADMIN_SEED, "utf-8")],
+    EXPONENT_ADMIN_PROGRAM_ID
   );
 };
 
@@ -241,10 +263,7 @@ export const deriveMarginfiAccountPda = (
   );
 };
 
-export const deriveBankMetadata = (
-  programId: PublicKey,
-  bank: PublicKey
-) => {
+export const deriveBankMetadata = (programId: PublicKey, bank: PublicKey) => {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("metadata", "utf-8"), bank.toBuffer()],
     programId
@@ -430,10 +449,10 @@ export const deriveObligation = (
 /**
  * Somewhat contrary to the name, this is the rewards state of the farms program for an obligation
  * (like one owned by a bank), and has nothing to do with "users" in a margin context.
- * @param programId 
- * @param farmState 
- * @param obligation 
- * @returns 
+ * @param programId
+ * @param farmState
+ * @param obligation
+ * @returns
  */
 export function deriveUserState(
   programId: PublicKey,
