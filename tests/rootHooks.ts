@@ -45,9 +45,20 @@ import { assert } from "chai";
 import { decodeSinglePool } from "./utils/spl-staking-utils";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { initGlobalFeeState } from "./utils/group-instructions";
-import { deriveGlobalFeeState } from "./utils/pdas";
+import { deriveExponentAdminAccount, deriveGlobalFeeState } from "./utils/pdas";
 import { KaminoLending } from "./fixtures/kamino_lending";
 import klendIdl from "./fixtures/kamino_lending.json";
+import { ExponentCore } from "./fixtures/exponent_core";
+import exponentIdl from "./fixtures/exponent_core.json";
+import { ExponentAdmin } from "./fixtures/exponent_admin";
+import exponentAdminIdl from "./fixtures/exponent_admin.json";
+import { processBankrunTransaction } from "./utils/tools";
+import {
+  acceptAdminIx,
+  addPrincipleAdminIx,
+  initializeAdminIx,
+  inviteAdminIx,
+} from "./utils/exponent-instructions";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -93,6 +104,8 @@ export const emodeGroup = Keypair.fromSeed(EMODE_GROUP_SEED);
 /** Group used for kamino tests */
 const KAMINO_GROUP_SEED = Buffer.from("KAMINO_GROUP_SEED_00000000000000");
 export const kaminoGroup = Keypair.fromSeed(KAMINO_GROUP_SEED);
+const GROUP_ADMIN_SEED = Buffer.from("MARGINFI_GROUP_ADMIN_00000000000");
+export const groupAdminWallet = Keypair.fromSeed(GROUP_ADMIN_SEED);
 
 /** Bank for USDC */
 const USDC_SEED = Buffer.from("USDC_BANK_SEED_00000000000000000");
@@ -114,6 +127,8 @@ export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
 export let klendBankrunProgram: Program<KaminoLending>;
+export let exponentBankrunProgram: Program<ExponentCore>;
+export let exponentAdminBankrunProgram: Program<ExponentAdmin>;
 export let banksClient: BanksClient;
 /** A mainnet Pyth pull feed (Jup's Sol feed) */
 export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
@@ -301,8 +316,10 @@ export const mochaHooks = {
       usdcMint: ecosystem.usdcMint.publicKey,
       lstAlphaMint: ecosystem.lstAlphaMint.publicKey,
     };
-
+    setupUserOptions.forceWallet = groupAdminWallet;
     groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
+    setupUserOptions.forceWallet = undefined;
+
     emodeAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
     validatorAdmin = await setupTestUser(
       provider,
@@ -402,10 +419,22 @@ export const mochaHooks = {
       klendIdl as KaminoLending,
       bankRunProvider
     );
+    exponentBankrunProgram = new Program<ExponentCore>(
+      exponentIdl as ExponentCore,
+      bankRunProvider
+    );
+    exponentAdminBankrunProgram = new Program<ExponentAdmin>(
+      exponentAdminIdl as ExponentAdmin,
+      bankRunProvider
+    );
     for (let i = 0; i < numUsers; i++) {
       const wal = new Wallet(users[i].wallet);
       const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
       users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
+      users[i].exponentBankrunProgram = new Program<ExponentCore>(
+        exponentIdl as ExponentCore,
+        prov
+      );
     }
     banksClient = bankrunContext.banksClient;
 
@@ -454,7 +483,8 @@ export const mochaHooks = {
       )
     );
 
-    banksClient = bankrunContext.banksClient;
+    // set user 0 as all exponent admin accounts
+    await setupExponentAdmin();
 
     if (verbose) {
       console.log("---End ecosystem setup---");
@@ -598,4 +628,86 @@ export const createSplStakePool = async (
   // copyKeys.push(poolAuthority);
 
   return { poolKey, poolMintKey, poolAuthority, poolStake };
+};
+
+export const setupExponentAdmin = async () => {
+  const [adminPda] = deriveExponentAdminAccount();
+  const initializeAdminTx = new Transaction().add(
+    await initializeAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      feePayer: groupAdmin.wallet.publicKey,
+    })
+  );
+  await processBankrunTransaction(bankrunContext, initializeAdminTx, [
+    groupAdmin.wallet,
+  ]);
+
+  const inviteAdminTx = new Transaction().add(
+    await inviteAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      uberAdmin: groupAdmin.wallet.publicKey,
+      proposedAdmin: users[0].wallet.publicKey,
+    })
+  );
+  await processBankrunTransaction(bankrunContext, inviteAdminTx, [
+    groupAdmin.wallet,
+  ]);
+
+  const acceptAdminTx = new Transaction().add(
+    await acceptAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newUberAdmin: users[0].wallet.publicKey,
+    })
+  );
+  await processBankrunTransaction(bankrunContext, acceptAdminTx, [
+    users[0].wallet,
+  ]);
+
+  const setPrincipleAdminTx = new Transaction().add(
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { marginfiStandard: {} },
+    }),
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { collectTreasury: {} },
+    }),
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { kaminoLendStandard: {} },
+    }),
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { exponentCore: {} },
+    }),
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { changeStatusFlags: {} },
+    }),
+    await addPrincipleAdminIx(exponentAdminBankrunProgram, {
+      adminAccount: adminPda,
+      newAdmin: users[0].wallet.publicKey,
+      uberAdmin: users[0].wallet.publicKey,
+      feePayer: users[0].wallet.publicKey,
+      principle: { jitoRestaking: {} },
+    })
+  );
+  await processBankrunTransaction(bankrunContext, setPrincipleAdminTx, [
+    users[0].wallet,
+  ]);
 };

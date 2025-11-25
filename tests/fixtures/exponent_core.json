@@ -1019,8 +1019,7 @@
           "writable": true
         },
         {
-          "name": "metadata",
-          "writable": true
+          "name": "metadata"
         },
         {
           "name": "token_metadata_program"

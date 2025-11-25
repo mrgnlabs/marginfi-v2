@@ -30,3 +30,6 @@ marginfi = { path = "../marginfi", features = ["cpi"] }
 
 bytemuck = { workspace = true, features = ["derive"] }
 static_assertions = { workspace = true }
+
+spl-math = { version = "0.3.0", features = ["no-entrypoint"] }
+borsh = "0.10.3"

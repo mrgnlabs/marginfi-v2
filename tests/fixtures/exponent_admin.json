@@ -1,0 +1,361 @@
+{
+  "address": "3D6ojc8vBfDteLBDTTRznZbZRh7bkEGQaYqNkudoTCBQ",
+  "metadata": {
+    "name": "exponent_admin",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "accept_invitation",
+      "discriminator": [
+        114,
+        70,
+        62,
+        248,
+        204,
+        49,
+        98,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "new_uber_admin",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "add_principle_admin",
+      "discriminator": [
+        176,
+        92,
+        90,
+        244,
+        94,
+        195,
+        223,
+        17
+      ],
+      "accounts": [
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "new_admin"
+        },
+        {
+          "name": "fee_payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "uber_admin",
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "principle",
+          "type": {
+            "defined": {
+              "name": "Principle"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_admin",
+      "discriminator": [
+        35,
+        176,
+        8,
+        143,
+        42,
+        160,
+        61,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "fee_payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "invite_admin",
+      "discriminator": [
+        41,
+        60,
+        9,
+        111,
+        149,
+        16,
+        239,
+        88
+      ],
+      "accounts": [
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "uber_admin",
+          "signer": true
+        },
+        {
+          "name": "proposed_admin"
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "realloc_admin",
+      "discriminator": [
+        161,
+        113,
+        63,
+        40,
+        129,
+        42,
+        14,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_len",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "remove_principle_admin",
+      "discriminator": [
+        38,
+        60,
+        155,
+        176,
+        227,
+        130,
+        205,
+        154
+      ],
+      "accounts": [
+        {
+          "name": "admin_account",
+          "writable": true
+        },
+        {
+          "name": "admin_to_remove"
+        },
+        {
+          "name": "uber_admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "principle",
+          "type": {
+            "defined": {
+              "name": "Principle"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Admin",
+      "discriminator": [
+        244,
+        158,
+        220,
+        65,
+        8,
+        73,
+        4,
+        65
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6001,
+      "name": "NoProposedAdmin",
+      "msg": "There is no proposed admin"
+    }
+  ],
+  "types": [
+    {
+      "name": "Admin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "uber_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposed_uber_admin",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "principles",
+            "type": {
+              "defined": {
+                "name": "Principles"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Principle",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "MarginfiStandard"
+          },
+          {
+            "name": "CollectTreasury"
+          },
+          {
+            "name": "KaminoLendStandard"
+          },
+          {
+            "name": "ExponentCore"
+          },
+          {
+            "name": "ChangeStatusFlags"
+          },
+          {
+            "name": "JitoRestaking"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrincipleDetails",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "administrators",
+            "type": {
+              "vec": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Principles",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "marginfi_standard",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          },
+          {
+            "name": "collect_treasury",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          },
+          {
+            "name": "kamino_lend_standard",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          },
+          {
+            "name": "exponent_core",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          },
+          {
+            "name": "change_status_flags",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          },
+          {
+            "name": "jito_restaking",
+            "type": {
+              "defined": {
+                "name": "PrincipleDetails"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

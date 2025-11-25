@@ -22,7 +22,8 @@ spl_single_pool = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # cloned from so
 # liquidity_incentive_program = "Lip1111111111111111111111111111111111111111"
 kamino_lending = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
 kamino_farms = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
-exponent = "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
+exponent_core = "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
+exponent_admin = "3D6ojc8vBfDteLBDTTRznZbZRh7bkEGQaYqNkudoTCBQ"
 
 [programs.mainnet]
 # liquidity_incentive_program = "LipsxuAkFkwa4RKNzn51wAsW7Dedzt1RNHMkTkDEZUW"
@@ -37,7 +38,7 @@ wallet = "~/.config/solana/id.json"
 
 # (remove RUST_LOG= to see bankRun logs)
 [scripts]
-test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.ts --exit --require tests/rootHooks.ts"
 
 # Staked collateral tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/s*.spec.ts --exit --require tests/rootHooks.ts"
@@ -69,6 +70,9 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # Bankruptcy only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/zb*.spec.ts --exit --require tests/rootHooks.ts"
 
+# Exponent tests only
+test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/ex*.spec.ts --exit --require tests/rootHooks.ts"
+
 [test]
 startup_wait = 60000
 shutdown_wait = 2000
@@ -82,13 +86,25 @@ program = "tests/fixtures/kamino_lending.so"
 address = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
 program = "tests/fixtures/kamino_farms.so"
 
+# To update:
+# clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
 [[test.genesis]]
-address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE"
+address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # spl single pool program
 program = "tests/fixtures/spl_single_pool.so"
 
+# To update: clone (https://github.com/exponent-finance/exponent-core/tree/main) then comment out
+# `ctx.accounts.create_metadata` and constraints for `token_metadata_program` and `metadata` in
+# `initialize_vault`
 [[test.genesis]]
 address = "ExponentnaRg3CQbW6dqQNZKXp7gtZ9DGMp1cwC4HAS7"
 program = "tests/fixtures/exponent_core.so"
+
+# To update:
+# clone (https://github.com/exponent-finance/exponent-core/tree/main/programs/exponent_admin) then
+# change initialize_admin's fixed admin from ID to the group_admin's fixed wallet 
+[[test.genesis]]
+address = "3D6ojc8vBfDteLBDTTRznZbZRh7bkEGQaYqNkudoTCBQ"
+program = "tests/fixtures/exponent_admin.so"
 
 [test.validator]
 bind_address = "0.0.0.0"
@@ -130,10 +146,3 @@ filename = "tests/fixtures/gappy_user4.json"
 [[test.validator.account]]
 address = "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"
 filename = "tests/fixtures/mainnet_group.json"
-
-
-# To update:
-# clone https://github.com/solana-labs/solana-program-library/tree/master and run cargo build-sbf in spl_single_pool
-[[test.genesis]]
-address = "SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE" # spl single pool program
-program = "tests/fixtures/spl_single_pool.so"
