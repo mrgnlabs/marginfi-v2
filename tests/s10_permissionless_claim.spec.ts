@@ -56,8 +56,8 @@ describe("Set up permissionless fee claiming", () => {
     let result = await banksClient.tryProcessTransaction(tx);
     // dumpBankrunLogs(result);
 
-    // 2001 generic has_one failure (group admin)
-    assertBankrunTxFailed(result, 2001);
+    // 6042 generic has_one failure (group admin)
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(admin) set a claim destination - happy path", async () => {

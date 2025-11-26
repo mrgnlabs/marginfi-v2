@@ -69,7 +69,7 @@ jobs:
         cargo install cargo-nextest --version "0.9.81" --locked
       shell: bash
 
-    - run: ./scripts/test-program.sh all --sane
+    - run: ./scripts/test-program.sh all
 
   fuzz:
     name: Fuzz The marginfi Program

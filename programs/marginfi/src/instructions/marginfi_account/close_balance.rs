@@ -37,7 +37,8 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
 
     bank.update_bank_cache(group, None)?; // Close balance doesn't use oracle prices
 
-    let lending_account = &mut marginfi_account.lending_account;
+    let lending_account: &mut marginfi_type_crate::types::LendingAccount =
+        &mut marginfi_account.lending_account;
     let mut bank_account =
         BankAccountWrapper::find(&bank_loader.key(), &mut bank, lending_account)?;
 
@@ -54,8 +55,8 @@ pub struct LendingAccountCloseBalance<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -63,7 +64,7 @@ pub struct LendingAccountCloseBalance<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]

@@ -2,7 +2,9 @@ use super::{bank::BankFixture, prelude::*};
 use crate::ui_to_native;
 use anchor_lang::{prelude::*, system_program, InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
+use kamino_mocks::kamino_lending::client as kamino;
 use marginfi::state::bank::BankVaultType;
+use marginfi_type_crate::types::OracleSetup;
 use marginfi_type_crate::types::{Bank, MarginfiAccount};
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClientError, ProgramTestContext};
@@ -11,6 +13,9 @@ use solana_sdk::{
     signature::Keypair, signer::Signer, transaction::Transaction,
 };
 use std::{cell::RefCell, mem, rc::Rc};
+
+#[cfg(feature = "transfer-hook")]
+use transfer_hook::TEST_HOOK_ID;
 
 #[derive(Default, Clone)]
 pub struct MarginfiAccountConfig {}
@@ -104,21 +109,22 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         deposit_up_to_limit: Option<bool>,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_deposit_ix(funding_account, bank, ui_amount, deposit_up_to_limit)
             .await;
 
         // If t22 with transfer hook, add remaining accounts
-        let fetch_account_data_fn = |key| async move {
-            Ok(self
-                .ctx
+        let _fetch_account_data_fn = |key| async move {
+            self.ctx
                 .borrow_mut()
                 .banks_client
                 .get_account(key)
                 .await
-                .map(|acc| acc.map(|a| a.data))?)
+                .map(|acc| acc.map(|a| a.data))
         };
-        let payer = self.ctx.borrow_mut().payer.pubkey();
+        let _payer = self.ctx.borrow_mut().payer.pubkey();
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             // TODO: do that only if hook exists
             println!(
@@ -127,13 +133,13 @@ impl MarginfiAccountFixture {
             );
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &funding_account,
                 &bank.mint.key,
                 &bank.get_vault(BankVaultType::Liquidity).0,
-                &payer,
+                &_payer,
                 ui_to_native!(ui_amount.into(), bank.mint.mint.decimals),
-                fetch_account_data_fn,
+                _fetch_account_data_fn,
             )
             .await;
         }
@@ -291,25 +297,26 @@ impl MarginfiAccountFixture {
         ui_amount: T,
         nonce: u64,
     ) -> anyhow::Result<(), BanksClientError> {
+        #[cfg_attr(not(feature = "transfer-hook"), allow(unused_mut))]
         let mut ix = self
             .make_bank_borrow_ix(destination_account, bank, ui_amount)
             .await;
 
+        #[cfg(feature = "transfer-hook")]
         if bank.mint.token_program == anchor_spl::token_2022::ID {
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let payer = self.ctx.borrow().payer.pubkey();
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &bank.get_vault(BankVaultType::Liquidity).0,
                 &bank.mint.key,
                 &destination_account,
@@ -463,20 +470,31 @@ impl MarginfiAccountFixture {
             accounts.push(AccountMeta::new_readonly(liab_bank_fixture.mint.key, false));
         }
 
-        let oracle_accounts = vec![asset_bank.config, liab_bank.config]
-            .iter()
-            .map(|config| {
-                AccountMeta::new_readonly(
-                    {
-                        get_oracle_id_from_feed_id(config.oracle_keys[0])
-                            .unwrap_or(config.oracle_keys[0])
-                    },
-                    false,
-                )
-            })
-            .collect::<Vec<AccountMeta>>();
+        if asset_bank.config.oracle_setup != OracleSetup::Fixed {
+            accounts.push(AccountMeta::new_readonly(
+                asset_bank.config.oracle_keys[0],
+                false,
+            ));
+        }
+        if liab_bank.config.oracle_setup != OracleSetup::Fixed {
+            accounts.push(AccountMeta::new_readonly(
+                liab_bank.config.oracle_keys[0],
+                false,
+            ));
+        }
 
-        accounts.extend(oracle_accounts);
+        let liquidator_obs_accounts = &self
+            .load_observation_account_metas(
+                vec![asset_bank_fixture.key, liab_bank_fixture.key],
+                vec![],
+            )
+            .await;
+        let liquidator_accounts = liquidator_obs_accounts.len() as u8;
+
+        let liquidatee_obs_accounts = &liquidatee
+            .load_observation_account_metas(vec![], vec![])
+            .await;
+        let liquidatee_accounts = liquidatee_obs_accounts.len() as u8;
 
         let mut ix = Instruction {
             program_id: marginfi::ID,
@@ -486,25 +504,27 @@ impl MarginfiAccountFixture {
                     asset_ui_amount.into(),
                     asset_bank_fixture.mint.mint.decimals
                 ),
+                liquidatee_accounts,
+                liquidator_accounts,
             }
             .data(),
         };
 
+        #[cfg(feature = "transfer-hook")]
         if liab_bank_fixture.mint.token_program == anchor_spl::token_2022::ID {
             let payer = self.ctx.borrow().payer.pubkey();
             let fetch_account_data_fn = |key| async move {
-                Ok(self
-                    .ctx
+                self.ctx
                     .borrow_mut()
                     .banks_client
                     .get_account(key)
                     .await
-                    .map(|acc| acc.map(|a| a.data))?)
+                    .map(|acc| acc.map(|a| a.data))
             };
 
             let _ = spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute(
                 &mut ix,
-                &super::transfer_hook::TEST_HOOK_ID,
+                &TEST_HOOK_ID,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,
                 &liab_bank_fixture.mint.key,
@@ -515,20 +535,8 @@ impl MarginfiAccountFixture {
             .await;
         }
 
-        ix.accounts.extend_from_slice(
-            &self
-                .load_observation_account_metas(
-                    vec![asset_bank_fixture.key, liab_bank_fixture.key],
-                    vec![],
-                )
-                .await,
-        );
-
-        ix.accounts.extend_from_slice(
-            &liquidatee
-                .load_observation_account_metas(vec![], vec![])
-                .await,
-        );
+        ix.accounts.extend_from_slice(liquidator_obs_accounts);
+        ix.accounts.extend_from_slice(liquidatee_obs_accounts);
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 
@@ -701,23 +709,27 @@ impl MarginfiAccountFixture {
             .iter()
             .zip(bank_pks.iter())
             .flat_map(|(bank, bank_pk)| {
-                let oracle_key = {
-                    let oracle_key = bank.config.oracle_keys[0];
-                    get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
-                };
+                // The bank is included for all oracle types
+                let mut metas = vec![AccountMeta {
+                    pubkey: *bank_pk,
+                    is_signer: false,
+                    is_writable: false,
+                }];
 
-                vec![
-                    AccountMeta {
-                        pubkey: *bank_pk,
-                        is_signer: false,
-                        is_writable: false,
-                    },
-                    AccountMeta {
+                // Oracle meta is included for all but fixed-price banks
+                if bank.config.oracle_setup != OracleSetup::Fixed {
+                    let oracle_key = {
+                        let oracle_key = bank.config.oracle_keys[0];
+                        get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
+                    };
+
+                    metas.push(AccountMeta {
                         pubkey: oracle_key,
                         is_signer: false,
                         is_writable: false,
-                    },
-                ]
+                    });
+                }
+                metas
             })
             .collect::<Vec<_>>();
         account_metas
@@ -951,5 +963,123 @@ impl MarginfiAccountFixture {
             .to_account_metas(Some(true)),
             data: marginfi::instruction::MarginfiAccountInitLiqRecord {}.data(),
         }
+    }
+
+    pub async fn make_kamino_refresh_reserve_ix(&self, bank: &BankFixture) -> Instruction {
+        let reserve = &bank.kamino.as_ref().unwrap().reserve;
+        let bank = bank.load().await;
+
+        let accounts = kamino::accounts::RefreshReserve {
+            reserve: bank.kamino_reserve,
+            lending_market: reserve.lending_market,
+            pyth_oracle: None,
+            switchboard_price_oracle: None,
+            switchboard_twap_oracle: None,
+            scope_prices: Some(reserve.config.token_info.scope_configuration.price_feed),
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: kamino_mocks::kamino_lending::ID,
+            accounts,
+            data: kamino::args::RefreshReserve {}.data(),
+        }
+    }
+
+    pub async fn make_kamino_refresh_obligation_ix(&self, bank: &BankFixture) -> Instruction {
+        let obligation = &bank.kamino.as_ref().unwrap().obligation;
+        let bank = bank.load().await;
+
+        let accounts = kamino::accounts::RefreshObligation {
+            obligation: bank.kamino_obligation,
+            lending_market: obligation.lending_market,
+        }
+        .to_account_metas(Some(true));
+
+        Instruction {
+            program_id: kamino_mocks::kamino_lending::ID,
+            accounts,
+            data: kamino::args::RefreshObligation {}.data(),
+        }
+    }
+
+    pub async fn try_lending_account_pulse_health(
+        &self,
+    ) -> std::result::Result<(), BanksClientError> {
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::PulseHealth {
+                marginfi_account: self.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountPulseHealth {}.data(),
+        };
+
+        // Add bank and oracle accounts for pulse_health (need to pass banks and oracles for all active balances)
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+
+        let ctx = self.ctx.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
+    }
+
+    pub async fn make_start_deleverage_ix(
+        &self,
+        liquidation_record: Pubkey,
+        risk_admin: Pubkey,
+    ) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::StartDeleverage {
+                marginfi_account: self.key,
+                liquidation_record,
+                group: marginfi_account.group,
+                risk_admin,
+                instruction_sysvar: sysvar::instructions::id(),
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::StartDeleverage {}.data(),
+        };
+        ix.accounts
+            .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        ix
+    }
+
+    pub async fn make_end_deleverage_ix(
+        &self,
+        liquidation_record: Pubkey,
+        risk_admin: Pubkey,
+        exclude_banks: Vec<Pubkey>,
+    ) -> Instruction {
+        let marginfi_account = self.load().await;
+
+        let mut ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::EndDeleverage {
+                marginfi_account: self.key,
+                liquidation_record,
+                group: marginfi_account.group,
+                risk_admin,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::EndDeleverage {}.data(),
+        };
+        ix.accounts.extend_from_slice(
+            &self
+                .load_observation_account_metas(vec![], exclude_banks)
+                .await,
+        );
+        ix
     }
 }

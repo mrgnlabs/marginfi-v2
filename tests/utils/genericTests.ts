@@ -268,6 +268,8 @@ export const getTokenBalance = async (
   }
   const data: RawAccount = AccountLayout.decode(accountInfo.data);
   if (data === undefined || data.amount === undefined) {
+    console.error("Token account has no data");
+    console.error("owned by: " + accountInfo.owner);
     return 0;
   }
   const amount: BigInt = data.amount;

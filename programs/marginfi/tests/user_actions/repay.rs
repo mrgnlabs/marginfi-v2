@@ -20,6 +20,7 @@ use test_case::test_case;
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 20., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
+#[test_case(0.05, 0.02, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_repay_success(
     borrow_amount: f64,
@@ -161,6 +162,7 @@ async fn marginfi_account_repay_success(
 #[test_case(240., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
+#[test_case(0.05, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_repay_all_success(
     borrow_amount: f64,

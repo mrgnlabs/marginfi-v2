@@ -1,11 +1,9 @@
 use crate::{
     check,
     events::{AccountEventHeader, LendingAccountDepositEvent},
-    math_error,
     prelude::*,
     state::{
         bank::BankImpl,
-        bank_config::BankConfigImpl,
         marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
@@ -65,26 +63,8 @@ pub fn lending_account_deposit<'info>(
         MarginfiError::AccountDisabled
     );
 
-    // TODO: this should be in a helper function
-    let deposit_amount = if deposit_up_to_limit && bank.config.is_deposit_limit_active() {
-        let current_asset_amount = bank.get_asset_amount(bank.total_asset_shares.into())?;
-        let deposit_limit = I80F48::from_num(bank.config.deposit_limit);
-
-        if current_asset_amount >= deposit_limit {
-            0
-        } else {
-            let remaining_capacity = deposit_limit
-                .checked_sub(current_asset_amount)
-                .ok_or_else(math_error!())?
-                .checked_sub(I80F48::ONE) // Subtract 1 to ensure we stay under limit: total_deposits_amount < deposit_limit
-                .ok_or_else(math_error!())?
-                .checked_floor()
-                .ok_or_else(math_error!())?
-                .checked_to_num::<u64>()
-                .ok_or_else(math_error!())?;
-
-            std::cmp::min(amount, remaining_capacity)
-        }
+    let deposit_amount = if deposit_up_to_limit {
+        amount.min(bank.get_remaining_deposit_capacity()?)
     } else {
         amount
     };
@@ -160,8 +140,8 @@ pub struct LendingAccountDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -169,8 +149,8 @@ pub struct LendingAccountDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]

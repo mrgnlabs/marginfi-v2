@@ -1,7 +1,7 @@
 use crate::set_if_some;
 use crate::state::bank::BankImpl;
 use crate::state::interest_rate::InterestRateConfigImpl;
-use crate::MarginfiResult;
+use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::FREEZE_SETTINGS,
@@ -30,7 +30,7 @@ pub fn lending_pool_configure_bank_interest_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankInterestOnly<'info> {
     #[account(
-        has_one = delegate_curve_admin,
+        has_one = delegate_curve_admin @ MarginfiError::Unauthorized,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -38,7 +38,7 @@ pub struct LendingPoolConfigureBankInterestOnly<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }
@@ -74,7 +74,7 @@ pub fn lending_pool_configure_bank_limits_only(
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankLimitsOnly<'info> {
     #[account(
-        has_one = delegate_limit_admin,
+        has_one = delegate_limit_admin @ MarginfiError::Unauthorized,
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
@@ -82,7 +82,7 @@ pub struct LendingPoolConfigureBankLimitsOnly<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

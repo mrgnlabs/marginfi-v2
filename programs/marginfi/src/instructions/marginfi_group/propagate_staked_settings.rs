@@ -1,5 +1,6 @@
 // Permissionless ix to propagate a group's staked collateral settings to any bank in that group.
 use crate::state::bank_config::BankConfigImpl;
+use crate::MarginfiError;
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::ASSET_TAG_STAKED,
@@ -40,7 +41,7 @@ pub struct PropagateStakedSettings<'info> {
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = marginfi_group
+        has_one = marginfi_group @ MarginfiError::InvalidGroup
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
 

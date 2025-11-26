@@ -130,8 +130,8 @@ pub struct KaminoDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -139,11 +139,11 @@ pub struct KaminoDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = kamino_reserve,
-        has_one = kamino_obligation,
-        has_one = mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = kamino_reserve @ MarginfiError::InvalidKaminoReserve,
+        has_one = kamino_obligation @ MarginfiError::InvalidKaminoObligation,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_kamino_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForKaminoInstructions
     )]

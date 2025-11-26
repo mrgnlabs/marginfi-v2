@@ -7,7 +7,7 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
     },
@@ -81,7 +81,7 @@ pub fn kamino_withdraw<'info>(
     {
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-        let group = &ctx.accounts.group.load()?;
+        let mut group = ctx.accounts.group.load_mut()?;
         let clock = Clock::get()?;
 
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
@@ -90,6 +90,20 @@ pub fn kamino_withdraw<'info>(
             !marginfi_account.get_flag(ACCOUNT_DISABLED),
             MarginfiError::AccountDisabled
         );
+
+        let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        let price = if in_receivership {
+            let price =
+                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+
+            // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
+            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+
+            price
+        } else {
+            // TODO: force users to always pass the oracle, even in case of withdraw_all, to correctly update withdrawn equity.
+            I80F48::ZERO
+        };
 
         let mut bank_account = BankAccountWrapper::find(
             &ctx.accounts.bank.key(),
@@ -103,8 +117,20 @@ pub fn kamino_withdraw<'info>(
             bank_account.withdraw(I80F48::from_num(amount))?;
             amount
         };
+        // Note: we only care about the withdraw limit in case of deleverage
+        if ctx.accounts.authority.key() == group.risk_admin {
+            let withdrawn_equity = calc_value(
+                I80F48::from_num(collateral_amount),
+                price,
+                bank.mint_decimals,
+                None,
+            )?;
+            group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        }
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
+        bank.update_bank_cache(group, None)?;
+
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }
 
@@ -191,6 +217,7 @@ pub fn kamino_withdraw<'info>(
 #[derive(Accounts)]
 pub struct KaminoWithdraw<'info> {
     #[account(
+        mut,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
@@ -199,7 +226,7 @@ pub struct KaminoWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -211,10 +238,10 @@ pub struct KaminoWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = kamino_reserve,
-        has_one = kamino_obligation,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = kamino_reserve @ MarginfiError::InvalidKaminoReserve,
+        has_one = kamino_obligation @ MarginfiError::InvalidKaminoObligation,
         constraint = is_kamino_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForKaminoInstructions,
         // Block withdraw of zero-weight assets during receivership - prevents unfair liquidation

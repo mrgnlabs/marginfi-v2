@@ -164,8 +164,8 @@ pub enum MarginfiError {
     AccountAlreadyMigrated,
     #[msg("Protocol is paused")] // 6080
     ProtocolPaused,
-    #[msg("Reserved for future use")] // 6081
-    Placeholder81,
+    #[msg("Metadata is too long")] // 6081
+    MetadataTooLong,
     #[msg("Pause limit exceeded")] // 6082
     PauseLimitExceeded,
     #[msg("Protocol is not paused")] // 6083
@@ -186,6 +186,28 @@ pub enum MarginfiError {
     LiquidationPremiumTooHigh,
     #[msg("Start and end liquidation and flashloan must be top-level instructions")] // 6091
     NotAllowedInCPI,
+    #[msg("Stake pool supply is zero: cannot compute price")] // 6092
+    ZeroSupplyInStakePool,
+    #[msg("Invalid group: account constraint violated")] // 6093
+    InvalidGroup,
+    #[msg("Invalid liquidity vault: account constraint violated")] // 6094
+    InvalidLiquidityVault,
+    #[msg("Invalid liquidation record: account constraint violated")] // 6095
+    InvalidLiquidationRecord,
+    #[msg("Invalid liquidation receiver: account constraint violated")] // 6096
+    InvalidLiquidationReceiver,
+    #[msg("Invalid emissions mint: account constraint violated")] // 6097
+    InvalidEmissionsMint,
+    #[msg("Invalid mint: account constraint violated")] // 6098
+    InvalidMint,
+    #[msg("Invalid fee wallet: account constraint violated")] // 6099
+    InvalidFeeWallet,
+    #[msg("Fixed oracle price must be zero or greater")] // 6100
+    FixedOraclePriceNegative,
+    #[msg("Daily withdrawal limit exceeded: try again later")] // 6101
+    DailyWithdrawalLimitExceeded,
+    #[msg("Cannot set daily withdrawal limit to zero")] // 6102
+    ZeroWithdrawalLimit,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -214,7 +236,11 @@ pub enum MarginfiError {
     KaminoInvalidOracleSetup, // 6211
     #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
     KaminoPositionLimitExceeded, // 6212
-                                 // **************END KAMINO ERRORS
+    #[msg("Invalid Kamino reserve: account constraint violated")]
+    InvalidKaminoReserve, // 6213
+    #[msg("Invalid Kamino obligation: account constraint violated")]
+    InvalidKaminoObligation, // 6214
+                             // **************END KAMINO ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -319,7 +345,7 @@ impl From<u32> for MarginfiError {
             6078 => MarginfiError::BankCannotClose,
             6079 => MarginfiError::AccountAlreadyMigrated,
             6080 => MarginfiError::ProtocolPaused,
-            6081 => MarginfiError::Placeholder81,
+            6081 => MarginfiError::MetadataTooLong,
             6082 => MarginfiError::PauseLimitExceeded,
             6083 => MarginfiError::ProtocolNotPaused,
             6084 => MarginfiError::BankKilledByBankruptcy,
@@ -330,6 +356,17 @@ impl From<u32> for MarginfiError {
             6089 => MarginfiError::ForbiddenIx,
             6090 => MarginfiError::LiquidationPremiumTooHigh,
             6091 => MarginfiError::NotAllowedInCPI,
+            6092 => MarginfiError::ZeroSupplyInStakePool,
+            6093 => MarginfiError::InvalidGroup,
+            6094 => MarginfiError::InvalidLiquidityVault,
+            6095 => MarginfiError::InvalidLiquidationRecord,
+            6096 => MarginfiError::InvalidLiquidationReceiver,
+            6097 => MarginfiError::InvalidEmissionsMint,
+            6098 => MarginfiError::InvalidMint,
+            6099 => MarginfiError::InvalidFeeWallet,
+            6100 => MarginfiError::FixedOraclePriceNegative,
+            6101 => MarginfiError::DailyWithdrawalLimitExceeded,
+            6102 => MarginfiError::ZeroWithdrawalLimit,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,
@@ -345,6 +382,8 @@ impl From<u32> for MarginfiError {
             6210 => MarginfiError::KaminoReserveValidationFailed,
             6211 => MarginfiError::KaminoInvalidOracleSetup,
             6212 => MarginfiError::KaminoPositionLimitExceeded,
+            6213 => MarginfiError::InvalidKaminoReserve,
+            6214 => MarginfiError::InvalidKaminoObligation,
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -379,6 +418,7 @@ impl MarginfiError {
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
                 | MarginfiError::OracleMaxConfidenceExceeded
+                | MarginfiError::ZeroSupplyInStakePool
         )
     }
 

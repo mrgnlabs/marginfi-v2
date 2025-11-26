@@ -1,6 +1,6 @@
 use crate::StakedSettingsEditConfig;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{BankConfigOpt, HealthCache};
+use marginfi_type_crate::types::{BankConfigOpt, HealthCache, WrappedI80F48};
 
 // Event headers
 
@@ -53,6 +53,13 @@ pub struct LendingPoolBankConfigureOracleEvent {
     pub bank: Pubkey,
     pub oracle_setup: u8,
     pub oracle: Pubkey,
+}
+
+#[event]
+pub struct LendingPoolBankSetFixedOraclePriceEvent {
+    pub header: GroupEventHeader,
+    pub bank: Pubkey,
+    pub price: WrappedI80F48,
 }
 
 #[event]
@@ -186,4 +193,12 @@ pub struct LiquidationReceiverEvent {
     pub liquidatee_assets_seized: f64,
     pub liquidatee_liability_repaid: f64,
     pub lamps_fee_paid: u32,
+}
+
+#[event]
+pub struct DeleverageEvent {
+    pub marginfi_account: Pubkey,
+    pub risk_admin: Pubkey,
+    pub deleveragee_assets_seized: f64,
+    pub deleveragee_liability_repaid: f64,
 }

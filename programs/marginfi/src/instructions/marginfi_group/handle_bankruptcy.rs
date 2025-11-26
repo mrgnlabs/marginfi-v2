@@ -55,7 +55,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
 
     if !bank.get_flag(PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG) {
         check!(
-            ctx.accounts.signer.key() == marginfi_group_loader.load()?.admin,
+            ctx.accounts.signer.key() == marginfi_group_loader.load()?.risk_admin
+                || ctx.accounts.signer.key() == marginfi_group_loader.load()?.admin,
             MarginfiError::Unauthorized
         );
     }
@@ -181,7 +182,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?
     .repay(bad_debt)?;
 
-    marginfi_account.set_flag(ACCOUNT_DISABLED);
+    marginfi_account.set_flag(ACCOUNT_DISABLED, true);
     marginfi_account.last_update = clock.unix_timestamp as u64;
     if kill_bank {
         msg!("bank had debt exceeding liabilities and has been killed");
@@ -214,13 +215,13 @@ pub struct LendingPoolHandleBankruptcy<'info> {
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    /// CHECK: The admin signer constraint is only validated (in handler) if bank
+    /// CHECK: The risk_admin signer constraint is only validated (in handler) if bank
     /// PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG is not set
     pub signer: Signer<'info>,
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions
     )]
@@ -228,7 +229,7 @@ pub struct LendingPoolHandleBankruptcy<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             !marginfi_account.load()?.get_flag(ACCOUNT_IN_RECEIVERSHIP)
         } @MarginfiError::UnexpectedLiquidationState,

@@ -34,7 +34,7 @@ use marginfi_type_crate::{
         CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
     },
     types::{
         Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
@@ -66,6 +66,7 @@ pub trait BankImpl {
     fn get_asset_amount(&self, shares: I80F48) -> MarginfiResult<I80F48>;
     fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
     fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
+    fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64>;
     fn change_asset_shares(&mut self, shares: I80F48, bypass_deposit_limit: bool)
         -> MarginfiResult;
     fn maybe_get_asset_weight_init_discount(&self, price: I80F48)
@@ -202,6 +203,31 @@ impl BankImpl for Bank {
         Ok(value
             .checked_div(self.asset_share_value.into())
             .ok_or_else(math_error!())?)
+    }
+
+    fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64> {
+        if !self.config.is_deposit_limit_active() {
+            return Ok(u64::MAX);
+        }
+
+        let current_assets = self.get_asset_amount(self.total_asset_shares.into())?;
+        let limit = I80F48::from_num(self.config.deposit_limit);
+
+        if current_assets >= limit {
+            return Ok(0);
+        }
+
+        let remaining = limit
+            .checked_sub(current_assets)
+            .ok_or_else(math_error!())?
+            .checked_sub(I80F48::ONE) // Subtract 1 to ensure we stay under limit
+            .ok_or_else(math_error!())?
+            .checked_floor()
+            .ok_or_else(math_error!())?
+            .checked_to_num::<u64>()
+            .ok_or_else(math_error!())?;
+
+        Ok(remaining)
     }
 
     fn change_asset_shares(
@@ -369,6 +395,14 @@ impl BankImpl for Bank {
                 config.freeze_settings.unwrap()
             );
             self.update_flag(flag, FREEZE_SETTINGS);
+        }
+
+        if let Some(flag) = config.tokenless_repayments_allowed {
+            msg!(
+                "setting tokenless repayments allowed: {:?}",
+                config.tokenless_repayments_allowed.unwrap()
+            );
+            self.update_flag(flag, TOKENLESS_REPAYMENTS_ALLOWED);
         }
 
         self.config.validate()?;

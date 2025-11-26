@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::{assert_struct_align, assert_struct_size};
+use crate::{assert_struct_align, assert_struct_size, constants::DAILY_RESET_INTERVAL};
 
 assert_struct_size!(PanicStateCache, 24);
 assert_struct_align!(PanicStateCache, 8);
@@ -80,7 +80,6 @@ impl PanicState {
     pub const PAUSE_DURATION_SECONDS: i64 = 30 * 60; // 30 minutes
     pub const MAX_CONSECUTIVE_PAUSES: u8 = 2;
     pub const MAX_DAILY_PAUSES: u8 = 3;
-    pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 
     /// Only checks if the paused flag is set.
     /// * Note: if you want to see if a pause is currently active, see `is_expired` instead.
@@ -92,7 +91,7 @@ impl PanicState {
     pub fn can_pause(&self, current_timestamp: i64) -> bool {
         // Reset daily count if 24 hours have passed
         let needs_daily_reset =
-            current_timestamp - self.last_daily_reset_timestamp >= Self::DAILY_RESET_INTERVAL;
+            current_timestamp - self.last_daily_reset_timestamp >= DAILY_RESET_INTERVAL;
 
         let daily_count = if needs_daily_reset {
             0

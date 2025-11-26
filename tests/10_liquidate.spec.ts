@@ -83,6 +83,8 @@ describe("Liquidate user", () => {
                 ]),
               ],
               amount: liquidateAmountA_native,
+              liquidateeAccounts: 4,
+              liquidatorAccounts: 4,
             })
           )
         );
@@ -128,6 +130,8 @@ describe("Liquidate user", () => {
                 ]),
               ],
               amount: liquidateAmountA_native,
+              liquidateeAccounts: 4,
+              liquidatorAccounts: 4,
             })
           )
         );
@@ -283,10 +287,19 @@ describe("Liquidate user", () => {
         (shareValueUsdc * usdcHighPrice)) *
       10 ** oracles.usdcDecimals;
 
+    let liquidatorAccounts = composeRemainingAccounts([
+      [liabilityBankKey, oracles.usdcOracle.publicKey],
+      [assetBankKey, oracles.tokenAOracle.publicKey],
+    ]);
+    let liquidateeAccounts = composeRemainingAccounts([
+      [liabilityBankKey, oracles.usdcOracle.publicKey],
+      [assetBankKey, oracles.tokenAOracle.publicKey],
+    ]);
+
     await liquidator.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
         ComputeBudgetProgram.setComputeUnitLimit({
-          units: 300_000,
+          units: 350_000,
         }),
         await liquidateIx(liquidator.mrgnProgram, {
           assetBankKey,
@@ -296,16 +309,12 @@ describe("Liquidate user", () => {
           remaining: [
             oracles.tokenAOracle.publicKey,
             oracles.usdcOracle.publicKey,
-            ...composeRemainingAccounts([
-              [liabilityBankKey, oracles.usdcOracle.publicKey],
-              [assetBankKey, oracles.tokenAOracle.publicKey],
-            ]),
-            ...composeRemainingAccounts([
-              [liabilityBankKey, oracles.usdcOracle.publicKey],
-              [assetBankKey, oracles.tokenAOracle.publicKey],
-            ]),
+            ...liquidatorAccounts,
+            ...liquidateeAccounts,
           ],
           amount: liquidateAmountA_native,
+          liquidateeAccounts: liquidateeAccounts.length,
+          liquidatorAccounts: liquidatorAccounts.length,
         })
       )
     );

@@ -7,7 +7,7 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
     },
@@ -18,11 +18,14 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock::Clock, sysvar::Sysvar};
-use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+use anchor_spl::{
+    token::accessor,
+    token_interface::{TokenAccount, TokenInterface},
+};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::LIQUIDITY_VAULT_AUTHORITY_SEED,
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, TOKENLESS_REPAYMENTS_COMPLETE},
     types::{
         Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
         ACCOUNT_IN_RECEIVERSHIP,
@@ -49,42 +52,48 @@ pub fn lending_account_withdraw<'info>(
         bank_liquidity_vault_authority,
         bank: bank_loader,
         group: marginfi_group_loader,
+        authority,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
-
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
     );
 
-    let bank_key = bank_loader.key();
-    let maybe_bank_mint;
-
     {
-        let bank = bank_loader.load()?;
-
-        maybe_bank_mint =
-            utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
-        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        if in_liquidation {
-            // Note: we don't care about the price value, just validating it's non-zero
-            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-        }
-        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
-    } // release immutable borrow of bank
-
-    {
-        let group = &marginfi_group_loader.load()?;
-
+        let mut group = marginfi_group_loader.load_mut()?;
         let mut bank = bank_loader.load_mut()?;
+
+        validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
+
+        let maybe_bank_mint =
+            utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
+
+        let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        let price = if in_receivership {
+            let price = fetch_asset_price_for_bank(
+                &bank_loader.key(),
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
+
+            // Validate price is non-zero during liquidation/deleverage to prevent exploits
+            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+
+            price
+        } else {
+            // TODO: force callers to pass oracle, to support tracking withdraws outside delev
+            I80F48::ZERO
+        };
 
         bank.accrue_interest(
             clock.unix_timestamp,
-            group,
+            &group,
             #[cfg(not(feature = "client"))]
             bank_loader.key(),
         )?;
@@ -115,6 +124,25 @@ pub fn lending_account_withdraw<'info>(
 
             amount_pre_fee
         };
+
+        // If in deleverage mode and deleverage is complete, you get what's left!
+        let amount_pre_fee = if bank.get_flag(TOKENLESS_REPAYMENTS_COMPLETE) {
+            let actual = accessor::amount(&bank_liquidity_vault.to_account_info())?;
+            u64::min(amount_pre_fee, actual)
+        } else {
+            amount_pre_fee
+        };
+
+        // Note: we only care about the withdraw limit in case of deleverage
+        if authority.key() == group.risk_admin {
+            let withdrawn_equity = calc_value(
+                I80F48::from_num(amount_pre_fee),
+                price,
+                bank.mint_decimals,
+                None,
+            )?;
+            group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
+        }
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
 
@@ -152,7 +180,7 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
-    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    // Note: during receivership, we skip all health checks until the end of the transaction.
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
@@ -182,6 +210,7 @@ pub fn lending_account_withdraw<'info>(
 #[derive(Accounts)]
 pub struct LendingAccountWithdraw<'info> {
     #[account(
+        mut,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
@@ -190,7 +219,7 @@ pub struct LendingAccountWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -198,16 +227,16 @@ pub struct LendingAccountWithdraw<'info> {
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Must be marginfi_account's authority, unless in liquidation receivership
+    /// Must be marginfi_account's authority, unless in liquidation/deleverage receivership
     ///
-    /// Note: during liquidation, there are no signer checks whatsoever: any key can repay as
-    /// long as the invariants checked at the end of liquidation are met.
+    /// Note: during receivership, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of receivership are met.
     pub authority: Signer<'info>,
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForStandardInstructions,
         // We want to block withdraw of assets with no weight (e.g. isolated) otherwise the

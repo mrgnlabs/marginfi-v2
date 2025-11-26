@@ -15,7 +15,7 @@ use marginfi_type_crate::{
         CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, STD_DEV_MULTIPLE, U32_MAX,
         U32_MAX_DIV_10,
     },
-    types::{BankConfig, OracleSetup},
+    types::{Bank, BankConfig, OracleSetup},
 };
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
@@ -73,28 +73,25 @@ pub trait PriceAdapter {
 pub enum OraclePriceFeedAdapter {
     PythPushOracle(PythPushOraclePriceFeed),
     SwitchboardPull(SwitchboardPullPriceFeed),
+    Fixed(FixedPriceFeed),
 }
 
 impl OraclePriceFeedAdapter {
-    pub fn try_from_bank_config<'info>(
-        bank_config: &BankConfig,
+    pub fn try_from_bank<'info>(
+        bank: &Bank,
         ais: &'info [AccountInfo<'info>],
         clock: &Clock,
     ) -> MarginfiResult<Self> {
-        Self::try_from_bank_config_with_max_age(
-            bank_config,
-            ais,
-            clock,
-            bank_config.get_oracle_max_age(),
-        )
+        Self::try_from_bank_with_max_age(bank, ais, clock, bank.config.get_oracle_max_age())
     }
 
-    pub fn try_from_bank_config_with_max_age<'info>(
-        bank_config: &BankConfig,
+    pub fn try_from_bank_with_max_age<'info>(
+        bank: &Bank,
         ais: &'info [AccountInfo<'info>],
         clock: &Clock,
         max_age: u64,
     ) -> MarginfiResult<Self> {
+        let bank_config = &bank.config;
         match bank_config.oracle_setup {
             OracleSetup::None => Err(MarginfiError::OracleNotSetup.into()),
             OracleSetup::PythLegacy => {
@@ -163,7 +160,6 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
-                let lst_supply = lst_mint.supply;
                 let stake_state = try_from_slice_unchecked::<StakeStateV2>(&ais[2].data.borrow())?;
                 let (_, stake) = match stake_state {
                     StakeStateV2::Stake(meta, stake, _) => (meta, stake),
@@ -202,6 +198,9 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let mut feed = PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
+
+                let lst_supply = lst_mint.supply;
+                check!(lst_supply > 0, MarginfiError::ZeroSupplyInStakePool);
 
                 let adjusted_price = (feed.price.price as i128)
                     .checked_mul(sol_pool_adjusted_balance as i128)
@@ -323,6 +322,17 @@ impl OraclePriceFeedAdapter {
                     reserve.adjust_i128(price_feed.feed.result.std_dev)?;
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
+            }
+            OracleSetup::Fixed => {
+                check!(ais.is_empty(), MarginfiError::WrongNumberOfOracleAccounts);
+
+                let price: I80F48 = bank.config.fixed_price.into();
+                check!(
+                    price >= I80F48::ZERO,
+                    MarginfiError::FixedOraclePriceNegative
+                );
+
+                Ok(OraclePriceFeedAdapter::Fixed(FixedPriceFeed { price }))
             }
         }
     }
@@ -492,7 +502,30 @@ impl OraclePriceFeedAdapter {
                     Ok(())
                 }
             }
+            OracleSetup::Fixed => {
+                check!(
+                    oracle_ais.is_empty(),
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+                Ok(())
+            }
         }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FixedPriceFeed {
+    pub price: I80F48,
+}
+
+impl PriceAdapter for FixedPriceFeed {
+    fn get_price_of_type(
+        &self,
+        _oracle_price_type: OraclePriceType,
+        _bias: Option<PriceBias>,
+        _oracle_max_confidence: u32,
+    ) -> MarginfiResult<I80F48> {
+        Ok(self.price)
     }
 }
 

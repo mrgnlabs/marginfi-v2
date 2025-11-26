@@ -10,9 +10,13 @@ use arbitrary_helpers::{
     AccountIdx, AssetAmount, BankAndOracleConfig, BankIdx, PriceChange, TokenType,
 };
 use bank_accounts::{get_bank_map, BankAccounts};
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::{errors::MarginfiError, instructions::LendingPoolAddBankBumps};
 use marginfi::{instructions::LendingPoolConfigureBankOracleBumps, state::bank::BankVaultType};
+use marginfi_type_crate::types::{
+    centi_to_u32, make_points, milli_to_u32, RatePoint, INTEREST_CURVE_SEVEN_POINT,
+};
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
     types::{
@@ -270,13 +274,23 @@ impl<'state> MarginfiFuzzContext<'state> {
                     deposit_limit: initial_bank_config.deposit_limit,
                     borrow_limit: initial_bank_config.borrow_limit,
                     interest_rate_config: InterestRateConfig {
-                        optimal_utilization_rate: I80F48!(0.5).into(),
-                        plateau_interest_rate: I80F48!(0.5).into(),
-                        max_interest_rate: I80F48!(4).into(),
+                        optimal_utilization_rate: I80F48::ZERO.into(),
+                        plateau_interest_rate: I80F48::ZERO.into(),
+                        max_interest_rate: I80F48::ZERO.into(),
+
                         insurance_fee_fixed_apr: I80F48!(0.01).into(),
                         insurance_ir_fee: I80F48!(0.05).into(),
                         protocol_fixed_fee_apr: I80F48!(0.01).into(),
                         protocol_ir_fee: I80F48!(0.1).into(),
+                        protocol_origination_fee: I80F48::ZERO.into(),
+
+                        zero_util_rate: 0,
+                        hundred_util_rate: milli_to_u32(I80F48!(4)),
+                        points: make_points(&vec![RatePoint::new(
+                            centi_to_u32(I80F48!(0.5)),
+                            milli_to_u32(I80F48!(0.5)),
+                        )]),
+                        curve_type: INTEREST_CURVE_SEVEN_POINT,
                         ..Default::default()
                     }
                     .into(),
@@ -783,6 +797,9 @@ impl<'state> MarginfiFuzzContext<'state> {
         let mut liquidatee_remaining_accounts =
             liquidatee_account.get_remaining_accounts(&self.get_bank_map(), vec![], vec![]);
 
+        // Note: this must happen before append because it mutably drains the source vec
+        let liquidator_accounts_num = liquidator_remaining_accounts.len() as u8;
+        let liquidatee_accounts_num = liquidatee_remaining_accounts.len() as u8;
         remaining_accounts.append(&mut liquidator_remaining_accounts);
         remaining_accounts.append(&mut liquidatee_remaining_accounts);
 
@@ -813,6 +830,8 @@ impl<'state> MarginfiFuzzContext<'state> {
                 Default::default(),
             ),
             asset_amount.0,
+            liquidatee_accounts_num,
+            liquidator_accounts_num,
         );
 
         let success = if let Err(error) = res {
@@ -1039,6 +1058,31 @@ fn initialize_marginfi_group<'a>(
 
     set_discriminator::<MarginfiGroup>(marginfi_group.clone());
 
+    marginfi::instructions::marginfi_group::configure(
+        Context::new(
+            &marginfi::ID,
+            &mut marginfi::instructions::MarginfiGroupConfigure {
+                marginfi_group: AccountLoader::try_from_unchecked(
+                    &program_id,
+                    airls(&marginfi_group),
+                )
+                .unwrap(),
+                admin: Signer::try_from(airls(&admin)).unwrap(),
+            },
+            &[],
+            Default::default(),
+        ),
+        admin.key(), // admin
+        admin.key(), // emode_admin
+        admin.key(), // curve_admin
+        admin.key(), // limit_admin
+        admin.key(), // emissions_admin
+        admin.key(), // metadata_admin
+        admin.key(), // risk_admin
+        false,       // is_arena_group
+    )
+    .unwrap();
+
     marginfi_group
 }
 
@@ -1193,14 +1237,12 @@ mod tests {
 
             let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
-            let (assets, liabs) = re
+            let (_assets, _liabs) = re
                 .get_account_health_components(
                     marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
                     &mut None,
                 )
                 .unwrap();
-
-            println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)
@@ -1254,14 +1296,12 @@ mod tests {
 
             let re = RiskEngine::new(&marginfi_account, aisls(&remaining_accounts)).unwrap();
 
-            let (assets, liabs) = re
+            let (_assets, _liabs) = re
                 .get_account_health_components(
                     marginfi::state::marginfi_account::RiskRequirementType::Maintenance,
                     &mut None,
                 )
                 .unwrap();
-
-            println!("assets {assets} liabs: {liabs}");
         }
 
         a.process_action_deposit(&AccountIdx(2), &BankIdx(1), &AssetAmount(1000), None)

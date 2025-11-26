@@ -1,7 +1,7 @@
 [package]
 name = "marginfi"
-version = "0.1.5"
-description = "Created with Anchor"
+version = "0.1.7"
+description = "Borrow Lending Prime Broker"
 edition = "2021"
 
 [lib]
@@ -56,7 +56,7 @@ solana-cli-output = { workspace = true }
 solana-program-test = { workspace = true }
 # solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
-fixtures = { workspace = true, package = "test-utilities" }
+fixtures = { workspace = true }
 mocks = { workspace = true }
 
 anyhow = "1.0.66"

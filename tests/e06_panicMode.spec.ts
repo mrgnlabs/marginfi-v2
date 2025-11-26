@@ -20,6 +20,7 @@ import {
   ecosystem,
   emodeGroup,
   oracles,
+  LIQUIDATION_MAX_FEE,
 } from "./rootHooks";
 import { assert } from "chai";
 import { deriveBankWithSeed, deriveGlobalFeeState } from "./utils/pdas";
@@ -80,6 +81,8 @@ describe("Panic Mode state test (Bankrun)", () => {
           bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
           programFeeFixed: bigNumberToWrappedI80F48(PROGRAM_FEE_FIXED),
           programFeeRate: bigNumberToWrappedI80F48(PROGRAM_FEE_RATE),
+          liquidationFlatSolFee: 12345,
+          liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
         })
       );
 
@@ -257,6 +260,8 @@ describe("Panic Mode state test (Bankrun)", () => {
           ]),
         ],
         amount: new BN(0.0000001 * 10 ** ecosystem.wsolDecimals),
+        liquidatorAccounts: 6,
+        liquidateeAccounts: 4,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -388,8 +393,9 @@ describe("Panic Mode state test (Bankrun)", () => {
     tx.sign(users[0].wallet);
 
     const result = await banksClient.tryProcessTransaction(tx);
-    // generic has_one violation (fee state admin doesn't match fee state)
-    assertBankrunTxFailed(result, 2001);
+    // (fee state admin doesn't match fee state)
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(fee admin) tries to pause beyond daily pause limits - should fail", async () => {
@@ -445,8 +451,8 @@ describe("Panic Mode state test (Bankrun)", () => {
     tx.sign(users[0].wallet);
 
     const result = await banksClient.tryProcessTransaction(tx);
-    // generic has_one violation (fee state admin doesn't match fee state)
-    assertBankrunTxFailed(result, 2001);
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(permissionless) permissionless unpause when not paused - should fail", async () => {

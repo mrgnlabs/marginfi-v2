@@ -1,7 +1,10 @@
 use super::utils::load_and_deserialize;
-use crate::prelude::{
-    get_emissions_authority_address, get_emissions_token_account_address, MintFixture,
-    TokenAccountFixture,
+use crate::{
+    kamino::KaminoFixture,
+    prelude::{
+        get_emissions_authority_address, get_emissions_token_account_address, MintFixture,
+        TokenAccountFixture,
+    },
 };
 use anchor_lang::{
     prelude::{AccountMeta, Pubkey},
@@ -16,7 +19,7 @@ use marginfi::{
     },
     utils::{find_bank_vault_authority_pda, find_bank_vault_pda},
 };
-use marginfi_type_crate::types::{Bank, BankConfigOpt};
+use marginfi_type_crate::types::{Bank, BankConfigOpt, OracleSetup};
 use solana_program::{
     account_info::IntoAccountInfo, instruction::Instruction, sysvar::clock::Clock,
 };
@@ -30,6 +33,7 @@ pub struct BankFixture {
     ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
     pub mint: MintFixture,
+    pub kamino: Option<KaminoFixture>,
 }
 
 impl BankFixture {
@@ -37,11 +41,13 @@ impl BankFixture {
         ctx: Rc<RefCell<ProgramTestContext>>,
         key: Pubkey,
         mint_fixture: &MintFixture,
+        kamino: Option<KaminoFixture>,
     ) -> Self {
         Self {
             ctx,
             key,
             mint: mint_fixture.clone(),
+            kamino,
         }
     }
 
@@ -59,19 +65,24 @@ impl BankFixture {
 
     pub async fn get_price(&self) -> f64 {
         let bank = self.load().await;
-        let oracle_key = bank.config.oracle_keys[0];
-        let mut oracle_account = self
-            .ctx
-            .borrow_mut()
-            .banks_client
-            .get_account(oracle_key)
-            .await
-            .unwrap()
-            .unwrap();
-        let ai = (&oracle_key, &mut oracle_account).into_account_info();
-        let oracle_adapter =
-            OraclePriceFeedAdapter::try_from_bank_config(&bank.config, &[ai], &Clock::default())
-                .unwrap();
+        let oracle_adapter = match bank.config.oracle_setup {
+            OracleSetup::Fixed => {
+                OraclePriceFeedAdapter::try_from_bank(&bank, &[], &Clock::default()).unwrap()
+            }
+            _ => {
+                let oracle_key = bank.config.oracle_keys[0];
+                let mut oracle_account = self
+                    .ctx
+                    .borrow_mut()
+                    .banks_client
+                    .get_account(oracle_key)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let ai = (&oracle_key, &mut oracle_account).into_account_info();
+                OraclePriceFeedAdapter::try_from_bank(&bank, &[ai], &Clock::default()).unwrap()
+            }
+        };
 
         oracle_adapter
             .get_price_of_type(
