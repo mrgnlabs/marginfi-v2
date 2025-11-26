@@ -527,6 +527,16 @@ impl PriceAdapter for FixedPriceFeed {
     ) -> MarginfiResult<I80F48> {
         Ok(self.price)
     }
+    fn get_price_and_confidence_of_type(
+        &self,
+        oracle_price_type: OraclePriceType,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        Ok(OraclePriceWithConfidence {
+            price: self.get_price_of_type(oracle_price_type, None, oracle_max_confidence)?,
+            confidence: I80F48::ZERO,
+        })
+    }
 }
 
 #[cfg_attr(feature = "client", derive(Clone, Debug))]

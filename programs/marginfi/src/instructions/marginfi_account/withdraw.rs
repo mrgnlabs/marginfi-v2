@@ -160,6 +160,7 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
+        bank.update_bank_cache(&group, None)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
@@ -193,7 +194,7 @@ pub fn lending_account_withdraw<'info>(
         health_cache.program_version = PROGRAM_VERSION;
 
         if let Some(engine) = risk_engine {
-            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_key) {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
                 let group = &marginfi_group_loader.load()?;
                 bank_loader
                     .load_mut()?
