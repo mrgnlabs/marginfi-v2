@@ -87,8 +87,7 @@ pub trait BankImpl {
     fn update_bank_cache(
         &mut self,
         group: &MarginfiGroup,
-        oracle_price: Option<I80F48>,
-        price_bias: Option<crate::state::price::PriceBias>,
+        oracle_price: Option<crate::state::price::OraclePriceWithConfidence>,
     ) -> MarginfiResult<()>;
     fn deposit_spl_transfer<'info>(
         &self,
@@ -510,13 +509,11 @@ impl BankImpl for Bank {
     ///
     /// # Arguments
     /// * `group` - The marginfi group
-    /// * `oracle_price` - Optional oracle price that was used in this instruction (if any)
-    /// * `price_bias` - Optional price bias that was applied (Low for assets, High for liabilities)
+    /// * `oracle_price` - Optional oracle price (with confidence) used in this instruction (if any)
     fn update_bank_cache(
         &mut self,
         group: &MarginfiGroup,
-        oracle_price: Option<I80F48>,
-        price_bias: Option<crate::state::price::PriceBias>,
+        oracle_price: Option<crate::state::price::OraclePriceWithConfidence>,
     ) -> MarginfiResult<()> {
         let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities_amount =
@@ -543,13 +540,9 @@ impl BankImpl for Bank {
 
         // Update oracle price if provided
         if let Some(price) = oracle_price {
-            self.cache.oracle_price_used = price.into();
-            self.cache.oracle_price_timestamp = Clock::get()?.unix_timestamp;
-            self.cache.oracle_price_bias = match price_bias {
-                Some(crate::state::price::PriceBias::Low) => 1,
-                Some(crate::state::price::PriceBias::High) => 2,
-                None => 0,
-            };
+            self.cache.last_oracle_price = price.price.into();
+            self.cache.last_oracle_price_confidence = price.confidence.into();
+            self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
         }
 
         Ok(())

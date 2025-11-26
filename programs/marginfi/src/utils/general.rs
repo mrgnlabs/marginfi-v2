@@ -3,7 +3,10 @@ use crate::{
     state::{
         bank::BankVaultType,
         marginfi_account::get_remaining_accounts_per_bank,
-        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+        price::{
+            OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter,
+            PriceBias,
+        },
     },
     MarginfiError, MarginfiResult,
 };
@@ -369,7 +372,7 @@ pub fn fetch_liability_price_for_bank<'info>(
     bank: &Bank,
     clock: &Clock,
     remaining_accounts: &'info [AccountInfo<'info>],
-) -> Result<I80F48> {
+) -> Result<OraclePriceWithConfidence> {
     let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
     let bank_idx = remaining_accounts
         .iter()
@@ -386,10 +389,44 @@ pub fn fetch_liability_price_for_bank<'info>(
     let pf = OraclePriceFeedAdapter::try_from_bank_config(&bank.config, oracle_ais, clock)?;
     let price = pf.get_price_of_type(
         OraclePriceType::RealTime,
-        Some(PriceBias::High),  // High bias for conservative liability valuation
+        Some(PriceBias::High), // High bias for conservative liability valuation
         bank.config.oracle_max_confidence,
     )?;
-    check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);  // Reuse ZeroAssetPrice error
+    check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice); // Reuse ZeroAssetPrice error
+
+    Ok(OraclePriceWithConfidence {
+        price,
+        confidence: I80F48::ZERO,
+    })
+}
+
+/// Fetch an unbiased oracle price (no safety bias) for a given bank.
+/// Errors if the bank is not found or the price is zero.
+pub fn fetch_unbiased_price_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<OraclePriceWithConfidence> {
+    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
+    let bank_idx = remaining_accounts
+        .iter()
+        .position(|ai| ai.key == bank_key)
+        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+    let start = bank_idx + 1;
+    let end = start + accs_needed;
+    require!(
+        end <= remaining_accounts.len(),
+        MarginfiError::WrongNumberOfOracleAccounts
+    );
+    let oracle_ais = &remaining_accounts[start..end];
+    let pf = OraclePriceFeedAdapter::try_from_bank_config(&bank.config, oracle_ais, clock)?;
+    let price = pf.get_price_and_confidence_of_type(
+        OraclePriceType::RealTime,
+        bank.config.oracle_max_confidence,
+    )?;
+    check!(price.price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
     Ok(price)
 }

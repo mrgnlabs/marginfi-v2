@@ -98,7 +98,7 @@ pub fn kamino_deposit(ctx: Context<KaminoDeposit>, amount: u64) -> MarginfiResul
         bank_account.deposit_no_repay(obligation_collateral_change_i80f48)?;
 
         // Update bank cache after modifying balances
-        bank.update_bank_cache(group, None, None)?;  // Kamino deposit doesn't use oracle prices
+        bank.update_bank_cache(group, None)?; // Kamino deposit doesn't use oracle prices
 
         marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
         marginfi_account.lending_account.sort_balances();

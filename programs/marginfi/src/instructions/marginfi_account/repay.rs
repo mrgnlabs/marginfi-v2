@@ -99,7 +99,7 @@ pub fn lending_account_repay<'info>(
         ctx.remaining_accounts,
     )?;
 
-    bank.update_bank_cache(group, None, None)?;  // Repay doesn't use oracle prices
+    bank.update_bank_cache(group, None)?; // Repay doesn't use oracle prices
 
     emit!(LendingAccountRepayEvent {
         header: AccountEventHeader {

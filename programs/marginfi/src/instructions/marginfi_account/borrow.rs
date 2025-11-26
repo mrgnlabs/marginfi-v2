@@ -12,8 +12,7 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, fetch_liability_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
-        validate_bank_state, InstructionKind,
+        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
@@ -140,11 +139,6 @@ pub fn lending_account_borrow<'info>(
         )?;
 
         // Fetch liability price to cache it (borrow creates a liability)
-        let bank_key = bank_loader.key();
-        let liability_price = fetch_liability_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-
-        bank.update_bank_cache(group, Some(liability_price), Some(crate::state::price::PriceBias::High))?;
-
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
                 signer: Some(ctx.accounts.authority.key()),
@@ -195,13 +189,23 @@ pub fn lending_account_borrow<'info>(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
+    let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
     );
     risk_result?;
     health_cache.program_version = PROGRAM_VERSION;
+
+    if let Some(engine) = risk_engine {
+        if let Ok(price) = engine.get_unbiased_price_for_bank(&ctx.accounts.bank.key()) {
+            let group = &marginfi_group_loader.load()?;
+            ctx.accounts
+                .bank
+                .load_mut()?
+                .update_bank_cache(group, Some(price))?;
+        }
+    }
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 

@@ -130,7 +130,7 @@ pub fn lending_account_deposit<'info>(
         ctx.remaining_accounts,
     )?;
 
-    bank.update_bank_cache(group, None, None)?;  // Deposit doesn't use oracle prices
+    bank.update_bank_cache(group, None)?; // Deposit doesn't use oracle prices
 
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {

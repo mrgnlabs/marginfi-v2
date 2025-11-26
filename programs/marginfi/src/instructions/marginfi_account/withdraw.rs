@@ -56,7 +56,6 @@ pub fn lending_account_withdraw<'info>(
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -64,20 +63,17 @@ pub fn lending_account_withdraw<'info>(
 
     let bank_key = bank_loader.key();
     let maybe_bank_mint;
-    let oracle_price;
 
     {
         let bank = bank_loader.load()?;
 
         maybe_bank_mint =
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
-
-        oracle_price = if in_liquidation {
-            // Fetch price during liquidation to cache it and validate non-zero
-            Some(fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?)
-        } else {
-            None
-        };
+        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        if in_liquidation {
+            // Note: we don't care about the price value, just validating it's non-zero
+            fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+        }
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
     } // release immutable borrow of bank
 
@@ -137,8 +133,6 @@ pub fn lending_account_withdraw<'info>(
             ctx.remaining_accounts,
         )?;
 
-        bank.update_bank_cache(group, oracle_price, oracle_price.map(|_| crate::state::price::PriceBias::Low))?;
-
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
                 signer: Some(ctx.accounts.authority.key()),
@@ -162,13 +156,22 @@ pub fn lending_account_withdraw<'info>(
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
-        let (risk_result, _engine) = RiskEngine::check_account_init_health(
+        let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
             &marginfi_account,
             ctx.remaining_accounts,
             &mut Some(&mut health_cache),
         );
         risk_result?;
         health_cache.program_version = PROGRAM_VERSION;
+
+        if let Some(engine) = risk_engine {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_key) {
+                let group = &marginfi_group_loader.load()?;
+                bank_loader
+                    .load_mut()?
+                    .update_bank_cache(group, Some(price))?;
+            }
+        }
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     }

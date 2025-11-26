@@ -11,10 +11,7 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{
-        assert_within_one_token, fetch_asset_price_for_bank, is_kamino_asset_tag,
-        validate_bank_state, InstructionKind,
-    },
+    utils::{assert_within_one_token, is_kamino_asset_tag, validate_bank_state, InstructionKind},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -81,7 +78,6 @@ pub fn kamino_withdraw<'info>(
 
     let collateral_amount;
     let bank_key = ctx.accounts.bank.key();
-    let oracle_price;
     {
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
@@ -94,15 +90,6 @@ pub fn kamino_withdraw<'info>(
             !marginfi_account.get_flag(ACCOUNT_DISABLED),
             MarginfiError::AccountDisabled
         );
-
-        // Validate price is non-zero during liquidation to prevent exploits with stale oracles
-        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        oracle_price = if in_liquidation {
-            // Fetch price during liquidation to cache it and validate non-zero
-            Some(fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?)
-        } else {
-            None
-        };
 
         let mut bank_account = BankAccountWrapper::find(
             &ctx.accounts.bank.key(),
@@ -118,8 +105,6 @@ pub fn kamino_withdraw<'info>(
         };
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
-        bank.update_bank_cache(group, oracle_price, oracle_price.map(|_| crate::state::price::PriceBias::Low))?;
-
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }
 
@@ -167,27 +152,37 @@ pub fn kamino_withdraw<'info>(
             amount: collateral_amount,
             close_balance: withdraw_all,
         });
+    }
 
-        let mut health_cache = HealthCache::zeroed();
-        health_cache.timestamp = Clock::get()?.unix_timestamp;
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = Clock::get()?.unix_timestamp;
 
-        marginfi_account.lending_account.sort_balances();
+    marginfi_account.lending_account.sort_balances();
 
-        // Note: during liquidating, we skip all health checks until the end of the transaction.
-        if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
-            // Check account health, if below threshold fail transaction
-            // Assuming `ctx.remaining_accounts` holds only oracle accounts
-            let (risk_result, _engine) = RiskEngine::check_account_init_health(
-                &marginfi_account,
-                ctx.remaining_accounts,
-                &mut Some(&mut health_cache),
-            );
-            risk_result?;
-            health_cache.program_version = PROGRAM_VERSION;
+    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Check account health, if below threshold fail transaction
+        // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
+            &marginfi_account,
+            ctx.remaining_accounts,
+            &mut Some(&mut health_cache),
+        );
+        risk_result?;
+        health_cache.program_version = PROGRAM_VERSION;
 
-            health_cache.set_engine_ok(true);
-            marginfi_account.health_cache = health_cache;
+        if let Some(engine) = risk_engine {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_key) {
+                let group = &ctx.accounts.group.load()?;
+                ctx.accounts
+                    .bank
+                    .load_mut()?
+                    .update_bank_cache(group, Some(price))?;
+            }
         }
+        health_cache.set_engine_ok(true);
+        marginfi_account.health_cache = health_cache;
     }
 
     Ok(())

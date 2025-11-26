@@ -10,10 +10,7 @@ use crate::{
         marginfi_account::{BankAccountWrapper, MarginfiAccountImpl, RiskEngine},
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{
-        self, fetch_liability_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
-        InstructionKind,
-    },
+    utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
     MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -70,8 +67,15 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
     health_cache.program_version = PROGRAM_VERSION;
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_bankrupt(&mut Some(&mut health_cache))?;
+
+    {
+        let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
+        risk_engine.check_account_bankrupt(&mut Some(&mut health_cache))?;
+        let cached_price = risk_engine.get_unbiased_price_for_bank(&bank_loader.key())?;
+        bank_loader
+            .load_mut()?
+            .update_bank_cache(&*marginfi_group_loader.load()?, Some(cached_price))?;
+    }
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 
@@ -176,12 +180,6 @@ pub fn lending_pool_handle_bankruptcy<'info>(
         &mut marginfi_account.lending_account,
     )?
     .repay(bad_debt)?;
-
-    // Fetch liability price to cache it (bankruptcy handles bad debt which is a liability)
-    let bank_key = bank_loader.key();
-    let liability_price = fetch_liability_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-
-    bank.update_bank_cache(group, Some(liability_price), Some(crate::state::price::PriceBias::High))?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED);
     marginfi_account.last_update = clock.unix_timestamp as u64;

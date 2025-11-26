@@ -35,7 +35,7 @@ pub fn lending_account_close_balance(ctx: Context<LendingAccountCloseBalance>) -
         bank_loader.key(),
     )?;
 
-    bank.update_bank_cache(group, None, None)?;  // Close balance doesn't use oracle prices
+    bank.update_bank_cache(group, None)?; // Close balance doesn't use oracle prices
 
     let lending_account = &mut marginfi_account.lending_account;
     let mut bank_account =
