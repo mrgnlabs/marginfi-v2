@@ -72,7 +72,9 @@ describe("Bank bankruptcy tests", () => {
     banks = result.banks;
 
     // Crank oracles so that the prices are not stale
-    let now = Math.floor(Date.now() / 1000);
+    // Use bankrun clock instead of wall clock to avoid timestamp mismatch
+    const clock = await banksClient.getClock();
+    let now = Number(clock.unixTimestamp);
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
     await initOrUpdatePriceUpdateV2(
@@ -174,9 +176,10 @@ describe("Bank bankruptcy tests", () => {
     await banksClient.processTransaction(borrowTx);
   });
 
-  // TODO get the bankrun clock instead of using the system clock (on another branch somewhere)
   it("One year elapses", async () => {
-    let now = Math.floor(Date.now() / 1000);
+    // Get current bankrun clock time instead of wall clock
+    const currentClock = await banksClient.getClock();
+    let now = Number(currentClock.unixTimestamp);
     const targetUnix = BigInt(now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS);
 
     // Construct a new Clock; we only care about the unixTimestamp field here.
@@ -193,18 +196,19 @@ describe("Bank bankruptcy tests", () => {
     // Crank oracles so that the prices are not stale
     let priceAlpha = ecosystem.lstAlphaPrice * 10 ** ecosystem.lstAlphaDecimals;
     let confAlpha = priceAlpha * ORACLE_CONF_INTERVAL;
+    const futureTime = now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS;
     await initOrUpdatePriceUpdateV2(
       new Wallet(globalProgramAdmin.wallet),
       oracles.pythPullLstOracleFeed.publicKey,
       new BN(priceAlpha),
       new BN(confAlpha),
-      now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS,
+      futureTime,
       -ecosystem.lstAlphaDecimals,
       oracles.pythPullLst,
       undefined,
       bankrunContext,
       false,
-      now + ONE_YEAR_IN_SECONDS + ONE_YEAR_IN_SECONDS
+      futureTime
     );
   });
 

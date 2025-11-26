@@ -12,7 +12,7 @@ use crate::MarginfiResult;
 // 2. or the ones dependant on some 3rd party crates which are not part of type-crate dependency tree
 
 /// Mocks program ID for third-party ID restrictions
-pub const MOCKS_PROGRAM_ID: Pubkey = pubkey!("5XaaR94jBubdbrRrNW7DtRvZeWvLhSHkEGU3jHTEXV3C");
+pub const MOCKS_PROGRAM_ID: Pubkey = pubkey!("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 
 pub const DRIFT_USER_SEED: &str = "user";
 pub const DRIFT_USER_STATS_SEED: &str = "user_stats";
