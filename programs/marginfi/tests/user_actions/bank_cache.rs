@@ -20,14 +20,6 @@ async fn setup_borrow_with_price_cache(
     };
 
     let test_f = TestFixture::new(Some(test_settings)).await;
-    // Refresh oracle publish times so Pyth push feeds are not considered stale.
-    // let ts = 10;
-    // test_f.set_time(ts);
-    // test_f.set_pyth_oracle_timestamp(PYTH_SOL_FEED, ts).await;
-    // test_f
-    //     .set_pyth_oracle_timestamp(PYTH_USDC_FEED, ts)
-    //     .await;
-
     let sol_bank = test_f.get_bank(&BankMint::Sol);
     let usdc_bank = test_f.get_bank(&BankMint::Usdc);
 

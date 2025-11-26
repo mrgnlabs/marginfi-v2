@@ -412,13 +412,6 @@ pub fn lending_account_liquidate<'info>(
 
     // Verify liquidatee liquidation post health
 
-    // let post_liquidation_health =
-    //     RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-    //         .check_post_liquidation_condition_and_get_account_health(
-    //             &ctx.accounts.liab_bank.key(),
-    //             pre_liquidation_health,
-    //         )?;
-
     let post_liquidation_health =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_post_liquidation_condition_and_get_account_health(
