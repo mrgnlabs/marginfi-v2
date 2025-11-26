@@ -160,8 +160,7 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
-
-        bank.update_bank_cache(&group)?;
+        bank.update_bank_cache(&group, None)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
@@ -186,13 +185,22 @@ pub fn lending_account_withdraw<'info>(
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
-        let (risk_result, _engine) = RiskEngine::check_account_init_health(
+        let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
             &marginfi_account,
             ctx.remaining_accounts,
             &mut Some(&mut health_cache),
         );
         risk_result?;
         health_cache.program_version = PROGRAM_VERSION;
+
+        if let Some(engine) = risk_engine {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
+                let group = &marginfi_group_loader.load()?;
+                bank_loader
+                    .load_mut()?
+                    .update_bank_cache(group, Some(price))?;
+            }
+        }
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     }

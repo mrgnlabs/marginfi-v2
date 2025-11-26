@@ -132,7 +132,7 @@ pub fn kamino_withdraw<'info>(
         }
 
         // Update bank cache after modifying balances (following pattern from regular withdraw)
-        bank.update_bank_cache(&group)?;
+        bank.update_bank_cache(&group, None)?;
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }
@@ -167,7 +167,7 @@ pub fn kamino_withdraw<'info>(
         .cpi_transfer_obligation_owner_to_destination(received)?;
     {
         let bank = ctx.accounts.bank.load()?;
-        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+        let marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
@@ -181,27 +181,37 @@ pub fn kamino_withdraw<'info>(
             amount: collateral_amount,
             close_balance: withdraw_all,
         });
+    }
 
-        let mut health_cache = HealthCache::zeroed();
-        health_cache.timestamp = Clock::get()?.unix_timestamp;
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = Clock::get()?.unix_timestamp;
 
-        marginfi_account.lending_account.sort_balances();
+    marginfi_account.lending_account.sort_balances();
 
-        // Note: during liquidating, we skip all health checks until the end of the transaction.
-        if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
-            // Check account health, if below threshold fail transaction
-            // Assuming `ctx.remaining_accounts` holds only oracle accounts
-            let (risk_result, _engine) = RiskEngine::check_account_init_health(
-                &marginfi_account,
-                ctx.remaining_accounts,
-                &mut Some(&mut health_cache),
-            );
-            risk_result?;
-            health_cache.program_version = PROGRAM_VERSION;
+    // Note: during liquidating, we skip all health checks until the end of the transaction.
+    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        // Check account health, if below threshold fail transaction
+        // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
+            &marginfi_account,
+            ctx.remaining_accounts,
+            &mut Some(&mut health_cache),
+        );
+        risk_result?;
+        health_cache.program_version = PROGRAM_VERSION;
 
-            health_cache.set_engine_ok(true);
-            marginfi_account.health_cache = health_cache;
+        if let Some(engine) = risk_engine {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_key) {
+                let group = &ctx.accounts.group.load()?;
+                ctx.accounts
+                    .bank
+                    .load_mut()?
+                    .update_bank_cache(group, Some(price))?;
+            }
         }
+        health_cache.set_engine_ok(true);
+        marginfi_account.health_cache = health_cache;
     }
 
     Ok(())

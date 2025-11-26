@@ -16,8 +16,7 @@ pub fn lending_pool_accrue_bank_interest(
         ctx.accounts.bank.key(),
     )?;
 
-    // TODO see if we can move this within accrue_interest to save some CU
-    bank.update_bank_cache(group)?;
+    bank.update_bank_cache(group, None)?;
 
     Ok(())
 }

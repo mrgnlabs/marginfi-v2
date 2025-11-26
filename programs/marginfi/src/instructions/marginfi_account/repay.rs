@@ -126,7 +126,7 @@ pub fn lending_account_repay<'info>(
         bank.update_flag(true, TOKENLESS_REPAYMENTS_COMPLETE);
     }
 
-    bank.update_bank_cache(group)?;
+    bank.update_bank_cache(group, None)?; // Repay doesn't use oracle prices
 
     emit!(LendingAccountRepayEvent {
         header: AccountEventHeader {

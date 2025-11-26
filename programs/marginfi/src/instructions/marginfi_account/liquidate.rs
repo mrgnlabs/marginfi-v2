@@ -379,10 +379,6 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?
                 .into();
 
-        asset_bank.update_bank_cache(group)?;
-
-        liab_bank.update_bank_cache(group)?;
-
         (
             LiquidationBalances {
                 liquidatee_asset_balance: liquidatee_asset_pre_balance.to_num::<f64>(),
@@ -412,24 +408,42 @@ pub fn lending_account_liquidate<'info>(
     // more CU intensive than mutating the old engine with the updated balance + bank
 
     // Verify liquidatee liquidation post health
+
     let post_liquidation_health =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
             .check_post_liquidation_condition_and_get_account_health(
                 &ctx.accounts.liab_bank.key(),
                 pre_liquidation_health,
             )?;
-
     // TODO consider if health cache update here is worth blowing the extra CU
 
     liquidator_marginfi_account.lending_account.sort_balances();
 
     // Verify liquidator account health
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
+    let (risk_result, risk_engine_opt) = RiskEngine::check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
         &mut None,
     );
     risk_result?;
+
+    let risk_engine = risk_engine_opt.ok_or(MarginfiError::RiskEngineInitRejected)?;
+
+    let asset_price_for_cache =
+        risk_engine.get_unbiased_price_for_bank(&ctx.accounts.asset_bank.key())?;
+    let liab_price_for_cache =
+        risk_engine.get_unbiased_price_for_bank(&ctx.accounts.liab_bank.key())?;
+
+    {
+        ctx.accounts
+            .asset_bank
+            .load_mut()?
+            .update_bank_cache(group, Some(asset_price_for_cache))?;
+        ctx.accounts
+            .liab_bank
+            .load_mut()?
+            .update_bank_cache(group, Some(liab_price_for_cache))?;
+    }
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
