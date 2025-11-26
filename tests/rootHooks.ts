@@ -48,6 +48,8 @@ import { initGlobalFeeState } from "./utils/group-instructions";
 import { deriveGlobalFeeState } from "./utils/pdas";
 import { KaminoLending } from "./fixtures/kamino_lending";
 import klendIdl from "./fixtures/kamino_lending.json";
+import { Drift } from "./fixtures/drift_v2";
+import driftIdl from "./fixtures/drift_v2.json";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -91,6 +93,12 @@ export const emodeGroup = Keypair.fromSeed(EMODE_GROUP_SEED);
 /** Group used for kamino tests */
 const KAMINO_GROUP_SEED = Buffer.from("KAMINO_GROUP_SEED_00000000000000");
 export const kaminoGroup = Keypair.fromSeed(KAMINO_GROUP_SEED);
+/** Group used for drift tests */
+const DRIFT_GROUP_SEED = Buffer.from("DRIFT_GROUP_SEED_000000000000000");
+export const driftGroup = Keypair.fromSeed(DRIFT_GROUP_SEED);
+/** Group used for solend tests */
+const SOLEND_GROUP_SEED = Buffer.from("SOLEND_GROUP_SEED_00000000000000");
+export const solendGroup = Keypair.fromSeed(SOLEND_GROUP_SEED);
 
 /** Bank for USDC */
 const USDC_SEED = Buffer.from("USDC_BANK_SEED_00000000000000000");
@@ -108,10 +116,16 @@ export const THROWAWAY_GROUP_SEED_K10 = Buffer.from(
   "MARGINFI_GROUP_SEED_123400000010"
 );
 
+/** Multibank group created for drift liquidation test d09 */
+export const THROWAWAY_GROUP_SEED_D09 = Buffer.from(
+  "MARGINFI_GROUP_SEED_123400000019"
+);
+
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
 export let klendBankrunProgram: Program<KaminoLending>;
+export let driftBankrunProgram: Program<Drift>;
 export let banksClient: BanksClient;
 /** A mainnet Pyth pull feed (Jup's Sol feed) */
 export const PYTH_ORACLE_FEED_SAMPLE = new PublicKey(
@@ -169,6 +183,59 @@ export const KAMINO_USDC_BANK = "kamino_usdc_bank";
 /** mrgn Token A bank trading on `TOKEN_A_RESERVE` (the reserve for ecosystem.tokenAMint) */
 export const KAMINO_TOKENA_BANK = "kamino_tokenA_bank";
 
+// TODO: This should really be an object with defined fields not a dict
+export let driftAccounts: Map<string, PublicKey>;
+/** Drift USDC Spot Market */
+export const DRIFT_USDC_SPOT_MARKET = "drift_usdc_spot_market";
+/** Drift Token A Spot Market */
+export const DRIFT_TOKENA_SPOT_MARKET = "drift_tokenA_spot_market";
+/** mrgn USDC bank trading on `DRIFT_USDC_SPOT_MARKET` */
+export const DRIFT_USDC_BANK = "drift_usdc_bank";
+/** mrgn Token A bank trading on `DRIFT_TOKENA_SPOT_MARKET` */
+export const DRIFT_TOKENA_BANK = "drift_tokenA_bank";
+/** Drift Token A Pyth Pull Oracle (with mainnet owner) */
+export const DRIFT_TOKENA_PULL_ORACLE = "drift_tokenA_pull_oracle";
+/** Drift Token A Pyth Pull Feed */
+export const DRIFT_TOKENA_PULL_FEED = "drift_tokenA_pull_feed";
+
+// Solend related accounts
+export let solendAccounts: Map<string, PublicKey>;
+/** Solend Lending Market */
+export const SOLEND_MARKET = "solend_market";
+/** Solend Market Authority (PDA) */
+export const SOLEND_MARKET_AUTHORITY = "solend_market_authority";
+
+// Reserve accounts
+/** Solend USDC Reserve */
+export const SOLEND_USDC_RESERVE = "solend_usdc_reserve";
+/** Solend Token A Reserve */
+export const SOLEND_TOKENA_RESERVE = "solend_tokena_reserve";
+
+// Reserve component accounts (critical for operations)
+/** USDC Reserve liquidity supply */
+export const SOLEND_USDC_LIQUIDITY_SUPPLY = "solend_usdc_liquidity_supply";
+/** USDC Reserve collateral mint */
+export const SOLEND_USDC_COLLATERAL_MINT = "solend_usdc_collateral_mint";
+/** USDC Reserve collateral supply */
+export const SOLEND_USDC_COLLATERAL_SUPPLY = "solend_usdc_collateral_supply";
+/** USDC Reserve fee receiver */
+export const SOLEND_USDC_FEE_RECEIVER = "solend_usdc_fee_receiver";
+
+/** Token A Reserve liquidity supply */
+export const SOLEND_TOKENA_LIQUIDITY_SUPPLY = "solend_tokena_liquidity_supply";
+/** Token A Reserve collateral mint */
+export const SOLEND_TOKENA_COLLATERAL_MINT = "solend_tokena_collateral_mint";
+/** Token A Reserve collateral supply */
+export const SOLEND_TOKENA_COLLATERAL_SUPPLY = "solend_tokena_collateral_supply";
+/** Token A Reserve fee receiver */
+export const SOLEND_TOKENA_FEE_RECEIVER = "solend_tokena_fee_receiver";
+
+// Bank accounts (for MarginFi integration)
+/** mrgn USDC bank for Solend integration */
+export const SOLEND_USDC_BANK = "solend_usdc_bank";
+/** mrgn Token A bank for Solend integration */
+export const SOLEND_TOKENA_BANK = "solend_tokena_bank";
+
 // Kamino farms related accounts
 export const farmAccounts = new Map<string, PublicKey>();
 export const GLOBAL_CONFIG = "GLOBAL_CONFIG";
@@ -190,6 +257,8 @@ export const mochaHooks = {
     const provider = AnchorProvider.local();
     const wallet = provider.wallet as Wallet;
     kaminoAccounts = new Map<string, PublicKey>();
+    driftAccounts = new Map<string, PublicKey>();
+    solendAccounts = new Map<string, PublicKey>();
 
     copyKeys.push(wallet.publicKey);
 
@@ -397,6 +466,10 @@ export const mochaHooks = {
     bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
     klendBankrunProgram = new Program<KaminoLending>(
       klendIdl as KaminoLending,
+      bankRunProvider
+    );
+    driftBankrunProgram = new Program<Drift>(
+      driftIdl as Drift,
       bankRunProvider
     );
     for (let i = 0; i < numUsers; i++) {

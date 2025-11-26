@@ -153,7 +153,12 @@ export const USER_ACCOUNT: string = "g0_acc";
 /** in mockUser.accounts, key used to get/set the users's account for the emode group */
 export const USER_ACCOUNT_E: string = "ge_acc";
 /** in mockUser.accounts, key used to get/set the users's account for the kamino group */
-export const USER_ACCOUNT_K: string = "ge_acc";
+export const USER_ACCOUNT_K: string = "gk_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the drift group */
+export const USER_ACCOUNT_D: string = "gd_acc";
+/** in mockUser.accounts, key used to get/set the users's account for the solend group */
+export const USER_ACCOUNT_SL: string = "sl_acc";
+
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 0 */
 export const LST_ATA = "v0_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 0 */
@@ -162,6 +167,10 @@ export const STAKE_ACC = "v0_stakeAcc";
 export const KAMINO_METADATA = "kamino_metadata";
 /** in mockUser.accounts, the obligation for the main market */
 export const KAMINO_OBLIGATION = "kamino_obligation";
+/** in mockUser.accounts, the Solend obligation account */
+export const SOLEND_OBLIGATION = "solend_obligation";
+/** in mockUser.accounts, key used for liquidation tests */
+export const LIQ_TEST_ACCOUNT = "liq_test_account";
 /** in mockUser.accounts, key used to get/set the users's LST ATA for validator 1 */
 export const LST_ATA_v1 = "v1_lstAta";
 /** in mockUser.accounts, key used to get/set the users's LST stake account for validator 1 */

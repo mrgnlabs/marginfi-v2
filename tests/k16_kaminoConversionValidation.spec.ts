@@ -252,17 +252,25 @@ describe("k16: Kamino Conversion Validation", () => {
 
     user1DepositAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
 
-    const tokenAReserveBefore = await fetchReserve(tokenAReserve);
-    const expectedTokenACTokens = estimateCollateralFromDeposit(
-      tokenAReserveBefore,
-      user1DepositAmount
-    );
-
+    // Refresh the reserve first to update interest accrual, then fetch fresh state
     const refreshTokenAIx = await simpleRefreshReserve(
       klendBankrunProgram,
       tokenAReserve,
       kaminoAccounts.get(MARKET)!,
       oracles.tokenAOracle.publicKey
+    );
+
+    await processBankrunTransaction(
+      bankrunContext,
+      new Transaction().add(refreshTokenAIx),
+      [users[1].wallet]
+    );
+
+    // Now fetch the fresh (post-refresh) state to calculate expected cTokens
+    const tokenAReserveBefore = await fetchReserve(tokenAReserve);
+    const expectedTokenACTokens = estimateCollateralFromDeposit(
+      tokenAReserveBefore,
+      user1DepositAmount
     );
 
     const refreshTokenAObligationIx = await simpleRefreshObligation(
@@ -289,7 +297,6 @@ describe("k16: Kamino Conversion Validation", () => {
     await processBankrunTransaction(
       bankrunContext,
       new Transaction().add(
-        refreshTokenAIx,
         refreshTokenAObligationIx,
         depositIx1
       ),

@@ -695,7 +695,12 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank._padding_0, [0; 16]);
     assert_eq!(bank.kamino_reserve, Pubkey::default());
     assert_eq!(bank.kamino_obligation, Pubkey::default());
-    assert_eq!(bank._padding_1, [[0, 0]; 15]);
+    assert_eq!(bank.drift_spot_market, Pubkey::default());
+    assert_eq!(bank.drift_user, Pubkey::default());
+    assert_eq!(bank.drift_user_stats, Pubkey::default());
+    assert_eq!(bank.solend_reserve, Pubkey::default());
+    assert_eq!(bank.solend_obligation, Pubkey::default());
+    assert_eq!(bank._padding_1, [[0, 0]; 5]);
 
     Ok(())
 }

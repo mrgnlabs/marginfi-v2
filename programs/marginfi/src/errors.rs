@@ -214,7 +214,89 @@ pub enum MarginfiError {
     KaminoInvalidOracleSetup, // 6211
     #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
     KaminoPositionLimitExceeded, // 6212
-                                 // **************END KAMINO ERRORS
+    // **************END KAMINO ERRORS
+
+    // ************** BEGIN DRIFT ERRORS (starting at 6300)
+    #[msg("Invalid oracle setup: only DriftPythPull and DriftSwitchboardPull are supported")]
+    DriftInvalidOracleSetup = 300, // 6300
+    #[msg("Drift spot market mint does not match bank mint")]
+    DriftSpotMarketMintMismatch, // 6301
+    #[msg("Wrong bank asset tag for Drift operation")]
+    WrongBankAssetTagForDriftOperation, // 6302
+    #[msg("Cannot use standard operations on Drift assets")]
+    CantUseStandardOperationsOnDriftAssets, // 6303
+    #[msg("Drift spot market validation failed")]
+    DriftSpotMarketValidationFailed, // 6304
+    #[msg("Drift user has invalid spot positions (only first position can have balance)")]
+    DriftInvalidSpotPositions, // 6305
+    #[msg("Drift spot position market does not match bank's configured market")]
+    DriftSpotPositionMarketMismatch, // 6306
+    #[msg("Drift position has invalid balance type (must be deposit)")]
+    DriftInvalidPositionType, // 6307
+    #[msg("Drift scaled balance change does not match expected amount")]
+    DriftScaledBalanceMismatch, // 6308
+    #[msg("Drift withdrawal failed - token amount mismatch")]
+    DriftWithdrawFailed, // 6309
+    #[msg("Drift user initial deposit insufficient (minimum 10 units required)")]
+    DriftUserInitDepositInsufficient, // 6310
+    #[msg("Invalid drift account")]
+    InvalidDriftAccount, // 6311
+    #[msg("Drift authority mismatch")]
+    DriftAuthorityMismatch, // 6312
+    #[msg("Invalid harvest position index - must be between 2 and 7")]
+    DriftInvalidHarvestPositionIndex, // 6313
+    #[msg("Drift position is empty")]
+    DriftPositionEmpty, // 6314
+    #[msg("Drift position has invalid balance type")]
+    DriftInvalidBalanceType, // 6315
+    #[msg("No admin deposits found in Drift positions 2-7 for this market")]
+    DriftNoAdminDeposit, // 6316
+    #[msg("Cannot harvest from the same market as the bank's main drift spot market")]
+    DriftHarvestSameMarket, // 6317
+    #[msg("Drift account bricked: too many active deposits from admin operations")]
+    DriftBrickedAccount, // 6318
+    #[msg("Drift reward oracle required when 2+ active deposits exist")]
+    DriftMissingRewardOracle, // 6319
+    #[msg("Drift reward spot market required when 2+ active deposits exist")]
+    DriftMissingRewardSpotMarket, // 6320
+    #[msg("Drift account has admin deposits that require reward accounts to be provided")]
+    DriftMissingRewardAccounts, // 6321
+    #[msg("Drift spot market is stale, interest needs to be updated")]
+    DriftSpotMarketStale, // 6322
+    // **************END DRIFT ERRORS
+
+    // ************** BEGIN SOLEND ERRORS (starting at 6400)
+    #[msg("Invalid oracle setup: only SolendPythPull and SolendSwitchboardPull are supported")]
+    SolendInvalidOracleSetup = 400, // 6400
+    #[msg("Solend reserve validation failed")]
+    SolendReserveValidationFailed, // 6401
+    #[msg("Solend obligation owner mismatch")]
+    SolendObligationOwnerMismatch, // 6402
+    #[msg("Wrong bank asset tag for Solend operation")]
+    WrongBankAssetTagForSolendOperation, // 6403
+    #[msg("Cannot use standard operations on Solend assets")]
+    CantUseStandardOperationsOnSolendAssets, // 6404
+    #[msg("Solend reserve mismatch")]
+    SolendReserveMismatch, // 6405
+    #[msg("Solend reserve mint mismatch")]
+    SolendReserveMintMismatch, // 6406
+    #[msg("Solend obligation has invalid deposits (only first position can have balance)")]
+    SolendInvalidDepositPositions, // 6407
+    #[msg("Solend deposit position reserve does not match bank's configured reserve")]
+    SolendDepositPositionReserveMismatch, // 6408
+    #[msg("Solend cToken balance change does not match expected amount")]
+    SolendCTokenBalanceMismatch, // 6409
+    #[msg("Solend withdrawal failed - token amount mismatch")]
+    SolendWithdrawFailed, // 6410
+    #[msg("Solend reserve is stale")]
+    SolendReserveStale, // 6411
+    #[msg("Solend deposit failed - collateral amount mismatch")]
+    SolendDepositFailed, // 6412
+    #[msg("Invalid Solend account owner")]
+    InvalidSolendAccount, // 6413
+    #[msg("Invalid Solend account version")]
+    InvalidSolendAccountVersion, // 6414
+                                 // **************END SOLEND ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -345,6 +427,49 @@ impl From<u32> for MarginfiError {
             6210 => MarginfiError::KaminoReserveValidationFailed,
             6211 => MarginfiError::KaminoInvalidOracleSetup,
             6212 => MarginfiError::KaminoPositionLimitExceeded,
+
+            // Drift-specific errors (starting at 6300)
+            6300 => MarginfiError::DriftInvalidOracleSetup,
+            6301 => MarginfiError::DriftSpotMarketMintMismatch,
+            6302 => MarginfiError::WrongBankAssetTagForDriftOperation,
+            6303 => MarginfiError::CantUseStandardOperationsOnDriftAssets,
+            6304 => MarginfiError::DriftSpotMarketValidationFailed,
+            6305 => MarginfiError::DriftInvalidSpotPositions,
+            6306 => MarginfiError::DriftSpotPositionMarketMismatch,
+            6307 => MarginfiError::DriftInvalidPositionType,
+            6308 => MarginfiError::DriftScaledBalanceMismatch,
+            6309 => MarginfiError::DriftWithdrawFailed,
+            6310 => MarginfiError::DriftUserInitDepositInsufficient,
+            6311 => MarginfiError::InvalidDriftAccount,
+            6312 => MarginfiError::DriftAuthorityMismatch,
+            6313 => MarginfiError::DriftInvalidHarvestPositionIndex,
+            6314 => MarginfiError::DriftPositionEmpty,
+            6315 => MarginfiError::DriftInvalidBalanceType,
+            6316 => MarginfiError::DriftNoAdminDeposit,
+            6317 => MarginfiError::DriftHarvestSameMarket,
+            6318 => MarginfiError::DriftBrickedAccount,
+            6319 => MarginfiError::DriftMissingRewardOracle,
+            6320 => MarginfiError::DriftMissingRewardSpotMarket,
+            6321 => MarginfiError::DriftMissingRewardAccounts,
+            6322 => MarginfiError::DriftSpotMarketStale,
+
+            // Solend-specific errors (starting at 6400)
+            6400 => MarginfiError::SolendInvalidOracleSetup,
+            6401 => MarginfiError::SolendReserveValidationFailed,
+            6402 => MarginfiError::SolendObligationOwnerMismatch,
+            6403 => MarginfiError::WrongBankAssetTagForSolendOperation,
+            6404 => MarginfiError::CantUseStandardOperationsOnSolendAssets,
+            6405 => MarginfiError::SolendReserveMismatch,
+            6406 => MarginfiError::SolendReserveMintMismatch,
+            6407 => MarginfiError::SolendInvalidDepositPositions,
+            6408 => MarginfiError::SolendDepositPositionReserveMismatch,
+            6409 => MarginfiError::SolendCTokenBalanceMismatch,
+            6410 => MarginfiError::SolendWithdrawFailed,
+            6411 => MarginfiError::SolendReserveStale,
+            6412 => MarginfiError::SolendDepositFailed,
+            6413 => MarginfiError::InvalidSolendAccount,
+            6414 => MarginfiError::InvalidSolendAccountVersion,
+
             _ => MarginfiError::InternalLogicError,
         }
     }
@@ -379,6 +504,7 @@ impl MarginfiError {
                 | MarginfiError::MissingPythOrBankAccount
                 | MarginfiError::PythPushInvalidWindowSize
                 | MarginfiError::OracleMaxConfidenceExceeded
+                | MarginfiError::KaminoInvalidOracleSetup
         )
     }
 

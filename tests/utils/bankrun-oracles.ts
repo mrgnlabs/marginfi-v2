@@ -1,8 +1,69 @@
-import { PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { Oracles } from "./mocks";
-import { ORACLE_CONF_INTERVAL } from "./types";
+import { ORACLE_CONF_INTERVAL, DRIFT_ORACLE_RECEIVER_PROGRAM_ID } from "./types";
+import { processBankrunTransaction } from "./tools";
+
+/**
+ * Creates a blank pyth feed account in bankrun (300 bytes).
+ *
+ * @param owner - The program that owns this feed account. For Drift oracles, use DRIFT_ORACLE_RECEIVER_PROGRAM_ID.
+ */
+export async function createBankrunPythFeedAccount(
+  bankrunContext: ProgramTestContext,
+  banksClient: BanksClient,
+  feedKeypair: Keypair,
+  owner: PublicKey
+): Promise<Keypair> {
+  const space = 300;
+  const rent = await banksClient.getRent();
+  const lamports = Number(rent.minimumBalance(BigInt(space)));
+
+  const tx = new Transaction().add(
+    SystemProgram.createAccount({
+      fromPubkey: bankrunContext.payer.publicKey,
+      newAccountPubkey: feedKeypair.publicKey,
+      lamports,
+      space,
+      programId: owner,
+    })
+  );
+
+  await processBankrunTransaction(bankrunContext, tx, [bankrunContext.payer, feedKeypair]);
+
+  return feedKeypair;
+}
+
+/**
+ * Creates a blank pyth oracle account in bankrun with specified owner (134 bytes).
+ *
+ * @param owner - The program that owns this oracle account. For Drift oracles, use DRIFT_ORACLE_RECEIVER_PROGRAM_ID.
+ */
+export async function createBankrunPythOracleAccount(
+  bankrunContext: ProgramTestContext,
+  banksClient: BanksClient,
+  oracleKeypair: Keypair,
+  owner: PublicKey
+): Promise<Keypair> {
+  const space = 134;
+  const rent = await banksClient.getRent();
+  const lamports = Number(rent.minimumBalance(BigInt(space)));
+
+  const tx = new Transaction().add(
+    SystemProgram.createAccount({
+      fromPubkey: bankrunContext.payer.publicKey,
+      newAccountPubkey: oracleKeypair.publicKey,
+      lamports,
+      space,
+      programId: owner,
+    })
+  );
+
+  await processBankrunTransaction(bankrunContext, tx, [bankrunContext.payer, oracleKeypair]);
+
+  return oracleKeypair;
+}
 
 /**
  * Sets a Pyth Pull oracle price directly using bankrun, bypassing transactions.
@@ -93,17 +154,6 @@ export async function setPythPullOraclePrice(
   if (!existing) {
     console.log("Account does not exist, not creating because this causes bankrun issues")
     return
-    // Create new account with proper rent exemption
-    const rent = await banksClient.getRent();
-    const lamports = Number(rent.minimumBalance(BigInt(134)));
-
-    bankrunContext.setAccount(oracleAccount, {
-      lamports,
-      data: buffer,
-      owner,
-      executable: false,
-      rentEpoch: 0,
-    });
   } else {
     // Update existing account with new data
     bankrunContext.setAccount(oracleAccount, {

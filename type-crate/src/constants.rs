@@ -153,6 +153,12 @@ pub const ASSET_TAG_STAKED: u8 = 2;
 /// Kamino assets. Accounts with a KAMINO position can only deposit other KAMINO assets or regular
 /// assets (`ASSET_TAG_DEFAULT`).
 pub const ASSET_TAG_KAMINO: u8 = 3;
+/// Drift assets. Accounts with a DRIFT position can only deposit other DRIFT assets or regular
+/// assets (`ASSET_TAG_DEFAULT`).
+pub const ASSET_TAG_DRIFT: u8 = 4;
+/// Solend assets. Accounts with a SOLEND position can only deposit other SOLEND assets or regular
+/// assets (`ASSET_TAG_DEFAULT`).
+pub const ASSET_TAG_SOLEND: u8 = 5;
 
 /// Maximum number of Kamino positions allowed per account. Hardcoded limit to prevent accounts from
 /// becoming unliquidatable due to CU/heap memory issues in liquidation instruction.
