@@ -167,7 +167,7 @@ pub fn kamino_withdraw<'info>(
         .cpi_transfer_obligation_owner_to_destination(received)?;
     {
         let bank = ctx.accounts.bank.load()?;
-        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+        let marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
