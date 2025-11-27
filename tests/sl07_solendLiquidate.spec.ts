@@ -477,6 +477,8 @@ describe("sl07: Solend Liquidation", () => {
             ]),
           ],
           amount: liquidateAmountUsdc,
+          liquidateeAccounts: 5,
+          liquidatorAccounts: 5,
         })
       );
 

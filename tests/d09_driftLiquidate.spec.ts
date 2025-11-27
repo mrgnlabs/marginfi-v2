@@ -393,6 +393,8 @@ describe("d09: Drift Liquidation", () => {
             ]),
           ],
           amount: liquidateAmount,
+          liquidateeAccounts: 5,
+          liquidatorAccounts: 5,
         })
       );
 
