@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
     constants::{ASSET_TAG_SOLEND, PYTH_PUSH_MIGRATED_DEPRECATED},
@@ -102,7 +103,8 @@ impl SolendConfigCompact {
             oracle_max_age: self.oracle_max_age,
             _padding0: [0; 2],
             oracle_max_confidence: self.oracle_max_confidence,
-            _padding1: [0; 32],
+            fixed_price: I80F48::ZERO.into(),
+            _padding1: [0; 16],
         }
     }
 }
