@@ -1,4 +1,4 @@
-use crate::{state::marginfi_group::MarginfiGroupImpl, MarginfiResult};
+use crate::{state::marginfi_group::MarginfiGroupImpl, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
@@ -17,7 +17,7 @@ pub struct ConfigGroupFee<'info> {
     #[account(
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::Unauthorized
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

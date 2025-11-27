@@ -44,7 +44,10 @@ import {
 } from "./utils/tools";
 import { assertBankrunTxFailed } from "./utils/genericTests";
 import { genericKaminoMultiBankTestSetup } from "./genericSetups";
-import { makeKaminoDepositIx, makeKaminoWithdrawIx } from "./utils/kamino-instructions";
+import {
+  makeKaminoDepositIx,
+  makeKaminoWithdrawIx,
+} from "./utils/kamino-instructions";
 import {
   simpleRefreshObligation,
   simpleRefreshReserve,
@@ -314,10 +317,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
       bankrunProgram.programId,
       withdrawBank
     );
-    const [withdrawObligation] = deriveBaseObligation(
-      withdrawLiqAuth,
-      market
-    );
+    const [withdrawObligation] = deriveBaseObligation(withdrawLiqAuth, market);
     const [withdrawUserState] = deriveUserState(
       FARMS_PROGRAM_ID,
       farmState,
@@ -402,10 +402,12 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     );
     await processBankrunTransaction(bankrunContext, reopenTx, [user.wallet]);
 
-    const accountAfter =
-      await bankrunProgram.account.marginfiAccount.fetch(userAccount);
+    const accountAfter = await bankrunProgram.account.marginfiAccount.fetch(
+      userAccount
+    );
     const hasReplacement = accountAfter.lendingAccount.balances.some(
-      (balance) => balance.active === 1 && balance.bankPk.equals(replacementBank)
+      (balance) =>
+        balance.active === 1 && balance.bankPk.equals(replacementBank)
     );
     if (!hasReplacement) {
       throw new Error("Expected reopened Kamino position to be active");
@@ -579,6 +581,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
       remainingAccounts.push([regularBanks[i], oracles.pythPullLst.publicKey]);
       // console.log("bank: " + banks[i]);
     }
+    const liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
 
     // Deposit some funds to operate as a liquidator...
     let tx = new Transaction();
@@ -623,12 +626,11 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
             [regularBanks[MAX_BALANCES - 1], oracles.pythPullLst.publicKey],
           ]),
 
-          ...composeRemainingAccounts(
-            // liquidatee accounts
-            remainingAccounts
-          ),
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: 7,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

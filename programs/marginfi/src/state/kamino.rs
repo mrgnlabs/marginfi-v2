@@ -1,8 +1,10 @@
 use anchor_lang::prelude::*;
+use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::constants::{ASSET_TAG_KAMINO, PYTH_PUSH_MIGRATED_DEPRECATED};
 use marginfi_type_crate::types::{
-    BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RiskTier, WrappedI80F48,
+    make_points, BankConfig, BankOperationalState, InterestRateConfig, OracleSetup, RatePoint,
+    RiskTier, WrappedI80F48, INTEREST_CURVE_SEVEN_POINT,
 };
 
 /// Used to configure Kamino banks. A simplified version of `BankConfigCompact` which omits most
@@ -66,11 +68,15 @@ impl KaminoConfigCompact {
         // never will, thus they will earn no interest.
         // Note: Some placeholder values are non-zero to handle downstream validation checks.
         let default_ir_config = InterestRateConfig {
-            optimal_utilization_rate: I80F48!(0.4).into(),
-            plateau_interest_rate: I80F48!(0.4).into(),
-            protocol_fixed_fee_apr: I80F48!(0.01).into(),
-            max_interest_rate: I80F48!(3).into(),
+            optimal_utilization_rate: I80F48::ZERO.into(),
+            plateau_interest_rate: I80F48::ZERO.into(),
+            max_interest_rate: I80F48::ZERO.into(),
+            protocol_fixed_fee_apr: I80F48::ZERO.into(),
             insurance_ir_fee: I80F48!(0.1).into(),
+            zero_util_rate: 0,
+            hundred_util_rate: 1234567,
+            points: make_points(&[RatePoint::new(12345, 123456)]),
+            curve_type: INTEREST_CURVE_SEVEN_POINT,
             ..Default::default()
         };
 
@@ -102,7 +108,8 @@ impl KaminoConfigCompact {
             oracle_max_age: self.oracle_max_age,
             _padding0: [0; 2],
             oracle_max_confidence: self.oracle_max_confidence,
-            _padding1: [0; 32],
+            fixed_price: I80F48::ZERO.into(),
+            _padding1: [0; 16],
         }
     }
 }

@@ -1,5 +1,6 @@
 [env]
 RUST_MIN_STACK = "8192000"
+CARGO_INCREMENTAL = "0"
 
 [alias]
 b = "build"

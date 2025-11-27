@@ -115,8 +115,15 @@ pub const THIRD_PARTY_CPI_RULES: &[(u16, Pubkey)] = &[
     (
         11_111,
         pubkey!("AsgardVwpApNc9DgEsDAHJcvupPuRtLQSKDP9MQNw16N"),
-    ), // (10_002, SOME_OTHER_PROGRAM_ID),
-       // (10_003, YET_ANOTHER_PROGRAM_ID),
+    ),
+    (
+        11_123,
+        pubkey!("6HyT8NQDpXY5wGkvX7haQVJ5nGUBVXQSkaT6Nf7fbsuJ"),
+    ),
+    (
+        11_124,
+        pubkey!("save8RQVPMWNTzU18t3GBvBkN9hT7jsGjiCQ28FpD9H"),
+    ),
 ];
 
 /// * IDs < PDA_FREE_THRESHOLD are "free" (no special CPI restriction), just go ahead and use them

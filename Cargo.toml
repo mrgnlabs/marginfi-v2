@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "programs/marginfi",
-    "test-utils",
     "programs/mocks",
     "programs/test_transfer_hook",
     "clients/rust/marginfi-cli",
@@ -61,6 +60,7 @@ static_assertions = "1.1.0"
 overflow-checks = false
 lto = "off"
 codegen-units = 8
+incremental = false
 
 ## Build options for release (build-program-verifiable should use these through env settings)
 [profile.release]

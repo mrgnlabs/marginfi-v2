@@ -398,8 +398,8 @@ describe("k05: Init Kamino banks", () => {
       )
     );
     let result = await processBankrunTransaction(ctx, tx, [user.wallet], true);
-    // Generic has_one violation
-    assertBankrunTxFailed(result, 2001);
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
   });
 
   it("(admin) Tries pass the wrong reserve/mint for this asset - should fail", async () => {

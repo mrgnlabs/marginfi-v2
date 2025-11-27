@@ -11,9 +11,15 @@ Are you an accountant or the person responsible for collecting bank fees? Read o
 - **Ir rate** - A rate that scales off the base rate, for example an ir rate of 10% means you will pay 10% of the base rate. 
 - **Fixed rate** - A rate of 10% here would mean users pay exactly 10%
 - **Origination Fee** - A % of the borrow amount charged when a borrow is initiated. Typically only applies to arena.
-- **Flat sol fee** - A fixed amount of SOL charged when creating a new bank. Typically only applies to arena.
+- **Bank Init flat sol fee** - A fixed amount of SOL charged when creating a new bank. Typically only applies to arena.
 - **Global fee wallet** - One per program, a wallet that receives all program fees. Can be changed
   by the global fee admin.
+- **Legacy Liquidation fee** - When using lending_account_liquidation, 2.5% of the amount repaid by
+  the liquidator goes to insurance, and 2.5% goes to the liquidator.
+- **Liquidation flat sol fee** - A fixed amount of SOL charged when liquidating with receivership liquidation
+- **Receivership liquidation fee** - The liquidator collects a profit when performing with
+  receivership liquidation. The profit equals the amount withdrawn minus the amount repaid, in
+  dollars, in equity terms.
 
 ## Kinds of Fees And How Earned
 
@@ -23,13 +29,20 @@ base_rate * (1 + insurance_ir + group_ir + program_ir) + insurance_fixed + group
 ```
 For example, if the base rate is 10%, and the group_ir rate is 10%, and the group_fixed rate is 1%,
 then the group gets 10% * 10% + 1% = 2% APR. Interest is only paid by borrowers, so banks without
-borrowers (like Staked Collateral) never earn fees.
-- **Origination fee** - The group admin configures this as a percentage of the borrow, and the
-  program admin determine what portion of this fee goes to them. For example, if the origination fee
-  is 1%, and the program_ir is 10%, then the group gets 0.9% and the program gets 0.1% of any
-  borrow. A user borrowing \$100 would pay \$101, where 90 cents goes to the group and 10 cents to
-  the program.
-- **Flat sol fee** - Automatically debited to the global program fee wallet any time a bank is created on Arena.
+borrowers (like Staked Collateral) never earn fees. Interest accumulates when any transaction that
+changes funds occurs, so banks without much activity may have stale numbers until someone interacts
+with them.
+- **Origination fee** - Historically, always zero. The group admin configures this as a percentage
+  of the borrow, and the program admin determine what portion of this fee goes to them. For example,
+  if the origination fee is 1%, and the program_ir is 10%, then the group gets 0.9% and the program
+  gets 0.1% of any borrow. A user borrowing \$100 would pay \$101, where 90 cents goes to the group
+  and 10 cents to the program.
+- **Bank Init flat sol fee** - Historically, always zero. Automatically debited to the global
+  program fee wallet any time a bank is created on Arena.
+- **Liquidation flat sol fee** - Historically, about $0.10 equivalent in SOL. Automatically debited
+  when liquidating using receivership liquidation.
+- **Receivership liquidation fee** - Historically no more than 10%, e.g. a liquidator withdrawing
+  $10 in equity can repay $9 in debt and keep $1
 
 ## How Interest Accumulates
 
