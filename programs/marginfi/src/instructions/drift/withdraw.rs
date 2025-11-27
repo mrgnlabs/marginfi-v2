@@ -5,7 +5,7 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
     },
@@ -51,30 +51,38 @@ pub fn drift_withdraw<'info>(
 
     ctx.accounts.cpi_update_spot_market_cumulative_interest()?;
 
+    let bank_key = ctx.accounts.bank.key();
     let (token_amount, expected_scaled_balance_change) = {
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut bank = ctx.accounts.bank.load_mut()?;
+        let mut group = ctx.accounts.group.load_mut()?;
+        let clock = Clock::get()?;
         authority_bump = bank.liquidity_vault_authority_bump;
 
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
-
-        // Validate price is non-zero during liquidation to prevent exploits with stale oracles
-        let in_liquidation = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        if in_liquidation {
-            let clock = Clock::get()?;
-            // Note: we don't care about the price value, just validating it's non-zero
-            fetch_asset_price_for_bank(
-                &ctx.accounts.bank.key(),
-                &bank,
-                &clock,
-                ctx.remaining_accounts,
-            )?;
-        }
 
         check!(
             !marginfi_account.get_flag(ACCOUNT_DISABLED),
             MarginfiError::AccountDisabled
         );
+
+        // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
+        let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+        let price = if in_receivership {
+            let price = fetch_asset_price_for_bank(
+                &bank_key,
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
+
+            // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
+            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+
+            price
+        } else {
+            I80F48::ZERO
+        };
 
         let drift_spot_market = ctx.accounts.drift_spot_market.load()?;
         market_index = drift_spot_market.market_index;
@@ -85,7 +93,7 @@ pub fn drift_withdraw<'info>(
             &mut marginfi_account.lending_account,
         )?;
 
-        if withdraw_all {
+        let (token_amount, expected_scaled_balance_change) = if withdraw_all {
             let scaled_balance = bank_account.withdraw_all()?;
 
             let token_amount = drift_spot_market.get_withdraw_token_amount(scaled_balance)?;
@@ -118,7 +126,20 @@ pub fn drift_withdraw<'info>(
             bank_account.withdraw(I80F48::from_num(scaled_decrement))?;
 
             (token_amount, scaled_decrement)
+        };
+
+        // Track withdrawal limit for risk admin during deleverage
+        if ctx.accounts.authority.key() == group.risk_admin {
+            let withdrawn_equity = calc_value(
+                I80F48::from_num(expected_scaled_balance_change),
+                price,
+                bank.mint_decimals,
+                None,
+            )?;
+            group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
         }
+
+        (token_amount, expected_scaled_balance_change)
     };
 
     // When calling withdraw_all, it's possible that the remaining scaled
@@ -217,6 +238,7 @@ pub fn drift_withdraw<'info>(
 #[derive(Accounts)]
 pub struct DriftWithdraw<'info> {
     #[account(
+        mut,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
