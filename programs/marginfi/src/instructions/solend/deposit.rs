@@ -20,7 +20,9 @@ use anchor_spl::token_interface::{
 };
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 use solend_mocks::cpi::accounts::DepositReserveLiquidityAndObligationCollateral;
 use solend_mocks::cpi::deposit_reserve_liquidity_and_obligation_collateral;
 use solend_mocks::state::{

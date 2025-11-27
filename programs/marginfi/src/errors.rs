@@ -322,7 +322,7 @@ pub enum MarginfiError {
     InvalidSolendAccount, // 6413
     #[msg("Invalid Solend account version")]
     InvalidSolendAccountVersion, // 6414
-    // **************END SOLEND ERRORS
+                                 // **************END SOLEND ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {

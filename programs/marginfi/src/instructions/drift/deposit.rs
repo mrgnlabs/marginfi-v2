@@ -20,7 +20,9 @@ use drift_mocks::drift::cpi::{deposit, update_spot_market_cumulative_interest};
 use drift_mocks::state::MinimalUser;
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// Deposit into a Drift spot market through a marginfi account
 ///
