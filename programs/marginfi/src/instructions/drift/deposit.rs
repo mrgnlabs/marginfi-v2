@@ -20,7 +20,7 @@ use drift_mocks::drift::cpi::{deposit, update_spot_market_cumulative_interest};
 use drift_mocks::state::MinimalUser;
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP};
 
 /// Deposit into a Drift spot market through a marginfi account
 ///
@@ -42,7 +42,8 @@ pub fn drift_deposit(ctx: Context<DriftDeposit>, amount: u64) -> MarginfiResult 
         validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         check!(
-            !marginfi_account.get_flag(ACCOUNT_DISABLED),
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
             MarginfiError::AccountDisabled
         );
 

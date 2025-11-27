@@ -20,7 +20,7 @@ use anchor_spl::token_interface::{
 };
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP};
 use solend_mocks::cpi::accounts::DepositReserveLiquidityAndObligationCollateral;
 use solend_mocks::cpi::deposit_reserve_liquidity_and_obligation_collateral;
 use solend_mocks::state::{
@@ -51,7 +51,8 @@ pub fn solend_deposit(ctx: Context<SolendDeposit>, amount: u64) -> MarginfiResul
         validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         check!(
-            !marginfi_account.get_flag(ACCOUNT_DISABLED),
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
             MarginfiError::AccountDisabled
         );
     }
