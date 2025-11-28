@@ -10,9 +10,10 @@ use crate::{
             calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
+        price::OraclePriceWithConfidence,
     },
     utils::{
-        self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
+        self, fetch_unbiased_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
         InstructionKind,
     },
 };
@@ -74,8 +75,9 @@ pub fn lending_account_withdraw<'info>(
             utils::maybe_take_bank_mint(&mut ctx.remaining_accounts, &bank, token_program.key)?;
 
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        let price = if in_receivership {
-            let price = fetch_asset_price_for_bank(
+        // Fetch price with confidence for receivership mode (for cache and calc_value)
+        let price_for_cache: Option<OraclePriceWithConfidence> = if in_receivership {
+            let price_with_conf = fetch_unbiased_price_for_bank(
                 &bank_loader.key(),
                 &bank,
                 &clock,
@@ -83,13 +85,14 @@ pub fn lending_account_withdraw<'info>(
             )?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits
-            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+            check!(price_with_conf.price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
-            price
+            Some(price_with_conf)
         } else {
             // TODO: force callers to pass oracle, to support tracking withdraws outside delev
-            I80F48::ZERO
+            None
         };
+        let price = price_for_cache.map(|p| p.price).unwrap_or(I80F48::ZERO);
 
         bank.accrue_interest(
             clock.unix_timestamp,
@@ -160,7 +163,8 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
-        bank.update_bank_cache(&group, None)?;
+        // Cache price if in receivership (where price was fetched and used)
+        bank.update_bank_cache(&group, price_for_cache)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {

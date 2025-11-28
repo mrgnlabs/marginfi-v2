@@ -12,8 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        assert_within_one_token, fetch_asset_price_for_bank, is_kamino_asset_tag,
-        validate_bank_state, InstructionKind,
+        assert_within_one_token, fetch_asset_price_for_bank, fetch_unbiased_price_for_bank,
+        is_kamino_asset_tag, validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
 };
@@ -131,8 +131,8 @@ pub fn kamino_withdraw<'info>(
             group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
         }
 
-        // Update bank cache after modifying balances (following pattern from regular withdraw)
-        bank.update_bank_cache(&group, None)?;
+        // Note: Bank cache is updated later with the actual price (lines 206-212 or 230-233)
+        // to avoid redundant updates
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }
@@ -165,32 +165,34 @@ pub fn kamino_withdraw<'info>(
 
     ctx.accounts
         .cpi_transfer_obligation_owner_to_destination(received)?;
-    {
-        let bank = ctx.accounts.bank.load()?;
-        let marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
 
-        emit!(LendingAccountWithdrawEvent {
-            header: AccountEventHeader {
-                signer: Some(ctx.accounts.authority.key()),
-                marginfi_account: ctx.accounts.marginfi_account.key(),
-                marginfi_account_authority: marginfi_account.authority,
-                marginfi_group: marginfi_account.group,
-            },
-            bank: ctx.accounts.bank.key(),
-            mint: bank.mint,
-            amount: collateral_amount,
-            close_balance: withdraw_all,
-        });
-    }
-
+    let bank = ctx.accounts.bank.load()?;
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+
+    emit!(LendingAccountWithdrawEvent {
+        header: AccountEventHeader {
+            signer: Some(ctx.accounts.authority.key()),
+            marginfi_account: ctx.accounts.marginfi_account.key(),
+            marginfi_account_authority: marginfi_account.authority,
+            marginfi_group: marginfi_account.group,
+        },
+        bank: ctx.accounts.bank.key(),
+        mint: bank.mint,
+        amount: collateral_amount,
+        close_balance: withdraw_all,
+    });
+    drop(bank);
+
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = Clock::get()?.unix_timestamp;
 
     marginfi_account.lending_account.sort_balances();
 
-    // Note: during liquidating, we skip all health checks until the end of the transaction.
-    if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+    let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+
+    // Note: during liquidation/receivership, we skip health checks until the end of the transaction,
+    // but we still update the price cache.
+    if !in_receivership {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
         let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
@@ -201,17 +203,36 @@ pub fn kamino_withdraw<'info>(
         risk_result?;
         health_cache.program_version = PROGRAM_VERSION;
 
-        if let Some(engine) = risk_engine {
-            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_key) {
-                let group = &ctx.accounts.group.load()?;
-                ctx.accounts
-                    .bank
-                    .load_mut()?
-                    .update_bank_cache(group, Some(price))?;
-            }
-        }
+        // Try to get price from risk engine, fallback to None for rates-only update
+        let price_for_cache = risk_engine
+            .and_then(|engine| engine.get_unbiased_price_for_bank(&bank_key).ok());
+
+        let group = &ctx.accounts.group.load()?;
+        ctx.accounts
+            .bank
+            .load_mut()?
+            .update_bank_cache(group, price_for_cache)?;
+
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
+    } else {
+        // Update price cache even in receivership for consistency
+        // Price was already validated as non-zero earlier in this function
+        let bank = ctx.accounts.bank.load()?;
+        let price_for_cache = fetch_unbiased_price_for_bank(
+            &bank_key,
+            &bank,
+            &Clock::get()?,
+            ctx.remaining_accounts,
+        )
+        .ok();
+        drop(bank);
+
+        let group = &ctx.accounts.group.load()?;
+        ctx.accounts
+            .bank
+            .load_mut()?
+            .update_bank_cache(group, price_for_cache)?;
     }
 
     Ok(())

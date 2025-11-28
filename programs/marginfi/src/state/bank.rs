@@ -576,7 +576,6 @@ impl BankImpl for Bank {
         if let Some(price) = oracle_price {
             self.cache.last_oracle_price = price.price.into();
             self.cache.last_oracle_price_confidence = price.confidence.into();
-            self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
         }
 
         Ok(())
