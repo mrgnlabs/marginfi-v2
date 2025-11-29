@@ -208,6 +208,8 @@ pub enum MarginfiError {
     DailyWithdrawalLimitExceeded,
     #[msg("Cannot set daily withdrawal limit to zero")] // 6102
     ZeroWithdrawalLimit,
+    #[msg("Account is frozen")] // 6103
+    AccountFrozen,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]

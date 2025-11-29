@@ -16,7 +16,7 @@ use marginfi_type_crate::{
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
         HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
-        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+        ACCOUNT_FROZEN, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::cmp::{max, min};
@@ -55,6 +55,32 @@ pub trait MarginfiAccountImpl {
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
     fn can_be_closed(&self) -> bool;
+}
+
+#[inline(always)]
+pub fn is_signer_authorized(
+    marginfi_account: &MarginfiAccount,
+    group_admin: Pubkey,
+    signer: Pubkey,
+    allow_receivership: bool,
+) -> bool {
+    if allow_receivership && marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        return true;
+    }
+
+    if marginfi_account.authority == signer {
+        return true;
+    }
+
+    marginfi_account.get_flag(ACCOUNT_FROZEN) && group_admin == signer
+}
+
+#[inline(always)]
+pub fn account_not_frozen_for_authority(
+    marginfi_account: &MarginfiAccount,
+    signer: Pubkey,
+) -> bool {
+    !(marginfi_account.get_flag(ACCOUNT_FROZEN) && marginfi_account.authority == signer)
 }
 
 impl MarginfiAccountImpl for MarginfiAccount {
@@ -1418,9 +1444,7 @@ fn calc_emissions(
 #[cfg(test)]
 mod test {
     use super::*;
-    use bytemuck::Zeroable;
     use fixed_macro::types::I80F48;
-    use marginfi_type_crate::types::WrappedI80F48;
 
     #[test]
     fn test_calc_asset_value() {

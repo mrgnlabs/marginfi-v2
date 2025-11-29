@@ -5,7 +5,10 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     state::{
         bank::BankImpl,
-        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_account::{
+            account_not_frozen_for_authority, is_signer_authorized, BankAccountWrapper,
+            LendingAccountImpl, MarginfiAccountImpl,
+        },
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
@@ -18,7 +21,7 @@ use marginfi_type_crate::{
     constants::{
         TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE, ZERO_AMOUNT_THRESHOLD,
     },
-    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
 };
 
 /// 1. Accrue interest
@@ -160,8 +163,13 @@ pub struct LendingAccountRepay<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
-            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
-        } @MarginfiError::Unauthorized
+            let g = group.load()?;
+            is_signer_authorized(&a, g.admin, authority.key(), true)
+        } @ MarginfiError::Unauthorized,
+        constraint = {
+            let a = marginfi_account.load()?;
+            account_not_frozen_for_authority(&a, authority.key())
+        } @ MarginfiError::AccountFrozen
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
