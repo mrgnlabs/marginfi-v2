@@ -12,8 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
-        InstructionKind,
+        self, fetch_asset_price_for_bank, fetch_unbiased_price_for_bank, is_marginfi_asset_tag,
+        validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
@@ -59,6 +59,7 @@ pub fn lending_account_withdraw<'info>(
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -67,7 +68,6 @@ pub fn lending_account_withdraw<'info>(
     {
         let mut group = marginfi_group_loader.load_mut()?;
         let mut bank = bank_loader.load_mut()?;
-
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
 
         let maybe_bank_mint =
@@ -160,7 +160,7 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
-        bank.update_bank_cache(&group, None)?;
+        bank.update_bank_cache(&group)?;
 
         emit!(LendingAccountWithdrawEvent {
             header: AccountEventHeader {
@@ -195,14 +195,23 @@ pub fn lending_account_withdraw<'info>(
 
         if let Some(engine) = risk_engine {
             if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
-                let group = &marginfi_group_loader.load()?;
-                bank_loader
-                    .load_mut()?
-                    .update_bank_cache(group, Some(price))?;
+                bank_loader.load_mut()?.update_cache_price(Some(price))?;
             }
         }
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
+    } else {
+        // Update price cache even in receivership for consistency
+        let mut bank = bank_loader.load_mut()?;
+        let price_for_cache = fetch_unbiased_price_for_bank(
+            &bank_loader.key(),
+            &bank,
+            &clock,
+            ctx.remaining_accounts,
+        )
+        .ok();
+
+        bank.update_cache_price(price_for_cache)?;
     }
 
     Ok(())

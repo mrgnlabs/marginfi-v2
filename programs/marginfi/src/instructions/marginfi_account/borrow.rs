@@ -199,11 +199,10 @@ pub fn lending_account_borrow<'info>(
 
     if let Some(engine) = risk_engine {
         if let Ok(price) = engine.get_unbiased_price_for_bank(&ctx.accounts.bank.key()) {
-            let group = &marginfi_group_loader.load()?;
             ctx.accounts
                 .bank
                 .load_mut()?
-                .update_bank_cache(group, Some(price))?;
+                .update_cache_price(Some(price))?;
         }
     }
     health_cache.set_engine_ok(true);

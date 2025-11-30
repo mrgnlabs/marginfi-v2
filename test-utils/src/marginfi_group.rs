@@ -634,6 +634,42 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    pub async fn try_pulse_bank_price_cache(
+        &self,
+        bank: &BankFixture,
+    ) -> Result<(), BanksClientError> {
+        let bank_state = bank.load().await;
+
+        let mut accounts = marginfi::accounts::LendingPoolPulseBankPriceCache {
+            group: self.key,
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        // For non-fixed oracle setups, add the primary oracle account as remaining
+        if bank_state.config.oracle_setup != OracleSetup::Fixed {
+            let oracle_key = bank_state.config.oracle_keys[0];
+            accounts.push(AccountMeta::new_readonly(oracle_key, false));
+        }
+
+        let ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts,
+            data: LendingPoolPulseBankPriceCache {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
     pub async fn try_update(
         &self,
         new_admin: Pubkey,

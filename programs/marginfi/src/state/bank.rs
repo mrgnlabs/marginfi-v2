@@ -14,6 +14,7 @@ use crate::{
             InterestRateStateChanges,
         },
         marginfi_account::calc_value,
+        price::OraclePriceWithConfidence,
     },
 };
 use anchor_lang::prelude::*;
@@ -85,10 +86,10 @@ pub trait BankImpl {
         group: &MarginfiGroup,
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()>;
-    fn update_bank_cache(
+    fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()>;
+    fn update_cache_price(
         &mut self,
-        group: &MarginfiGroup,
-        oracle_price: Option<crate::state::price::OraclePriceWithConfidence>,
+        oracle_price: Option<OraclePriceWithConfidence>,
     ) -> MarginfiResult<()>;
     fn deposit_spl_transfer<'info>(
         &self,
@@ -544,11 +545,7 @@ impl BankImpl for Bank {
     /// # Arguments
     /// * `group` - The marginfi group
     /// * `oracle_price` - Optional oracle price (with confidence) used in this instruction (if any)
-    fn update_bank_cache(
-        &mut self,
-        group: &MarginfiGroup,
-        oracle_price: Option<crate::state::price::OraclePriceWithConfidence>,
-    ) -> MarginfiResult<()> {
+    fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
         let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
         let total_liabilities_amount =
             self.get_liability_amount(self.total_liability_shares.into())?;
@@ -572,16 +569,31 @@ impl BankImpl for Bank {
 
         update_interest_rates(&mut self.cache, &interest_rates);
 
-        // Update oracle price if provided
-        if let Some(price) = oracle_price {
-            self.cache.last_oracle_price = price.price.into();
-            self.cache.last_oracle_price_confidence = price.confidence.into();
+        // Update banks last update timestamp
+        self.last_update = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    fn update_cache_price(
+        &mut self,
+        oracle_price: Option<OraclePriceWithConfidence>,
+    ) -> MarginfiResult<()> {
+        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount =
+            self.get_liability_amount(self.total_liability_shares.into())?;
+
+        if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
+            return Ok(());
+        }
+
+        if let Some(price_with_confidence) = oracle_price {
+            self.cache.last_oracle_price = price_with_confidence.price.into();
+            self.cache.last_oracle_price_confidence = price_with_confidence.confidence.into();
             self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
         }
 
         Ok(())
     }
-
     fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,

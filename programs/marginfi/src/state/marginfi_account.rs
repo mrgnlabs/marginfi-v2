@@ -624,7 +624,6 @@ impl<'info> RiskEngine<'_, 'info> {
             OraclePriceType::RealTime,
             bank.config.oracle_max_confidence,
         )?;
-        check!(price.price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
         Ok(price)
     }
@@ -1443,9 +1442,7 @@ fn calc_emissions(
 #[cfg(test)]
 mod test {
     use super::*;
-    use bytemuck::Zeroable;
     use fixed_macro::types::I80F48;
-    use marginfi_type_crate::types::WrappedI80F48;
 
     #[test]
     fn test_calc_asset_value() {
