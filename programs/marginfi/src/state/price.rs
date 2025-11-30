@@ -655,20 +655,19 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
         let price = self.get_price()?;
 
         match bias {
-            None => Ok(price),
             Some(price_bias) => {
                 let confidence_interval = self.get_confidence_interval(oracle_max_confidence)?;
 
-                let biased_price = match price_bias {
-                    PriceBias::Low => price
+                match price_bias {
+                    PriceBias::Low => Ok(price
                         .checked_sub(confidence_interval)
-                        .ok_or_else(math_error!())?,
-                    PriceBias::High => price
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
                         .checked_add(confidence_interval)
-                        .ok_or_else(math_error!())?,
-                };
-                Ok(biased_price)
+                        .ok_or_else(math_error!())?),
+                }
             }
+            None => Ok(price),
         }
     }
 

@@ -92,8 +92,7 @@ async fn bank_cache_pulse_refreshes_price_from_oracle() -> anyhow::Result<()> {
     let sol_bank_f = test_f.get_bank(&BankMint::Sol);
 
     let bank_after_borrow = sol_bank_f.load().await;
-    let cached_price_after_borrow: I80F48 =
-        bank_after_borrow.cache.last_oracle_price.into();
+    let cached_price_after_borrow: I80F48 = bank_after_borrow.cache.last_oracle_price.into();
     assert!(
         cached_price_after_borrow > I80F48::ZERO,
         "SOL bank cache should be set from borrow"
@@ -105,8 +104,7 @@ async fn bank_cache_pulse_refreshes_price_from_oracle() -> anyhow::Result<()> {
         .await;
 
     let bank_before_pulse = sol_bank_f.load().await;
-    let cached_price_before_pulse: I80F48 =
-        bank_before_pulse.cache.last_oracle_price.into();
+    let cached_price_before_pulse: I80F48 = bank_before_pulse.cache.last_oracle_price.into();
     assert_eq!(
         cached_price_before_pulse,
         I80F48::ZERO,
@@ -119,8 +117,7 @@ async fn bank_cache_pulse_refreshes_price_from_oracle() -> anyhow::Result<()> {
         .await?;
 
     let bank_after_pulse = sol_bank_f.load().await;
-    let cached_price_after_pulse: I80F48 =
-        bank_after_pulse.cache.last_oracle_price.into();
+    let cached_price_after_pulse: I80F48 = bank_after_pulse.cache.last_oracle_price.into();
     let expected_price = I80F48::from_num(sol_bank_f.get_price().await);
 
     assert_eq_noise!(cached_price_after_pulse, expected_price);

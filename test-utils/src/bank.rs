@@ -445,11 +445,7 @@ impl BankFixture {
         TokenAccountFixture::fetch(self.ctx.clone(), vault).await
     }
 
-    pub async fn set_cache_price_and_confidence(
-        &self,
-        price: I80F48,
-        confidence: I80F48,
-    ) {
+    pub async fn set_cache_price_and_confidence(&self, price: I80F48, confidence: I80F48) {
         let mut bank_ai = self
             .ctx
             .borrow_mut()

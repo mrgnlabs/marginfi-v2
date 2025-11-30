@@ -13,8 +13,7 @@ pub fn lending_pool_pulse_bank_price_cache<'info>(
 
     let mut bank = ctx.accounts.bank.load_mut()?;
 
-    let pf =
-        OraclePriceFeedAdapter::try_from_bank(&bank, ctx.remaining_accounts, &clock)?;
+    let pf = OraclePriceFeedAdapter::try_from_bank(&bank, ctx.remaining_accounts, &clock)?;
 
     let price_with_confidence = pf.get_price_and_confidence_of_type(
         OraclePriceType::RealTime,
