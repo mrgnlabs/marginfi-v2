@@ -379,7 +379,6 @@ impl MarginfiAccountFixture {
         banks_client
             .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
             .await
-
     }
 
     async fn make_bank_borrow_ix_internal<T: Into<f64>>(
