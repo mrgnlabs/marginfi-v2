@@ -384,9 +384,11 @@ pub fn lending_account_liquidate<'info>(
                 .ok_or(MarginfiError::MathError)?
                 .into();
 
-        asset_bank.update_bank_cache(group, Some(asset_price_for_cache))?;
+        asset_bank.update_bank_cache(group)?;
+        asset_bank.update_cache_price(Some(asset_price_for_cache))?;
 
-        liab_bank.update_bank_cache(group, Some(liab_price_for_cache))?;
+        liab_bank.update_bank_cache(group)?;
+        liab_bank.update_cache_price(Some(liab_price_for_cache))?;
 
         (
             LiquidationBalances {

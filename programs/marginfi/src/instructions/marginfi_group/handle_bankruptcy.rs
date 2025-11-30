@@ -180,7 +180,8 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     .repay(bad_debt)?;
 
     // Update bank cache after all manipulations (interest accrual, loss socialization, repay)
-    bank.update_bank_cache(group, Some(cached_price))?;
+    bank.update_bank_cache(group)?;
+    bank.update_cache_price(Some(cached_price))?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED, true);
     marginfi_account.last_update = clock.unix_timestamp as u64;

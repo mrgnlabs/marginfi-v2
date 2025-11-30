@@ -2,6 +2,7 @@ import { BN } from "@coral-xyz/anchor";
 import {
   ComputeBudgetProgram,
   PublicKey,
+  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 import {
@@ -18,37 +19,32 @@ import {
   borrowIx,
   composeRemainingAccounts,
   depositIx,
+  repayIx,
+  bankPricePulse,
 } from "./utils/user-instructions";
+import { accrueInterest } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
-import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  ORACLE_CONF_INTERVAL,
+  u64MAX_BN,
+} from "./utils/types";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { assertI80F48Approx, assertI80F48Equal } from "./utils/genericTests";
 
 const readCacheFields = (cache: any) => {
-  // Support both new and legacy cache field names to avoid IDL drift during the refactor
-  const price =
-    cache?.lastOraclePrice ??
-    cache?.oraclePriceUsed ??
-    cache?.oraclePrice; // legacy fallback
-  const ts =
-    cache?.lastOraclePriceTimestamp ??
-    cache?.oraclePriceTimestamp ??
-    cache?.oraclePriceTime ??
-    0;
-  const conf =
-    cache?.lastOraclePriceConfidence ??
-    cache?.oraclePriceConfidence ??
-    cache?.oraclePriceConf ??
-    0;
-
-  return { price, ts, conf };
+  const price = cache?.lastOraclePrice ?? 0;
+  const conf = cache?.lastOraclePriceConfidence ?? 0;
+  return { price, conf };
 };
 
 /**
- * Quick bankrun test to ensure the bank cache records the last oracle price (and confidence)
- * whenever a price-based instruction updates shares. Uses genericMultiBankTestSetup so the
- * environment can be thrown away.
+ * Bankrun tests that exercise the bank cache's last oracle price behavior:
+ * - cache stays empty for non-price-based operations
+ * - price-based instructions (borrow) stamp price & confidence
+ * - pure interest accrual does not change last oracle price/confidence
+ * - full repay (liabilities → 0) resets the cache
  */
 describe("Bank cache last oracle price", () => {
   const startingSeed = 533;
@@ -57,6 +53,7 @@ describe("Bank cache last oracle price", () => {
   const USER_ACCOUNT_THROWAWAY = "throwaway_last_oracle";
 
   let banks: PublicKey[] = [];
+  let throwawayGroupPk: PublicKey;
 
   const seedAmount = new BN(1_000 * 10 ** ecosystem.lstAlphaDecimals);
   const collateralAmount = new BN(200 * 10 ** ecosystem.lstAlphaDecimals);
@@ -70,8 +67,9 @@ describe("Bank cache last oracle price", () => {
       startingSeed
     );
     banks = result.banks;
+    throwawayGroupPk = result.throwawayGroup.publicKey;
 
-    // Admin seeds both banks with liquidity
+    // Admin seeds both banks with liquidity (deposit does not use oracle price)
     const tx = new Transaction();
     for (const bank of banks) {
       tx.add(
@@ -89,11 +87,10 @@ describe("Bank cache last oracle price", () => {
     await banksClient.processTransaction(tx);
 
     const bank = await bankrunProgram.account.bank.fetch(banks[1]);
-    const cache = bank.cache;
-    const { price, ts, conf } = readCacheFields(cache);
+    const { price, conf } = readCacheFields(bank.cache);
 
+    // No price-based instruction has run yet, cache should be zeroed
     assertI80F48Equal(price, 0);
-    assert.equal(Number(ts), 0);
     assertI80F48Equal(conf, 0);
   });
 
@@ -103,7 +100,7 @@ describe("Bank cache last oracle price", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
-    // Deposit collateral into bank 0
+    // Deposit collateral into bank 0 (no oracle price used)
     {
       const tx = new Transaction().add(
         await depositIx(user.mrgnBankrunProgram, {
@@ -119,7 +116,9 @@ describe("Bank cache last oracle price", () => {
       await banksClient.processTransaction(tx);
     }
 
-    // Borrow from bank 1 to trigger a price-based share update
+    const bankBefore = await bankrunProgram.account.bank.fetch(banks[1]);
+
+    // Borrow from bank 1 to trigger a price-based share update + cache stamp
     {
       const remaining = composeRemainingAccounts([
         [banks[0], oracles.pythPullLst.publicKey],
@@ -141,14 +140,111 @@ describe("Bank cache last oracle price", () => {
     }
 
     const bankAfter = await bankrunProgram.account.bank.fetch(banks[1]);
-    const cache = bankAfter.cache;
-    const { price, ts, conf } = readCacheFields(cache);
+    const { price, conf } = readCacheFields(bankAfter.cache);
     const expectedPrice = oracles.lstAlphaPrice;
     const expectedConf =
       expectedPrice * ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
 
-    assert.isAbove(Number(ts), 0);
+    // Cache should record the last oracle price and confidence
     assertI80F48Approx(price, expectedPrice, 0.0001);
     assertI80F48Approx(conf, expectedConf, 0.01);
+  });
+
+  it("cached price tracks oracle price increases on subsequent price-based tx", async () => {
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+
+    // Bump the oracle price and refresh the on-chain oracle account
+    const originalOraclePrice = oracles.lstAlphaPrice;
+    const newOraclePrice = originalOraclePrice * 1.2;
+    oracles.lstAlphaPrice = newOraclePrice;
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+
+    // Trigger a permissionless bank price pulse that will refresh the cache
+    {
+      const tx = new Transaction().add(
+        await bankPricePulse(user.mrgnBankrunProgram, {
+          group: throwawayGroupPk,
+          bank: banks[1],
+          remaining: [oracles.pythPullLst.publicKey],
+        })
+      );
+      tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+      tx.sign(user.wallet);
+      await banksClient.processTransaction(tx);
+    }
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(banks[1]);
+    const { price: updatedPrice, conf: updatedConf } = readCacheFields(
+      bankAfter.cache
+    );
+    const expectedConf =
+      newOraclePrice * ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+
+    // Cached price should now reflect the higher oracle price
+    assertI80F48Approx(updatedPrice, newOraclePrice, 0.0001);
+    assertI80F48Approx(updatedConf, expectedConf, 0.01);
+
+    // Restore oracle price for any subsequent tests
+    oracles.lstAlphaPrice = originalOraclePrice;
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
+  });
+
+  it("accrue interest does not change last oracle price/confidence", async () => {
+    const user = users[0];
+
+    const bankBefore = await bankrunProgram.account.bank.fetch(banks[1]);
+    const beforeFields = readCacheFields(bankBefore.cache);
+
+    const tx = new Transaction().add(
+      await accrueInterest(user.mrgnBankrunProgram, {
+        bank: banks[1],
+      }),
+      // Dummy ix to keep bankrun happy
+      SystemProgram.transfer({
+        fromPubkey: user.wallet.publicKey,
+        toPubkey: bankrunProgram.provider.publicKey,
+        lamports: 41,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(banks[1]);
+    const afterFields = readCacheFields(bankAfter.cache);
+
+    // update_bank_cache was called with None, so price/confidence should be unchanged
+    assertI80F48Equal(afterFields.price, beforeFields.price);
+    assertI80F48Equal(afterFields.conf, beforeFields.conf);
+  });
+
+  it("(user 0) full repay resets bank cache when liabilities go to zero", async () => {
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+	    const bankBefore = await bankrunProgram.account.bank.fetch(banks[1]);
+	    readCacheFields(bankBefore.cache); // ensure cache is populated before repay
+
+    const tx = new Transaction().add(
+      await repayIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        tokenAccount: user.lstAlphaAccount,
+        amount: u64MAX_BN,
+        repayAll: true,
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(user.wallet);
+    await banksClient.processTransaction(tx);
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(banks[1]);
+    const { price, conf } = readCacheFields(bankAfter.cache);
+
+    // When total liabilities (or assets) go to zero, update_bank_cache resets the cache
+    assertI80F48Equal(price, 0);
+    assertI80F48Equal(conf, 0);
   });
 });

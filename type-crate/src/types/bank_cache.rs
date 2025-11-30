@@ -40,14 +40,18 @@ pub struct BankCache {
     /// * Not updated for operations that don't require prices (e.g., deposit, repay)
     /// * Price in USD (or quote currency) per token, as I80F48 (includes any bias applied)
     /// * Zero if never updated
-    /// * Staleness can be determined via Bank's last_update field
     pub last_oracle_price: WrappedI80F48,
+
+    /// Unix timestamp (seconds) when last_oracle_price was last updated
+    /// * Used to determine staleness of cached price
+    /// * Zero if never updated
+    pub last_oracle_price_timestamp: i64,
 
     /// Confidence interval reported by the oracle when last_oracle_price was fetched
     /// * Always non-negative
     /// * Zero if never updated
     pub last_oracle_price_confidence: WrappedI80F48,
-    _padding: [u8; 32],
+    _padding: [u8; 24],
     _reserved0: [u8; 64],
 }
 

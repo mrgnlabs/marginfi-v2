@@ -81,12 +81,13 @@ pub fn kamino_withdraw<'info>(
 
     let collateral_amount;
     let bank_key = ctx.accounts.bank.key();
+    let bank_mint = ctx.accounts.bank.load()?.mint;
+    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+    let clock = Clock::get()?;
+
     {
         let mut bank = ctx.accounts.bank.load_mut()?;
-        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut group = ctx.accounts.group.load_mut()?;
-        let clock = Clock::get()?;
-
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
 
         check!(
@@ -131,8 +132,8 @@ pub fn kamino_withdraw<'info>(
             group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
         }
 
-        // Note: Bank cache is updated later with the actual price (lines 206-212 or 230-233)
-        // to avoid redundant updates
+        // Update bank cache after modifying balances (following pattern from regular withdraw)
+        bank.update_bank_cache(&group)?;
 
         marginfi_account.last_update = clock.unix_timestamp as u64;
     }
@@ -166,9 +167,6 @@ pub fn kamino_withdraw<'info>(
     ctx.accounts
         .cpi_transfer_obligation_owner_to_destination(received)?;
 
-    let bank = ctx.accounts.bank.load()?;
-    let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-
     emit!(LendingAccountWithdrawEvent {
         header: AccountEventHeader {
             signer: Some(ctx.accounts.authority.key()),
@@ -177,14 +175,13 @@ pub fn kamino_withdraw<'info>(
             marginfi_group: marginfi_account.group,
         },
         bank: ctx.accounts.bank.key(),
-        mint: bank.mint,
+        mint: bank_mint,
         amount: collateral_amount,
         close_balance: withdraw_all,
     });
-    drop(bank);
 
     let mut health_cache = HealthCache::zeroed();
-    health_cache.timestamp = Clock::get()?.unix_timestamp;
+    health_cache.timestamp = clock.unix_timestamp;
 
     marginfi_account.lending_account.sort_balances();
 
@@ -204,35 +201,23 @@ pub fn kamino_withdraw<'info>(
         health_cache.program_version = PROGRAM_VERSION;
 
         // Try to get price from risk engine, fallback to None for rates-only update
-        let price_for_cache = risk_engine
-            .and_then(|engine| engine.get_unbiased_price_for_bank(&bank_key).ok());
+        let price_for_cache =
+            risk_engine.and_then(|engine| engine.get_unbiased_price_for_bank(&bank_key).ok());
 
-        let group = &ctx.accounts.group.load()?;
         ctx.accounts
             .bank
             .load_mut()?
-            .update_bank_cache(group, price_for_cache)?;
+            .update_cache_price(price_for_cache)?;
 
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     } else {
         // Update price cache even in receivership for consistency
-        // Price was already validated as non-zero earlier in this function
-        let bank = ctx.accounts.bank.load()?;
-        let price_for_cache = fetch_unbiased_price_for_bank(
-            &bank_key,
-            &bank,
-            &Clock::get()?,
-            ctx.remaining_accounts,
-        )
-        .ok();
-        drop(bank);
+        let mut bank = ctx.accounts.bank.load_mut()?;
+        let price_for_cache =
+            fetch_unbiased_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts).ok();
 
-        let group = &ctx.accounts.group.load()?;
-        ctx.accounts
-            .bank
-            .load_mut()?
-            .update_bank_cache(group, price_for_cache)?;
+        bank.update_cache_price(price_for_cache)?;
     }
 
     Ok(())

@@ -85,9 +85,49 @@ async fn bank_cache_resets_after_full_repay() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Test that liquidation updates bank cache for the liability bank
-/// Note: The asset bank cache will be reset if it has no liabilities (per update_bank_cache logic)
-/// This verifies the fix in liquidate.rs that uses RiskEngine from pre-liquidation check
+#[tokio::test]
+async fn bank_cache_pulse_refreshes_price_from_oracle() -> anyhow::Result<()> {
+    let (test_f, _, _) = setup_borrow_with_price_cache().await?;
+
+    let sol_bank_f = test_f.get_bank(&BankMint::Sol);
+
+    let bank_after_borrow = sol_bank_f.load().await;
+    let cached_price_after_borrow: I80F48 =
+        bank_after_borrow.cache.last_oracle_price.into();
+    assert!(
+        cached_price_after_borrow > I80F48::ZERO,
+        "SOL bank cache should be set from borrow"
+    );
+
+    // Manually clear the cached price to simulate a stale/empty cache
+    sol_bank_f
+        .set_cache_price_and_confidence(I80F48::ZERO, I80F48::ZERO)
+        .await;
+
+    let bank_before_pulse = sol_bank_f.load().await;
+    let cached_price_before_pulse: I80F48 =
+        bank_before_pulse.cache.last_oracle_price.into();
+    assert_eq!(
+        cached_price_before_pulse,
+        I80F48::ZERO,
+        "cache should be zeroed before pulse"
+    );
+
+    test_f
+        .marginfi_group
+        .try_pulse_bank_price_cache(sol_bank_f)
+        .await?;
+
+    let bank_after_pulse = sol_bank_f.load().await;
+    let cached_price_after_pulse: I80F48 =
+        bank_after_pulse.cache.last_oracle_price.into();
+    let expected_price = I80F48::from_num(sol_bank_f.get_price().await);
+
+    assert_eq_noise!(cached_price_after_pulse, expected_price);
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
@@ -97,7 +137,10 @@ async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
 
     // LP provides liquidity in USDC (for borrower to borrow)
     let lp_mfi_account_f = test_f.create_marginfi_account().await;
-    let lp_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(2000.0).await;
+    let lp_token_account_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(2000.0)
+        .await;
     lp_mfi_account_f
         .try_bank_deposit(lp_token_account_usdc.key, usdc_bank_f, 2000.0, None)
         .await?;
@@ -106,7 +149,10 @@ async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
     // SOL price is ~$10, so 100 SOL = $1000
     // Need to borrow close to the max to make account liquidatable after weight reduction
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
-    let borrower_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(100.0).await;
+    let borrower_token_account_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(100.0)
+        .await;
     let borrower_token_account_usdc = test_f.usdc_mint.create_empty_token_account().await;
 
     borrower_mfi_account_f
@@ -121,7 +167,10 @@ async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
     // Note: After borrow, only the USDC bank (liability) cache should be updated
     let usdc_bank_pre = usdc_bank_f.load().await;
     let usdc_price_pre: I80F48 = usdc_bank_pre.cache.last_oracle_price.into();
-    assert!(usdc_price_pre > I80F48::ZERO, "USDC bank cache should be set from borrow");
+    assert!(
+        usdc_price_pre > I80F48::ZERO,
+        "USDC bank cache should be set from borrow"
+    );
 
     // Make borrower unhealthy by reducing collateral weight significantly
     sol_bank_f
@@ -149,10 +198,17 @@ async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
 
     // SOL bank (asset bank) has no liabilities, so cache is reset per update_bank_cache logic
     // (when total_liability_shares == 0, cache is reset to default)
-    assert_eq!(sol_price_post, I80F48::ZERO, "SOL bank cache should be zero since bank has no liabilities");
+    assert_eq!(
+        sol_price_post,
+        I80F48::ZERO,
+        "SOL bank cache should be zero since bank has no liabilities"
+    );
 
     // USDC bank (liability bank) should have non-zero cached price after liquidation
-    assert!(usdc_price_post > I80F48::ZERO, "USDC bank cache should be updated after liquidation");
+    assert!(
+        usdc_price_post > I80F48::ZERO,
+        "USDC bank cache should be updated after liquidation"
+    );
 
     // USDC price should match oracle price
     let expected_usdc_price = I80F48::from_num(usdc_bank_f.get_price().await);
@@ -172,14 +228,20 @@ async fn bank_cache_updates_on_bankruptcy() -> anyhow::Result<()> {
 
     // LP provides liquidity in SOL (the debt asset)
     let lp_mfi_account_f = test_f.create_marginfi_account().await;
-    let lp_token_account_sol = test_f.sol_mint.create_token_account_and_mint_to(200.0).await;
+    let lp_token_account_sol = test_f
+        .sol_mint
+        .create_token_account_and_mint_to(200.0)
+        .await;
     lp_mfi_account_f
         .try_bank_deposit(lp_token_account_sol.key, sol_bank_f, 200.0, None)
         .await?;
 
     // User deposits USDC (collateral) and borrows SOL (debt)
     let mut user_mfi_account_f = test_f.create_marginfi_account().await;
-    let user_token_account_usdc = test_f.usdc_mint.create_token_account_and_mint_to(100.0).await;
+    let user_token_account_usdc = test_f
+        .usdc_mint
+        .create_token_account_and_mint_to(100.0)
+        .await;
     let user_token_account_sol = test_f.sol_mint.create_empty_token_account().await;
 
     user_mfi_account_f
@@ -193,7 +255,10 @@ async fn bank_cache_updates_on_bankruptcy() -> anyhow::Result<()> {
     // Record pre-bankruptcy state
     let sol_bank_pre = sol_bank_f.load().await;
     let sol_price_pre: I80F48 = sol_bank_pre.cache.last_oracle_price.into();
-    assert!(sol_price_pre > I80F48::ZERO, "SOL bank cache should be set from borrow");
+    assert!(
+        sol_price_pre > I80F48::ZERO,
+        "SOL bank cache should be set from borrow"
+    );
 
     // Make user bankrupt by artificially nullifying their collateral
     let usdc_bank_pk = usdc_bank_f.key;
@@ -236,7 +301,10 @@ async fn bank_last_update_reflects_cache_update() -> anyhow::Result<()> {
 
     // Verify cache has price (set during borrow)
     let cached_price: I80F48 = bank_after.cache.last_oracle_price.into();
-    assert!(cached_price > I80F48::ZERO, "cache should have price after borrow");
+    assert!(
+        cached_price > I80F48::ZERO,
+        "cache should have price after borrow"
+    );
 
     // Verify last_update is set to a reasonable timestamp
     // The initial timestamp in tests might be 0, so we just check it's non-negative
