@@ -1,6 +1,7 @@
 import { BN, Wallet } from "@coral-xyz/anchor";
 import {
   ComputeBudgetProgram,
+  Keypair,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -15,16 +16,19 @@ import {
   users,
   verbose,
   globalProgramAdmin,
+  riskAdmin,
+  emodeAdmin,
 } from "./rootHooks";
 import {
   accrueInterest,
   configureBank,
+  groupConfigure,
   handleBankruptcy,
 } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { assert } from "chai";
 import {
-  emptyBankConfigOptRaw,
+  blankBankConfigOptRaw,
   HEALTH_CACHE_ENGINE_OK,
   HEALTH_CACHE_HEALTHY,
   HEALTH_CACHE_ORACLE_OK,
@@ -60,6 +64,7 @@ const startingSeed: number = 699;
 const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_123400000ZB1");
 
 let banks: PublicKey[] = [];
+let throwawayGroup: Keypair;
 
 describe("Bank bankruptcy tests", () => {
   it("init group, init banks, and fund banks", async () => {
@@ -70,6 +75,7 @@ describe("Bank bankruptcy tests", () => {
       startingSeed
     );
     banks = result.banks;
+    throwawayGroup = result.throwawayGroup;
 
     // Crank oracles so that the prices are not stale
     // Use bankrun clock instead of wall clock to avoid timestamp mismatch
@@ -115,8 +121,7 @@ describe("Bank bankruptcy tests", () => {
   });
 
   it("(admin) Sets both banks' asset weights to 0.9", async () => {
-    let config = emptyBankConfigOptRaw();
-    banks[0];
+    let config = blankBankConfigOptRaw();
     config.assetWeightInit = bigNumberToWrappedI80F48(0.9); // 90%
     config.assetWeightMaint = bigNumberToWrappedI80F48(0.9); // 90%
 
@@ -307,8 +312,21 @@ describe("Bank bankruptcy tests", () => {
     assertBankrunTxFailed(result, "0x178a");
   });
 
+  it("(admin) Sets the risk admin", async () => {
+    const tx = new Transaction().add(
+      await groupConfigure(groupAdmin.mrgnBankrunProgram, {
+        marginfiGroup: throwawayGroup.publicKey,
+        newRiskAdmin: riskAdmin.wallet.publicKey,
+      })
+    );
+
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet, throwawayGroup);
+    await banksClient.processTransaction(tx);
+  });
+
   it("(admin) Bankrupts user 0 when they still have assets - should fail", async () => {
-    const admin = groupAdmin;
+    const admin = riskAdmin;
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
@@ -347,6 +365,9 @@ describe("Bank bankruptcy tests", () => {
     const remainingAccounts: PublicKey[][] = [];
     remainingAccounts.push([banks[0], oracles.pythPullLst.publicKey]);
     remainingAccounts.push([banks[1], oracles.pythPullLst.publicKey]);
+    const liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
+    // Note: same accounts in this case
+    const liquidatorAccounts = liquidateeAccounts;
 
     const liquidateTx = new Transaction();
     liquidateTx.add(
@@ -360,10 +381,12 @@ describe("Bank bankruptcy tests", () => {
         remaining: [
           oracles.pythPullLst.publicKey,
           oracles.pythPullLst.publicKey,
-          ...composeRemainingAccounts(remainingAccounts),
-          ...composeRemainingAccounts(remainingAccounts),
+          ...liquidateeAccounts,
+          ...liquidatorAccounts,
         ],
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       })
     );
     liquidateTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
@@ -612,11 +635,35 @@ describe("Bank bankruptcy tests", () => {
     await banksClient.processTransaction(tx);
   });
 
+  it("(admin) Tries to bankrupt user 0 as wrong admin (not group/risk one) - should fail", async () => {
+    const admin = emodeAdmin; // sneaky sneaky
+    const user = users[0];
+    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
+
+    const tx = new Transaction();
+    tx.add(
+      await handleBankruptcy(admin.mrgnBankrunProgram, {
+        signer: admin.wallet.publicKey,
+        marginfiAccount: userAccount,
+        bank: banks[1],
+        remaining: composeRemainingAccounts([
+          [banks[0], oracles.pythPullLst.publicKey],
+          [banks[1], oracles.pythPullLst.publicKey],
+        ]),
+      })
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(admin.wallet);
+    let result = await banksClient.tryProcessTransaction(tx);
+    // Unauthorized
+    assertBankrunTxFailed(result, 6042);
+  });
+
   it("(admin) Bankrupts user 0 - happy path", async () => {
-    const admin = groupAdmin;
+    const admin = riskAdmin;
     const user = users[0];
     // Note: this is the non-bankrupt depositor into banks[1] that will be haircut.
-    const adminAccount = admin.accounts.get(USER_ACCOUNT_THROWAWAY);
+    const groupAdminAccount = groupAdmin.accounts.get(USER_ACCOUNT_THROWAWAY);
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
     const user0AccBefore = await bankrunProgram.account.marginfiAccount.fetch(
@@ -654,7 +701,7 @@ describe("Bank bankruptcy tests", () => {
         ]),
       }),
       await healthPulse(groupAdmin.mrgnProgram, {
-        marginfiAccount: adminAccount,
+        marginfiAccount: groupAdminAccount,
         remaining: composeRemainingAccounts([
           [banks[0], oracles.pythPullLst.publicKey],
           [banks[1], oracles.pythPullLst.publicKey],
@@ -704,7 +751,7 @@ describe("Bank bankruptcy tests", () => {
 
     const groupAdminAcc =
       await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
-        adminAccount
+        groupAdminAccount
       );
     const user0Acc =
       await groupAdmin.mrgnBankrunProgram.account.marginfiAccount.fetch(
@@ -821,6 +868,8 @@ describe("Bank bankruptcy tests", () => {
       bankDebtBefore - debtBefore,
       100
     );
-    assert.deepEqual(bankAcc.config.operationalState, { killedByBankruptcy: {} });
+    assert.deepEqual(bankAcc.config.operationalState, {
+      killedByBankruptcy: {},
+    });
   });
 });

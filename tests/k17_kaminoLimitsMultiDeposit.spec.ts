@@ -44,12 +44,9 @@ import {
   ecosystem,
   groupAdmin,
   globalProgramAdmin,
-  kaminoAccounts,
   kaminoGroup,
   klendBankrunProgram,
-  MARKET,
   oracles,
-  TOKEN_A_RESERVE,
   users,
   verbose,
   bankrunProgram,
@@ -90,7 +87,6 @@ import {
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ComputeBudgetProgram } from "@solana/web3.js";
 import Decimal from "decimal.js";
-import { assertBNApproximately } from "./utils/genericTests";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 
@@ -756,7 +752,9 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
 
   it("(admin) Make user 0 unhealthy by increasing USDC bank liability ratio", async () => {
     const { configureBank } = await import("./utils/group-instructions");
-    const { blankBankConfigOptRaw } = await import("./utils/types");
+    const { blankBankConfigOptRaw } = await import(
+      "./utils/types"
+    );
     const { bigNumberToWrappedI80F48 } = await import("@mrgnlabs/mrgn-common");
     const { healthPulse, composeRemainingAccounts } = await import(
       "./utils/user-instructions"
@@ -955,11 +953,10 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     // Add USDC borrow position
     liquidateePositions.push([regularBank, oracles.usdcOracle.publicKey]);
 
-    // Add liquidator accounts
-    remainingForLiq.push(...composeRemainingAccounts(liquidatorPositions));
-
-    // Add liquidatee accounts
-    remainingForLiq.push(...composeRemainingAccounts(liquidateePositions));
+    const liquidatorAccounts = composeRemainingAccounts(liquidatorPositions);
+    remainingForLiq.push(...liquidatorAccounts);
+    const liquidateeAccounts = composeRemainingAccounts(liquidateePositions);
+    remainingForLiq.push(...liquidateeAccounts);
 
     const liquidateInstruction = await liquidateIx(
       liquidator.mrgnBankrunProgram,
@@ -970,6 +967,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
         liquidateeMarginfiAccount: liquidateeAccount,
         remaining: remainingForLiq,
         amount: liquidateAmount,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       }
     );
 
@@ -983,7 +982,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
 
     // Add compute budget
     const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 2_000_000,
+      units: 850_000,
     });
 
     const reserveAccounts: {
@@ -1184,8 +1183,10 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
     }
     liquidateePositions.push([regularBank, oracles.usdcOracle.publicKey]);
 
-    remainingForLiq.push(...composeRemainingAccounts(liquidatorPositions));
-    remainingForLiq.push(...composeRemainingAccounts(liquidateePositions));
+    const liquidatorAccounts = composeRemainingAccounts(liquidatorPositions);
+    remainingForLiq.push(...liquidatorAccounts);
+    const liquidateeAccounts = composeRemainingAccounts(liquidateePositions);
+    remainingForLiq.push(...liquidateeAccounts);
 
     const liqIx = await liquidateIx(liquidator.mrgnBankrunProgram, {
       assetBankKey: assetBank,
@@ -1194,6 +1195,8 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       liquidateeMarginfiAccount: liquidateeAccount,
       remaining: remainingForLiq,
       amount: liqAmount,
+      liquidateeAccounts: liquidateeAccounts.length,
+      liquidatorAccounts: liquidatorAccounts.length,
     });
 
     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({

@@ -136,58 +136,6 @@ impl MinimalReserve {
         Ok((total_liq, total_col))
     }
 
-    /// Adjust a raw oracle value by the bank's collateral↔liquidity exchange rate.
-    pub fn adjust_oracle_value(&self, raw: I80F48) -> Result<I80F48> {
-        // Prevent division by zero on reserves that have no assets
-        if self.mint_total_supply == 0 {
-            return Ok(raw);
-        }
-
-        let (total_liq, total_col) = self.scaled_supplies()?;
-
-        // Calc ratio first to minimize overflow risk
-        let ratio = total_liq.checked_div(total_col).ok_or_else(math_error!())?;
-        Ok(raw.checked_mul(ratio).ok_or_else(math_error!())?)
-    }
-
-    /// Safe conversion from i128 to I80F48
-    #[inline]
-    fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
-        const FRAC_BITS: u32 = 48;
-        const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
-        const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
-
-        if !(SHIFTED_MIN_I128..=SHIFTED_MAX_I128).contains(&x) {
-            return None;
-        }
-        // Safe: (x << 48) cannot overflow by the guard above
-        Some(I80F48::from_bits(x << FRAC_BITS))
-    }
-
-    /// Wrapper for i128 values (used by Switchboard)
-    #[inline]
-    pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
-        let raw_fx = Self::i80_from_i128_checked(raw).ok_or_else(math_error!())?;
-        let adj_fx = self.adjust_oracle_value(raw_fx)?;
-        Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
-    }
-
-    /// Wrapper for i64 values (used by Pyth prices)
-    #[inline]
-    pub fn adjust_i64(&self, raw: i64) -> Result<i64> {
-        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
-        adj.checked_to_num::<i64>()
-            .ok_or(KaminoMocksError::MathError.into())
-    }
-
-    /// Wrapper for u64 values (used by Pyth confidence)
-    #[inline]
-    pub fn adjust_u64(&self, raw: u64) -> Result<u64> {
-        let adj = self.adjust_oracle_value(I80F48::from_num(raw))?;
-        adj.checked_to_num::<u64>()
-            .ok_or(KaminoMocksError::MathError.into())
-    }
-
     // Note: our conversion has less precision than Kamino's internal representation (which uses
     //  U256 to avoid any precision loss), but sufficient for our purposes because we only use these
     //  to sanity check that the user got the expected amount of tokens +/- 1 when
@@ -262,6 +210,50 @@ impl MinimalReserve {
         // Slot expired
         self.slot < current_slot
     }
+}
+
+/// Safe conversion from i128 to I80F48
+#[inline]
+fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
+    const FRAC_BITS: u32 = 48;
+    const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
+    const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
+
+    if !(SHIFTED_MIN_I128..=SHIFTED_MAX_I128).contains(&x) {
+        return None;
+    }
+    // Safe: (x << 48) cannot overflow by the guard above
+    Some(I80F48::from_bits(x << FRAC_BITS))
+}
+
+/// Wrapper for i128 values (used by Switchboard)
+#[inline]
+pub fn adjust_i128(raw: i128, liq_to_col_ratio: I80F48) -> Result<i128> {
+    let raw_fx = i80_from_i128_checked(raw).ok_or_else(math_error!())?;
+    let adj_fx = raw_fx
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
+}
+
+/// Wrapper for i64 values (used by Pyth prices)
+#[inline]
+pub fn adjust_i64(raw: i64, liq_to_col_ratio: I80F48) -> Result<i64> {
+    let adj = I80F48::from_num(raw)
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    adj.checked_to_num::<i64>()
+        .ok_or(KaminoMocksError::MathError.into())
+}
+
+/// Wrapper for u64 values (used by Pyth confidence)
+#[inline]
+pub fn adjust_u64(raw: u64, liq_to_col_ratio: I80F48) -> Result<u64> {
+    let adj = I80F48::from_num(raw)
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    adj.checked_to_num::<u64>()
+        .ok_or(KaminoMocksError::MathError.into())
 }
 
 /// A minimal copy of Kamino's Obligation for zero-copy deserialization

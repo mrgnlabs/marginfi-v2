@@ -1,5 +1,5 @@
 use crate::{
-    bank_authority_seed, bank_seed, check,
+    bank_authority_seed, bank_seed,
     state::{
         bank::BankVaultType,
         marginfi_account::get_remaining_accounts_per_bank,
@@ -338,7 +338,9 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
 }
 
 /// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
-/// any risk check. Errors if the bank is not found or the price is zero
+/// any risk check. Errors if the bank is not found.
+///
+/// * Errors if bank/oracles don't appear in the slice in the correct order
 pub fn fetch_asset_price_for_bank<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
@@ -358,13 +360,12 @@ pub fn fetch_asset_price_for_bank<'info>(
         MarginfiError::WrongNumberOfOracleAccounts
     );
     let oracle_ais = &remaining_accounts[start..end];
-    let pf = OraclePriceFeedAdapter::try_from_bank_config(&bank.config, oracle_ais, clock)?;
+    let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
     let price = pf.get_price_of_type(
         OraclePriceType::RealTime,
         Some(PriceBias::Low),
         bank.config.oracle_max_confidence,
     )?;
-    check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
     Ok(price)
 }

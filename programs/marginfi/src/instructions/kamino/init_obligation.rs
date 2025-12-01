@@ -57,10 +57,10 @@ pub struct KaminoInitObligation<'info> {
     pub fee_payer: Signer<'info>,
 
     #[account(
-        has_one = liquidity_vault,
-        has_one = kamino_reserve,
-        has_one = kamino_obligation,
-        has_one = mint,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = kamino_reserve @ MarginfiError::InvalidKaminoReserve,
+        has_one = kamino_obligation @ MarginfiError::InvalidKaminoObligation,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_kamino_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongAssetTagForKaminoInstructions
     )]

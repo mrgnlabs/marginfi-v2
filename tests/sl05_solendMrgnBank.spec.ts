@@ -260,7 +260,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
       false
     );
 
-    assertBankrunTxFailed(result, 0x7d1); // ConstraintHasOne error
+    assertBankrunTxFailed(result, 6042); // MarginfiError::Unauthorized
   });
 
   it("(user 0) Tries to init obligation with insufficient deposit - should fail", async () => {

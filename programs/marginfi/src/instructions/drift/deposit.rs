@@ -20,7 +20,9 @@ use drift_mocks::drift::cpi::{deposit, update_spot_market_cumulative_interest};
 use drift_mocks::state::MinimalUser;
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED};
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
 
 /// Deposit into a Drift spot market through a marginfi account
 ///
@@ -42,7 +44,8 @@ pub fn drift_deposit(ctx: Context<DriftDeposit>, amount: u64) -> MarginfiResult 
         validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
 
         check!(
-            !marginfi_account.get_flag(ACCOUNT_DISABLED),
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
             MarginfiError::AccountDisabled
         );
 
@@ -124,8 +127,8 @@ pub struct DriftDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -133,12 +136,12 @@ pub struct DriftDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = drift_spot_market,
-        has_one = drift_user,
-        has_one = drift_user_stats,
-        has_one = mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = drift_spot_market @ MarginfiError::InvalidDriftSpotMarket,
+        has_one = drift_user @ MarginfiError::InvalidDriftUser,
+        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation
     )]

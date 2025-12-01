@@ -21,6 +21,8 @@ use test_case::test_case;
 #[test_case(240., 0.092, BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(200., 1.1, BankMint::Usdc, BankMint::SolSwbOrigFee)] // Sol @ ~ $153
+#[test_case(150., 5., BankMint::Fixed, BankMint::Sol)]
+#[test_case(300_000., 10., BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_borrow_success(
     deposit_amount: f64,
@@ -224,6 +226,8 @@ async fn marginfi_account_borrow_success(
 #[test_case(240., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(36., 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1., 100., 155.9, BankMint::SolSwbPull, BankMint::Usdc)] // Sol @ ~ $155.1233
+#[test_case(150., 29., 31., BankMint::Fixed, BankMint::Sol)] // Fixed = 2, SOL = 10
+#[test_case(2_000., 0.02, 2.1, BankMint::FixedLow, BankMint::Fixed)] // Low = 0.0001, fixed = 2
 #[tokio::test]
 async fn marginfi_account_borrow_failure_not_enough_collateral(
     deposit_amount: f64,
@@ -314,6 +318,8 @@ async fn marginfi_account_borrow_failure_not_enough_collateral(
 #[test_case(505., 0.092, 500., BankMint::PyUSD, BankMint::T22WithFee)]
 #[test_case(1.8, 1.7, 1.9, BankMint::T22WithFee, BankMint::Sol)]
 #[test_case(1.5, 1.4, 1.6, BankMint::SolSwbPull, BankMint::Usdc)]
+#[test_case(150., 5., 151., BankMint::Fixed, BankMint::Sol)]
+#[test_case(0.04, 0.02, 0.05, BankMint::FixedLow, BankMint::Fixed)]
 #[tokio::test]
 async fn marginfi_account_borrow_failure_borrow_limit(
     borrow_cap: f64,
@@ -533,6 +539,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         I80F48!(0.4).into()
     );
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_sol = test_f
@@ -562,6 +571,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .await;
     assert!(res.is_ok());
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
 
@@ -586,6 +598,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 2)
         .await;
     assert!(res.is_err());
+
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
 
     // Configure emode for the banks so that SOL bank has a favourable rate for SOL_EQ bank
     let sol_eq_emode_tag = 1u16;
@@ -620,6 +635,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .await;
     assert!(res.is_err());
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Now check that we cannot borrow any other asset since it would turn off the emode and put us in a bad health
     let borrower_token_account_f_usdc = test_f.usdc_mint.create_empty_token_account().await;
     let res = borrower_mfi_account_f
@@ -643,6 +661,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 500)
         .await;
     assert!(res.is_err());
+
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
 
     // Now fully repay the USDC debt and verify that the SOL borrow limits are again favourable (emode is ON)
     let res = borrower_mfi_account_f

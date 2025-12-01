@@ -45,10 +45,10 @@ pub struct SolendInitObligation<'info> {
     pub fee_payer: Signer<'info>,
 
     #[account(
-        has_one = liquidity_vault,
-        has_one = solend_reserve,
-        has_one = solend_obligation,
-        has_one = mint,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = solend_reserve @ MarginfiError::InvalidSolendReserve,
+        has_one = solend_obligation @ MarginfiError::InvalidSolendObligation,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_solend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForSolendOperation
     )]

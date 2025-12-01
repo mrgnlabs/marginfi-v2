@@ -354,6 +354,12 @@ describe("sl07: Solend Liquidation", () => {
           ],
           [banks[0], oracles.pythPullLst.publicKey],
         ]),
+      }),
+      // Dummy transfer to differentiate from previous test's identical health pulse tx
+      SystemProgram.transfer({
+        fromPubkey: user.wallet.publicKey,
+        toPubkey: groupAdmin.wallet.publicKey,
+        lamports: 2,
       })
     );
     await processBankrunTx(bankrunContext, tx, [user.wallet]);
@@ -477,6 +483,8 @@ describe("sl07: Solend Liquidation", () => {
             ]),
           ],
           amount: liquidateAmountUsdc,
+          liquidateeAccounts: 5,
+          liquidatorAccounts: 5,
         })
       );
 

@@ -49,8 +49,11 @@ test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.spec.t
 # Emode tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
 
-# Basic tests only (01-13)
+# Basic tests only (01-1X)
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/0*.spec.ts tests/1*.spec.ts --exit --require tests/rootHooks.ts"
+
+# Just the first few tests only (01-09)
+# test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/0*.spec.ts --exit --require tests/rootHooks.ts"
 
 # Emode tests only
 # test = "RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/e*.spec.ts --exit --require tests/rootHooks.ts"
@@ -139,12 +142,8 @@ address = "6pbRghQuRw9AsPJqhrGLFRVYDcvfXeGh4zNdYMt8mods"
 filename = "tests/fixtures/gappy_user4.json"
 
 [[test.validator.account]]
-address = "A5qx1NMxfb3zywMuuo276KntUQk2zA3r3q6ZNwVBbMZC"
-filename = "tests/fixtures/pre_migration_bank1.json"
-
-[[test.validator.account]]
-address = "CMTyrgnFkmC6ZUpKivZ2MAatqCq7tMFL4iWWzHrYABBt"
-filename = "tests/fixtures/pre_migration_bank1_vault.json"
+address = "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8"
+filename = "tests/fixtures/mainnet_group.json"
 
 
 # To update:

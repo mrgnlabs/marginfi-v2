@@ -16,23 +16,27 @@ use marginfi_type_crate::{
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
-        LendingAccount, MarginfiAccount, RiskTier, ACCOUNT_DISABLED, ACCOUNT_IN_FLASHLOAN,
-        ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
+        LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
+        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::cmp::{max, min};
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
-    get_remaining_accounts_per_asset_tag(bank.config.asset_tag)
+    if bank.config.oracle_setup == OracleSetup::Fixed {
+        Ok(1)
+    } else {
+        get_remaining_accounts_per_asset_tag(bank.config.asset_tag)
+    }
 }
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
 fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
     get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
 }
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for all others (bank, oracle)
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
@@ -45,10 +49,9 @@ fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> 
 pub trait MarginfiAccountImpl {
     fn initialize(&mut self, group: Pubkey, authority: Pubkey, current_timestamp: u64);
     fn get_remaining_accounts_len(&self) -> MarginfiResult<usize>;
-    fn set_flag(&mut self, flag: u64);
-    fn unset_flag(&mut self, flag: u64);
+    fn set_flag(&mut self, flag: u64, msg: bool);
+    fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
-    fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult;
     fn can_be_closed(&self) -> bool;
 }
 
@@ -79,41 +82,22 @@ impl MarginfiAccountImpl for MarginfiAccount {
         Ok(total)
     }
 
-    fn set_flag(&mut self, flag: u64) {
-        msg!("Setting account flag {:b}", flag);
+    fn set_flag(&mut self, flag: u64, msg: bool) {
+        if msg {
+            msg!("Setting account flag {:b}", flag);
+        }
         self.account_flags |= flag;
     }
 
-    fn unset_flag(&mut self, flag: u64) {
-        msg!("Unsetting account flag {:b}", flag);
+    fn unset_flag(&mut self, flag: u64, msg: bool) {
+        if msg {
+            msg!("Unsetting account flag {:b}", flag);
+        }
         self.account_flags &= !flag;
     }
 
     fn get_flag(&self, flag: u64) -> bool {
         self.account_flags & flag != 0
-    }
-
-    fn set_new_account_authority_checked(&mut self, new_authority: Pubkey) -> MarginfiResult {
-        // check if new account authority flag is set
-        if !self.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED) || self.get_flag(ACCOUNT_DISABLED)
-        {
-            return Err(MarginfiError::IllegalAccountAuthorityTransfer.into());
-        }
-
-        // update account authority
-        let old_authority = self.authority;
-        self.authority = new_authority;
-
-        // unset flag after updating the account authority
-        self.unset_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED);
-
-        msg!(
-            "Transferred account authority from {:?} to {:?} in group {:?}",
-            old_authority,
-            self.authority,
-            self.group,
-        );
-        Ok(())
     }
 
     fn can_be_closed(&self) -> bool {
@@ -192,15 +176,15 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 }
                 let bank_ai = bank_ai.unwrap();
                 let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
+                let bank = bank_al.load()?;
 
-                // Determine number of accounts to process for this balance
-                let num_accounts = get_remaining_accounts_per_balance(balance)?;
+                // Determine number of accounts to process for this bank
+                let num_accounts = get_remaining_accounts_per_bank(&bank)?;
                 check_eq!(
                     balance.bank_pk,
                     *bank_ai.key,
                     MarginfiError::InvalidBankAccount
                 );
-                let bank = bank_al.load()?;
 
                 // Get the oracle, and the LST mint and sol pool if applicable (staked only)
                 let oracle_ai_idx = account_index + 1;
@@ -212,10 +196,8 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 );
                 let oracle_ais = &remaining_ais[oracle_ai_idx..end_idx];
 
-                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank_config(
-                    &bank.config,
-                    oracle_ais,
-                    &clock,
+                let price_adapter = Box::new(OraclePriceFeedAdapter::try_from_bank(
+                    &bank, oracle_ais, &clock,
                 ));
 
                 account_index += num_accounts;
@@ -844,10 +826,9 @@ impl LendingAccountImpl for LendingAccount {
 }
 
 pub trait BalanceImpl {
-    fn soft_close(&mut self) -> MarginfiResult;
     fn change_asset_shares(&mut self, delta: I80F48) -> MarginfiResult;
     fn change_liability_shares(&mut self, delta: I80F48) -> MarginfiResult;
-    fn close(&mut self) -> MarginfiResult;
+    fn close(&mut self, check_emissions: bool) -> MarginfiResult;
 }
 
 impl BalanceImpl for Balance {
@@ -869,26 +850,15 @@ impl BalanceImpl for Balance {
         Ok(())
     }
 
-    fn close(&mut self) -> MarginfiResult {
-        check!(
-            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
-            MarginfiError::CannotCloseOutstandingEmissions
-        );
+    fn close(&mut self, check_emissions: bool) -> MarginfiResult {
+        if check_emissions {
+            check!(
+                I80F48::from(self.emissions_outstanding) < I80F48::ONE,
+                MarginfiError::CannotCloseOutstandingEmissions
+            );
+        }
 
         *self = Self::empty_deactivated();
-
-        Ok(())
-    }
-
-    /// Sets the asset shares to zero while keeping the balance active.
-    fn soft_close(&mut self) -> MarginfiResult {
-        check!(
-            I80F48::from(self.emissions_outstanding) < I80F48::ONE,
-            MarginfiError::CannotCloseOutstandingEmissions
-        );
-
-        self.asset_shares = I80F48::ZERO.into();
-        self.liability_shares = I80F48::ZERO.into();
 
         Ok(())
     }
@@ -1036,7 +1006,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoAssetFound
         );
 
-        balance.close()?;
+        balance.close(true)?;
         bank.decrement_lending_position_count();
         bank.change_asset_shares(-total_asset_shares, false)?;
         bank.check_utilization_ratio()?;
@@ -1082,7 +1052,7 @@ impl<'a> BankAccountWrapper<'a> {
             MarginfiError::NoLiabilityFound
         );
 
-        balance.close()?;
+        balance.close(true)?;
         bank.decrement_borrowing_position_count();
         bank.change_liability_shares(-total_liability_shares, false)?;
 
@@ -1126,7 +1096,7 @@ impl<'a> BankAccountWrapper<'a> {
             "Balance has existing assets"
         );
 
-        balance.close()?;
+        balance.close(true)?;
 
         Ok(())
     }
@@ -1435,9 +1405,7 @@ fn calc_emissions(
 #[cfg(test)]
 mod test {
     use super::*;
-    use bytemuck::Zeroable;
     use fixed_macro::types::I80F48;
-    use marginfi_type_crate::types::WrappedI80F48;
 
     #[test]
     fn test_calc_asset_value() {
@@ -1455,52 +1423,6 @@ mod test {
             calc_value(I80F48!(1_000_000_000), I80F48!(10_000_000), 9, None).unwrap(),
             I80F48!(10_000_000)
         );
-    }
-
-    #[test]
-    fn test_account_authority_transfer() {
-        let group: [u8; 32] = [0; 32];
-        let authority: [u8; 32] = [1; 32];
-        let bank_pk: [u8; 32] = [2; 32];
-        let new_authority: [u8; 32] = [3; 32];
-
-        let mut acc = MarginfiAccount {
-            group: group.into(),
-            authority: authority.into(),
-            emissions_destination_account: Pubkey::default(),
-            lending_account: LendingAccount {
-                balances: [Balance {
-                    active: 1,
-                    bank_pk: bank_pk.into(),
-                    bank_asset_tag: ASSET_TAG_DEFAULT,
-                    _pad0: [0; 6],
-                    asset_shares: WrappedI80F48::default(),
-                    liability_shares: WrappedI80F48::default(),
-                    emissions_outstanding: WrappedI80F48::default(),
-                    last_update: 0,
-                    _padding: [0_u64],
-                }; 16],
-                _padding: [0; 8],
-            },
-            account_flags: ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED,
-            health_cache: HealthCache::zeroed(),
-            migrated_from: Pubkey::default(),
-            migrated_to: Pubkey::default(),
-            last_update: 0,
-            account_index: 0,
-            third_party_index: 0,
-            bump: 0,
-            _pad0: [0; 3],
-            liquidation_record: Pubkey::default(),
-            _padding0: [0; 7],
-        };
-
-        assert!(acc.get_flag(ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED));
-
-        match acc.set_new_account_authority_checked(new_authority.into()) {
-            Ok(_) => (),
-            Err(_) => panic!("transerring account authority failed"),
-        }
     }
 
     #[test]

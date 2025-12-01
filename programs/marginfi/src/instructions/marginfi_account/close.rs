@@ -19,7 +19,7 @@ pub fn close_account(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
 pub struct MarginfiAccountClose<'info> {
     #[account(
         mut,
-        has_one = authority,
+        has_one = authority @ MarginfiError::Unauthorized,
         close = fee_payer
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,

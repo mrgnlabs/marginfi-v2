@@ -149,6 +149,16 @@ export const deriveMarginfiAccountPda = (
   );
 };
 
+export const deriveBankMetadata = (
+  programId: PublicKey,
+  bank: PublicKey
+) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("metadata", "utf-8"), bank.toBuffer()],
+    programId
+  );
+};
+
 // ************* Kamino Related ****************
 
 export const SEED_LENDING_MARKET_AUTH = "lma";

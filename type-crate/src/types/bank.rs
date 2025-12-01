@@ -82,6 +82,8 @@ pub struct Bank {
     /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     /// - FREEZE_SETTINGS: 8
+    /// - CLOSE_ENABLED_FLAG: 16
+    /// - TOKENLESS_REPAYMENTS_ACTIVE: 32
     ///
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
@@ -115,6 +117,7 @@ pub struct Bank {
     /// * For banks created in 0.1.4 or later, this is the number of positions open in total, and
     ///   the bank may safely be closed if this is zero. Will never go negative.
     pub borrowing_position_count: i32,
+
     pub _padding_0: [u8; 16],
 
     /// Kamino banks only, otherwise Pubkey default
@@ -182,6 +185,7 @@ pub enum OracleSetup {
     StakedWithPythPush,
     KaminoPythPush,
     KaminoSwitchboardPull,
+    Fixed,
     DriftPythPull,
     DriftSwitchboardPull,
     SolendPythPull,
@@ -201,10 +205,11 @@ impl OracleSetup {
             5 => Some(Self::StakedWithPythPush),
             6 => Some(Self::KaminoPythPush),
             7 => Some(Self::KaminoSwitchboardPull),
-            8 => Some(Self::DriftPythPull),
-            9 => Some(Self::DriftSwitchboardPull),
-            10 => Some(Self::SolendPythPull),
-            11 => Some(Self::SolendSwitchboardPull),
+            8 => Some(Self::Fixed),
+            9 => Some(Self::DriftPythPull),
+            10 => Some(Self::DriftSwitchboardPull),
+            11 => Some(Self::SolendPythPull),
+            12 => Some(Self::SolendSwitchboardPull),
             _ => None,
         }
     }

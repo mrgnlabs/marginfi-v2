@@ -1,4 +1,5 @@
 use crate::state::panic_state::PanicStateImpl;
+use crate::MarginfiError;
 use anchor_lang::prelude::*;
 use marginfi_type_crate::constants::FEE_STATE_SEED;
 use marginfi_type_crate::types::{FeeState, PanicState};
@@ -39,7 +40,7 @@ pub struct PanicPause<'info> {
         mut,
         seeds = [FEE_STATE_SEED.as_bytes()],
         bump,
-        has_one = global_fee_admin
+        has_one = global_fee_admin @ MarginfiError::Unauthorized
     )]
     pub fee_state: AccountLoader<'info, FeeState>,
 }

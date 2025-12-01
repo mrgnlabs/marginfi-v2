@@ -1,12 +1,12 @@
-use anchor_lang::error::ErrorCode;
 use anchor_spl::token_2022::spl_token_2022::extension::{
     transfer_fee::TransferFeeConfig, BaseStateWithExtensions,
 };
 use fixtures::{
-    assert_anchor_error,
+    assert_custom_error,
     spl::TokenAccountFixture,
     test::{BankMint, TestFixture, TestSettings},
 };
+use marginfi::errors::MarginfiError;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use test_case::test_case;
@@ -106,6 +106,8 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
             Pubkey::new_unique(),
             Pubkey::new_unique(),
             Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
             false,
         )
         .await?;
@@ -123,7 +125,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw 1000 USDC from the insurance vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     // Mint `fee_vault_balance` USDC to the fee vault
     bank_f
@@ -138,7 +140,7 @@ async fn marginfi_group_withdraw_fees_and_insurance_fund_as_non_admin_failure(
         .await;
 
     // Unable to withdraw `fee_vault_balance` USDC from the fee vault, because the signer is not the admin
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     Ok(())
 }
@@ -173,7 +175,10 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidFeesDestinationAccount
+    );
 
     // Now derive canonical ATA for the receiving account and set it as the fees destination for the bank
     let destination_ata = TokenAccountFixture::new_from_ata(
@@ -192,7 +197,10 @@ async fn marginfi_group_withdraw_fees_permissonless(bank_mint: BankMint) -> anyh
         .try_withdraw_fees_permissionless(&receiving_account, fee_vault_balance)
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(
+        res.unwrap_err(),
+        MarginfiError::InvalidFeesDestinationAccount
+    );
 
     // Use proper destination account -> should succeed
     bank_f

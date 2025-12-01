@@ -44,8 +44,8 @@ pub fn drift_harvest_reward<'info>(
 #[derive(Accounts)]
 pub struct DriftHarvestReward<'info> {
     #[account(
-        has_one = drift_user,
-        has_one = drift_user_stats,
+        has_one = drift_user @ MarginfiError::InvalidDriftUser,
+        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation
     )]

@@ -18,11 +18,14 @@ pub const EMISSIONS_TOKEN_ACCOUNT_SEED: &str = "emissions_token_account_seed";
 pub const LIQUIDATION_RECORD_SEED: &str = "liq_record";
 pub const MARGINFI_ACCOUNT_SEED: &str = "marginfi_account";
 
+pub const METADATA_SEED: &str = "metadata";
+
 /// TODO: Make these variable per bank
 pub const LIQUIDATION_LIQUIDATOR_FEE: I80F48 = I80F48!(0.025);
 pub const LIQUIDATION_INSURANCE_FEE: I80F48 = I80F48!(0.025);
 
 pub const SECONDS_PER_YEAR: I80F48 = I80F48!(31_536_000);
+pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 
 /// Due to real-world constraints, oracles using an age less than this value are typically too
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
@@ -64,13 +67,18 @@ pub const EMISSIONS_FLAG_LENDING_ACTIVE: u64 = 1 << 1;
 pub const PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG: u64 = 1 << 2;
 pub const FREEZE_SETTINGS: u64 = 1 << 3;
 pub const CLOSE_ENABLED_FLAG: u64 = 1 << 4;
+pub const TOKENLESS_REPAYMENTS_ALLOWED: u64 = 1 << 5;
+pub const TOKENLESS_REPAYMENTS_COMPLETE: u64 = 1 << 6;
 
 /// True if bank created in 0.1.4 or later, or if migrated to the new oracle setup from a prior
 /// version. False otherwise.
 pub const PYTH_PUSH_MIGRATED_DEPRECATED: u8 = 1 << 0;
 
 pub const EMISSION_FLAGS: u64 = EMISSIONS_FLAG_BORROW_ACTIVE | EMISSIONS_FLAG_LENDING_ACTIVE;
-pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG | FREEZE_SETTINGS;
+pub const GROUP_FLAGS: u64 = PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG
+    | FREEZE_SETTINGS
+    | TOKENLESS_REPAYMENTS_ALLOWED
+    | TOKENLESS_REPAYMENTS_COMPLETE;
 
 /// Cutoff timestamp for balance last_update used in accounting collected emissions.
 /// Any balance updates before this timestamp are ignored, and current_timestamp is used instead.
@@ -187,4 +195,6 @@ pub mod ix_discriminators {
     pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
     pub const START_FLASHLOAN: [u8; 8] = [14, 131, 33, 220, 81, 186, 180, 107];
     pub const END_FLASHLOAN: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
+    pub const START_DELEVERAGE: [u8; 8] = [10, 138, 10, 57, 40, 232, 182, 193];
+    pub const END_DELEVERAGE: [u8; 8] = [114, 14, 250, 143, 252, 104, 214, 209];
 }

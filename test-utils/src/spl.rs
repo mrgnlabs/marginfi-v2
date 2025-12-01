@@ -1,4 +1,4 @@
-use crate::ui_to_native;
+use crate::{ui_to_native, utils::load_account_from_file};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::{
@@ -20,23 +20,25 @@ use anchor_spl::{
     },
     token_interface::spl_pod::bytemuck::pod_get_packed_len,
 };
-use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    account::{AccountSharedData, ReadableAccount, WritableAccount},
+    account::{ReadableAccount, WritableAccount},
     commitment_config::CommitmentLevel,
     instruction::Instruction,
-    native_token::LAMPORTS_PER_SOL,
     program_pack::{Pack, Sealed},
     signature::Keypair,
     signer::Signer,
-    system_instruction::{self, create_account},
+    system_instruction::create_account,
     transaction::Transaction,
 };
+#[cfg(feature = "transfer-hook")]
+use solana_sdk::{native_token::LAMPORTS_PER_SOL, system_instruction};
+#[cfg(feature = "transfer-hook")]
 use spl_transfer_hook_interface::{
     get_extra_account_metas_address, instruction::initialize_extra_account_meta_list,
 };
-use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
+use std::{cell::RefCell, rc::Rc};
+#[cfg(feature = "transfer-hook")]
 use transfer_hook::TEST_HOOK_ID;
 
 #[derive(Clone)]
@@ -148,23 +150,22 @@ impl MintFixture {
                     .map(|e| e.instruction(&keypair.pubkey(), &ctx.payer.pubkey())),
             );
             ixs.push(init_mint_ix);
-            let extra_metas_address = get_extra_account_metas_address(
-                &keypair.pubkey(),
-                &super::transfer_hook::TEST_HOOK_ID,
-            );
+            #[cfg(feature = "transfer-hook")]
             if extensions.contains(&SupportedExtension::TransferHook) {
+                let extra_metas_address =
+                    get_extra_account_metas_address(&keypair.pubkey(), &TEST_HOOK_ID);
                 ixs.push(system_instruction::transfer(
                     &ctx.payer.pubkey(),
                     &extra_metas_address,
                     10 * LAMPORTS_PER_SOL,
                 ));
                 ixs.push(initialize_extra_account_meta_list(
-                    &super::transfer_hook::TEST_HOOK_ID,
+                    &TEST_HOOK_ID,
                     &extra_metas_address,
                     &keypair.pubkey(),
                     &ctx.payer.pubkey(),
                     &[],
-                ))
+                ));
             }
 
             let tx = Transaction::new_signed_with_payer(
@@ -179,7 +180,10 @@ impl MintFixture {
                 .await
                 .unwrap();
 
+            #[cfg(feature = "transfer-hook")]
             if extensions.contains(&SupportedExtension::TransferHook) {
+                let extra_metas_address =
+                    get_extra_account_metas_address(&keypair.pubkey(), &TEST_HOOK_ID);
                 ctx.banks_client
                     .get_account(extra_metas_address)
                     .await
@@ -211,45 +215,25 @@ impl MintFixture {
         ctx: &Rc<RefCell<ProgramTestContext>>,
         relative_path: &str,
     ) -> MintFixture {
-        let ctx_ref = Rc::clone(ctx);
+        let (address, mut account) = load_account_from_file(relative_path);
 
-        let (address, account_info) = {
-            let mut ctx = ctx.borrow_mut();
+        let payer = ctx.borrow().payer.pubkey();
+        let mut base_mint = spl_token::state::Mint::unpack(&account.data()[..Mint::LEN]).unwrap();
+        base_mint.mint_authority.replace(payer);
 
-            // load cargo workspace path from env
-            let mut path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
-            path.push(relative_path);
-            let mut file = File::open(&path).unwrap();
-            let mut account_info_raw = String::new();
-            file.read_to_string(&mut account_info_raw).unwrap();
+        let mut mint_bytes = [0u8; Mint::LEN];
+        spl_token::state::Mint::pack(base_mint, &mut mint_bytes).unwrap();
+        account.data_as_mut_slice()[..Mint::LEN].copy_from_slice(&mint_bytes);
 
-            let account: CliAccount = serde_json::from_str(&account_info_raw).unwrap();
-            let address = Pubkey::from_str(&account.keyed_account.pubkey).unwrap();
-            let mut account_info: AccountSharedData =
-                account.keyed_account.account.decode().unwrap();
+        ctx.borrow_mut().set_account(&address, &account);
 
-            let mut mint =
-                spl_token::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
-            let payer = ctx.payer.pubkey();
-            mint.mint_authority.replace(payer);
+        let mint_2022 = spl_token_2022::state::Mint::unpack(&account.data()[..Mint::LEN]).unwrap();
 
-            let mint_bytes = &mut [0; Mint::LEN];
-            spl_token::state::Mint::pack(mint, mint_bytes).unwrap();
-
-            account_info.data_as_mut_slice()[..Mint::LEN].copy_from_slice(mint_bytes);
-
-            ctx.set_account(&address, &account_info);
-
-            (address, account_info)
-        };
-
-        let mint = spl_token_2022::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
-
-        MintFixture {
-            ctx: ctx_ref,
+        Self {
+            ctx: Rc::clone(ctx),
             key: address,
-            mint,
-            token_program: account_info.owner().to_owned(),
+            mint: mint_2022,
+            token_program: account.owner().to_owned(),
         }
     }
 
@@ -690,11 +674,15 @@ impl SupportedExtension {
                 .unwrap()
             }
             Self::TransferHook => {
+                #[cfg(feature = "transfer-hook")]
+                let program_id = Some(TEST_HOOK_ID);
+                #[cfg(not(feature = "transfer-hook"))]
+                let program_id = None;
                 spl_token_2022::extension::transfer_hook::instruction::initialize(
                     &token_2022::ID,
                     mint,
                     Some(*key),
-                    Some(TEST_HOOK_ID),
+                    program_id,
                 )
                 .unwrap()
             }

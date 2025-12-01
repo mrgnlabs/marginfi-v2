@@ -1,4 +1,4 @@
-use crate::{state::bank::BankImpl, MarginfiResult};
+use crate::{state::bank::BankImpl, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::types::{Bank, MarginfiGroup};
 
@@ -16,6 +16,7 @@ pub fn lending_pool_accrue_bank_interest(
         ctx.accounts.bank.key(),
     )?;
 
+    // TODO see if we can move this within accrue_interest to save some CU
     bank.update_bank_cache(group)?;
 
     Ok(())
@@ -27,7 +28,7 @@ pub struct LendingPoolAccrueBankInterest<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 }

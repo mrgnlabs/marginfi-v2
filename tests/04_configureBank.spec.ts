@@ -1,11 +1,24 @@
 import { BN, Program, workspace } from "@coral-xyz/anchor";
-import { configureBank, configureBankOracle } from "./utils/group-instructions";
+import {
+  configureBank,
+  configureBankOracle,
+  groupConfigure,
+  initBankMetadata,
+  writeBankMetadata,
+} from "./utils/group-instructions";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
-import { bankKeypairUsdc, groupAdmin, oracles, users } from "./rootHooks";
+import {
+  bankKeypairUsdc,
+  groupAdmin,
+  marginfiGroup,
+  oracles,
+  users,
+} from "./rootHooks";
 import {
   assertBNEqual,
   assertI80F48Approx,
+  assertI80F48Equal,
   assertKeysEqual,
   expectFailedTxWithError,
   expectFailedTxWithMessage,
@@ -13,28 +26,33 @@ import {
 import { assert } from "chai";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
+  aprToU32,
   ASSET_TAG_SOL,
   BankConfigOptRaw,
   CLOSE_ENABLED_FLAG,
   defaultBankConfigOptRaw,
   FREEZE_SETTINGS,
-  InterestRateConfigRawWithOrigination,
+  InterestRateConfigOpt1_6,
+  makeRatePoints,
+  TOKENLESS_REPAYMENTS_ALLOWED,
 } from "./utils/types";
+import { deriveBankMetadata } from "./utils/pdas";
 
 describe("Lending pool configure bank", () => {
   const program = workspace.Marginfi as Program<Marginfi>;
 
   it("(admin) Configure bank (USDC) - happy path", async () => {
     const bankKey = bankKeypairUsdc.publicKey;
-    let interestRateConfig: InterestRateConfigRawWithOrigination = {
-      optimalUtilizationRate: bigNumberToWrappedI80F48(0.1),
-      plateauInterestRate: bigNumberToWrappedI80F48(0.2),
-      maxInterestRate: bigNumberToWrappedI80F48(4),
+    const expPoints = makeRatePoints([0.3, 0.4, 0.5], [1, 2, 3]);
+    let interestRateConfig: InterestRateConfigOpt1_6 = {
       insuranceFeeFixedApr: bigNumberToWrappedI80F48(0.3),
       insuranceIrFee: bigNumberToWrappedI80F48(0.4),
       protocolFixedFeeApr: bigNumberToWrappedI80F48(0.5),
       protocolIrFee: bigNumberToWrappedI80F48(0.6),
       protocolOriginationFee: bigNumberToWrappedI80F48(0.7),
+      zeroUtilRate: aprToU32(0.1),
+      hundredUtilRate: aprToU32(4),
+      points: expPoints,
     };
 
     let bankConfigOpt: BankConfigOptRaw = {
@@ -54,7 +72,8 @@ describe("Lending pool configure bank", () => {
       oracleMaxAge: 150,
       permissionlessBadDebtSettlement: null,
       freezeSettings: null,
-      oracleMaxConfidence: 420000
+      oracleMaxConfidence: 420000,
+      tokenlessRepaymentsAllowed: true,
     };
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -76,14 +95,33 @@ describe("Lending pool configure bank", () => {
     assertI80F48Approx(config.liabilityWeightMaint, 1.8);
     assertBNEqual(config.depositLimit, 5000);
 
-    assertI80F48Approx(interest.optimalUtilizationRate, 0.1);
-    assertI80F48Approx(interest.plateauInterestRate, 0.2);
-    assertI80F48Approx(interest.maxInterestRate, 4);
+    // Note: Zero since 1.6 replaced the legacy curve system
+    assertI80F48Equal(interest.optimalUtilizationRate, 0);
+    assertI80F48Equal(interest.plateauInterestRate, 0);
+    assertI80F48Equal(interest.maxInterestRate, 0);
+
     assertI80F48Approx(interest.insuranceFeeFixedApr, 0.3);
     assertI80F48Approx(interest.insuranceIrFee, 0.4);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.5);
     assertI80F48Approx(interest.protocolIrFee, 0.6);
     assertI80F48Approx(interest.protocolOriginationFee, 0.7);
+
+    assert.approximately(interest.zeroUtilRate, aprToU32(0.1), 2);
+    assert.approximately(interest.hundredUtilRate, aprToU32(4), 2);
+    for (let i = 0; i < 3; i++) {
+      assert.approximately(interest.points[i].util, expPoints[i].util, 2);
+      assert.approximately(interest.points[i].rate, expPoints[i].rate, 2);
+    }
+    // Rest is padding
+    for (let i = 3; i < 5; i++) {
+      const p = interest.points[i];
+      if (interest.points[i].util === 0 && interest.points[i].rate === 0) {
+        assert.equal(p.util, 0);
+        assert.equal(p.rate, 0);
+      } else {
+        assert.ok(false, "expected padding");
+      }
+    }
 
     assert.deepEqual(config.operationalState, { paused: {} });
     assert.deepEqual(config.oracleSetup, { pythPushOracle: {} }); // no change
@@ -93,6 +131,11 @@ describe("Lending pool configure bank", () => {
     assertBNEqual(config.totalAssetValueInitLimit, 15000);
     assert.equal(config.oracleMaxAge, 150);
     assert.equal(config.oracleMaxConfidence, 420000);
+    // Note: The CLOSE_ENABLED_FLAG is never unset
+    assertBNEqual(
+      bank.flags,
+      TOKENLESS_REPAYMENTS_ALLOWED + CLOSE_ENABLED_FLAG
+    );
   });
 
   it("(admin) Restore default settings to bank (USDC)", async () => {
@@ -210,8 +253,8 @@ describe("Lending pool configure bank", () => {
           )
         );
       },
-      "ConstraintHasOne",
-      2001
+      "Unauthorized",
+      6042
     );
 
     await expectFailedTxWithMessage(async () => {
@@ -286,5 +329,79 @@ describe("Lending pool configure bank", () => {
     // Ignored fields didn't change..
     assert.equal(config.oracleMaxAge, 240);
     assertBNEqual(bank.flags, FREEZE_SETTINGS + CLOSE_ENABLED_FLAG); // still frozen
+  });
+
+  it("(permissionless) Init blank metadata for a bank", async () => {
+    await users[1].mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await initBankMetadata(users[1].mrgnProgram, {
+          bank: bankKeypairUsdc.publicKey,
+        })
+      )
+    );
+
+    const [metaKey, metaBump] = deriveBankMetadata(
+      program.programId,
+      bankKeypairUsdc.publicKey
+    );
+    const meta = await program.account.bankMetadata.fetch(metaKey);
+    assertKeysEqual(meta.bank, bankKeypairUsdc.publicKey);
+    assert.equal(meta.bump, metaBump);
+  });
+
+  it("(meta admin) Update metadata for a bank", async () => {
+    await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await groupConfigure(groupAdmin.mrgnProgram, {
+          newMetadataAdmin: users[0].wallet.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
+        })
+      )
+    );
+    const group = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
+    );
+    assertKeysEqual(group.metadataAdmin, users[0].wallet.publicKey);
+
+    const [metaKey] = deriveBankMetadata(
+      program.programId,
+      bankKeypairUsdc.publicKey
+    );
+
+    const tickerStr = "USDCasdfg";
+    const descStr = "It's a coin 1234 ?#*Z";
+    const tickerUtf8 = Buffer.from(tickerStr, "utf8");
+    const descUtf8 = Buffer.from(descStr, "utf8");
+
+    await users[0].mrgnProgram.provider.sendAndConfirm(
+      new Transaction().add(
+        await writeBankMetadata(users[0].mrgnProgram, {
+          metadata: metaKey,
+          ticker: tickerStr,
+          description: descStr,
+        })
+      )
+    );
+    const meta = await program.account.bankMetadata.fetch(metaKey);
+    // Note: buffer is zero-padded, but the subarray will match the expected str
+    const onchainTicker = Buffer.from(meta.ticker as number[]);
+    assert.equal(
+      onchainTicker.subarray(0, tickerUtf8.length).toString("utf8"),
+      tickerStr
+    );
+    // Use the end byte pointer to quickly get the end byte for subarray
+    assert.equal(meta.endTickerByte, tickerUtf8.length - 1);
+
+    // Note: also the same as a zero-padded buffer allocated manually
+    const expectedTicker = Buffer.alloc(64, 0);
+    expectedTicker.set(tickerUtf8, 0);
+    assert.deepStrictEqual(onchainTicker, expectedTicker);
+
+    const onchainDesc = Buffer.from(meta.description as number[]);
+    assert.equal(
+      onchainDesc.subarray(0, descUtf8.length).toString("utf8"),
+      descStr
+    );
+    assert.equal(meta.endDescriptionByte, descUtf8.length - 1);
   });
 });
