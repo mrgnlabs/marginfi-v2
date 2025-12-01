@@ -243,7 +243,7 @@ pub struct DriftWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -255,12 +255,12 @@ pub struct DriftWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = drift_spot_market,
-        has_one = drift_user,
-        has_one = drift_user_stats,
-        has_one = mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = drift_spot_market @ MarginfiError::InvalidDriftSpotMarket,
+        has_one = drift_user @ MarginfiError::InvalidDriftUser,
+        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation,
         // Block withdraw of zero-weight assets during receivership - prevents unfair liquidation

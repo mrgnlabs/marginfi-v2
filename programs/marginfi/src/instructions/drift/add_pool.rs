@@ -108,7 +108,7 @@ pub fn lending_pool_add_bank_drift(
 pub struct LendingPoolAddBankDrift<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 

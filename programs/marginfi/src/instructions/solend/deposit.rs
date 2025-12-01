@@ -133,8 +133,8 @@ pub struct SolendDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = authority
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -142,11 +142,11 @@ pub struct SolendDeposit<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = solend_reserve,
-        has_one = solend_obligation,
-        has_one = mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = solend_reserve @ MarginfiError::InvalidSolendReserve,
+        has_one = solend_obligation @ MarginfiError::InvalidSolendObligation,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_solend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForSolendOperation
     )]

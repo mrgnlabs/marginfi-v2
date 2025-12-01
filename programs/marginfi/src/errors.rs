@@ -289,6 +289,12 @@ pub enum MarginfiError {
     DriftMissingRewardAccounts, // 6321
     #[msg("Drift spot market is stale, interest needs to be updated")]
     DriftSpotMarketStale, // 6322
+    #[msg("Invalid Drift spot market: account constraint violated")]
+    InvalidDriftSpotMarket, // 6323
+    #[msg("Invalid Drift user: account constraint violated")]
+    InvalidDriftUser, // 6324
+    #[msg("Invalid Drift user stats: account constraint violated")]
+    InvalidDriftUserStats, // 6325
     // **************END DRIFT ERRORS
 
     // ************** BEGIN SOLEND ERRORS (starting at 6400)
@@ -322,7 +328,11 @@ pub enum MarginfiError {
     InvalidSolendAccount, // 6413
     #[msg("Invalid Solend account version")]
     InvalidSolendAccountVersion, // 6414
-                                 // **************END SOLEND ERRORS
+    #[msg("Invalid Solend reserve: account constraint violated")]
+    InvalidSolendReserve, // 6415
+    #[msg("Invalid Solend obligation: account constraint violated")]
+    InvalidSolendObligation, // 6416
+                             // **************END SOLEND ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -491,6 +501,9 @@ impl From<u32> for MarginfiError {
             6320 => MarginfiError::DriftMissingRewardSpotMarket,
             6321 => MarginfiError::DriftMissingRewardAccounts,
             6322 => MarginfiError::DriftSpotMarketStale,
+            6323 => MarginfiError::InvalidDriftSpotMarket,
+            6324 => MarginfiError::InvalidDriftUser,
+            6325 => MarginfiError::InvalidDriftUserStats,
 
             // Solend-specific errors (starting at 6400)
             6400 => MarginfiError::SolendInvalidOracleSetup,
@@ -508,6 +521,8 @@ impl From<u32> for MarginfiError {
             6412 => MarginfiError::SolendDepositFailed,
             6413 => MarginfiError::InvalidSolendAccount,
             6414 => MarginfiError::InvalidSolendAccountVersion,
+            6415 => MarginfiError::InvalidSolendReserve,
+            6416 => MarginfiError::InvalidSolendObligation,
 
             _ => MarginfiError::InternalLogicError,
         }

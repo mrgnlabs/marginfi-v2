@@ -229,7 +229,7 @@ pub struct SolendWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
+        has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
             a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
@@ -241,11 +241,11 @@ pub struct SolendWithdraw<'info> {
 
     #[account(
         mut,
-        has_one = group,
-        has_one = liquidity_vault,
-        has_one = solend_reserve,
-        has_one = solend_obligation,
-        has_one = mint,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = solend_reserve @ MarginfiError::InvalidSolendReserve,
+        has_one = solend_obligation @ MarginfiError::InvalidSolendObligation,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_solend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForSolendOperation,
         // Block withdraw of zero-weight assets during receivership - prevents unfair liquidation

@@ -73,11 +73,11 @@ pub struct DriftInitUser<'info> {
     pub signer_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        has_one = liquidity_vault,
-        has_one = drift_spot_market,
-        has_one = drift_user,
-        has_one = drift_user_stats,
-        has_one = mint,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = drift_spot_market @ MarginfiError::InvalidDriftSpotMarket,
+        has_one = drift_user @ MarginfiError::InvalidDriftUser,
+        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
+        has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation
     )]

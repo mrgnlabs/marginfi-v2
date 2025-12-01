@@ -270,7 +270,7 @@ describe("d06: Init Drift banks", () => {
       )
     );
     let result = await processBankrunTransaction(ctx, tx, [user.wallet], true);
-    assertBankrunTxFailed(result, 2001);
+    assertBankrunTxFailed(result, 6042); // MarginfiError::Unauthorized
   });
 
   it("(admin) Tries pass the wrong spot market/mint for this asset - should fail", async () => {
