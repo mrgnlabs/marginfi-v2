@@ -21,7 +21,6 @@ import {
   groupAdmin,
   oracles,
   users,
-  verbose,
 } from "../rootHooks";
 import { MockUser } from "./mocks";
 import {
@@ -104,6 +103,7 @@ export interface ScenarioResult {
   success: boolean;
   errorType?: "OOM" | "CU_EXCEEDED" | "TOO_SEVERE" | "OTHER";
   errorMessage?: string;
+  errorCode?: number;
   cuUsed?: number;
 }
 
@@ -138,8 +138,6 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
     tx.recentBlockhash = await getBankrunBlockhash(ctx);
     tx.sign(groupAdmin.wallet, throwawayGroup);
     await banksClient.processTransaction(tx);
-
-    if (verbose) console.log(`*init group: ${throwawayGroup.publicKey}`);
   }
 
   // 2. Create drift banks (one extra for the failing test)
@@ -170,7 +168,6 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
     );
     await processBankrunTx(ctx, tx, [groupAdmin.wallet]);
 
-    if (verbose) console.log(`*init drift bank #${i}: ${driftBank}`);
     driftBanks.push(driftBank);
   }
 
@@ -203,8 +200,6 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
       )
     );
     await processBankrunTx(ctx, initUserTx, [groupAdmin.wallet]);
-
-    if (verbose) console.log(`*init drift user for bank #${i}`);
   }
 
   // 4. Create regular banks using Token A (same as drift banks)
@@ -274,8 +269,6 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
       })
     );
     await processBankrunTx(ctx, depositTx, [groupAdmin.wallet]);
-
-    if (verbose) console.log(`*seeded liab bank with liquidity`);
   }
 
   // 7. Setup liquidator (reused across scenarios)
@@ -322,8 +315,6 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
       })
     );
     await processBankrunTx(ctx, depositTx, [liquidatorUser.wallet]);
-
-    if (verbose) console.log(`*setup liquidator with LST deposit`);
   }
 
   // 8. Create and extend LUT
@@ -633,7 +624,11 @@ async function attemptLiquidation(
     bank: driftBanks[0],
   });
 
-  const tx = new Transaction().add(computeBudgetIx, accrueIx, liquidateInstruction);
+  const tx = new Transaction().add(
+    computeBudgetIx,
+    accrueIx,
+    liquidateInstruction
+  );
 
   // Process with dumpLogOnFail=true - will print logs and throw on failure
   const result = (await processBankrunTx(
@@ -707,11 +702,6 @@ async function addGenericRegularBank(
 
   const tx = new Transaction().add(addBankIx, config_ix);
   await processBankrunTx(bankrunContext, tx, [groupAdmin.wallet]);
-
-  if (verbose) {
-    const msg = label ? `*init ${label} bank` : `*init regular bank #${index}`;
-    console.log(`${msg}: ${bankKey}`);
-  }
 }
 
 async function createAndExtendLUT(
@@ -735,8 +725,6 @@ async function createAndExtendLUT(
 
   const createLutTx = new Transaction().add(createLutIx);
   await processBankrunTx(ctx, createLutTx, [user.wallet]);
-
-  if (verbose) console.log(`*created LUT: ${lutAddress}`);
 
   const { TOKEN_PROGRAM_ID } = await import("@solana/spl-token");
 
@@ -766,9 +754,6 @@ async function createAndExtendLUT(
     );
     await processBankrunTx(ctx, extendLutTx, [user.wallet]);
   }
-
-  if (verbose)
-    console.log(`*extended LUT with ${allAddresses.length} addresses`);
 
   return lutAddress;
 }

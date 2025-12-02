@@ -1,5 +1,4 @@
 import { assert } from "chai";
-import { BN } from "@coral-xyz/anchor";
 import {
   setupDriftLiqEnv,
   DriftLiqEnv,
@@ -7,7 +6,6 @@ import {
   ScenarioResult,
   PASSING_DRIFT_COUNT,
 } from "./utils/drift-liq-helpers";
-import { verbose } from "./rootHooks";
 
 describe("d14: Drift liquidation limits", () => {
   let env: DriftLiqEnv;
@@ -19,18 +17,14 @@ describe("d14: Drift liquidation limits", () => {
     env = await setupDriftLiqEnv();
 
     // Verify setup (PASSING_DRIFT_COUNT + 1 drift banks for the failing test)
-    assert.equal(env.driftBanks.length, PASSING_DRIFT_COUNT + 1, `Should have ${PASSING_DRIFT_COUNT + 1} drift banks`);
+    assert.equal(
+      env.driftBanks.length,
+      PASSING_DRIFT_COUNT + 1,
+      `Should have ${PASSING_DRIFT_COUNT + 1} drift banks`
+    );
     assert.equal(env.regularBanks.length, 15, "Should have 15 regular banks");
     assert.ok(env.liabBank, "Should have 1 liab bank");
     assert.ok(env.lutAddress, "Should have LUT address");
-
-    if (verbose) {
-      console.log("\n📊 Setup Complete:");
-      console.log(`   Drift banks: ${env.driftBanks.length}`);
-      console.log(`   Regular banks: ${env.regularBanks.length}`);
-      console.log(`   Liab bank: ${env.liabBank}`);
-      console.log(`   LUT: ${env.lutAddress}`);
-    }
   });
 
   it("tests liquidation across drift/regular combinations", async function () {
@@ -42,33 +36,12 @@ describe("d14: Drift liquidation limits", () => {
     // Total positions = driftCount + regularCount + 1 borrow = 16
     for (let driftCount = 1; driftCount <= PASSING_DRIFT_COUNT; driftCount++) {
       const regularCount = 15 - driftCount;
-
-      if (verbose) {
-        console.log(
-          `\n🔄 Testing: ${driftCount} drift + ${regularCount} regular + 1 borrow`
-        );
-      }
-
       const result = await runLiquidationScenario(env, {
         driftCount,
         regularCount,
         scenarioIndex: driftCount - 1,
       });
-
       results.push(result);
-
-      if (verbose) {
-        const status = result.success
-          ? "✅ SUCCESS"
-          : `❌ FAILED (${result.errorType})`;
-        console.log(`   Result: ${status}`);
-        if (result.cuUsed) {
-          console.log(`   CU Used: ${result.cuUsed}`);
-        }
-        if (result.errorMessage) {
-          console.log(`   Error: ${result.errorMessage}`);
-        }
-      }
     }
 
     // Print summary table
@@ -82,7 +55,9 @@ describe("d14: Drift liquidation limits", () => {
 
     for (const r of results) {
       const status = r.success ? "SUCCESS" : "FAILED";
-      const cu = r.cuUsed ? r.cuUsed.toString().padStart(10) : "N/A".padStart(10);
+      const cu = r.cuUsed
+        ? r.cuUsed.toString().padStart(10)
+        : "N/A".padStart(10);
       const error = r.errorType || "-";
       const total = r.driftCount + r.regularCount + 1;
       console.log(
@@ -98,7 +73,11 @@ describe("d14: Drift liquidation limits", () => {
     console.log("=".repeat(80));
 
     // Verify we ran all scenarios
-    assert.equal(results.length, PASSING_DRIFT_COUNT, `Should have run ${PASSING_DRIFT_COUNT} scenarios`);
+    assert.equal(
+      results.length,
+      PASSING_DRIFT_COUNT,
+      `Should have run ${PASSING_DRIFT_COUNT} scenarios`
+    );
   });
 
   it("fails with too many drift positions due to active bank limit", async function () {
@@ -107,22 +86,19 @@ describe("d14: Drift liquidation limits", () => {
     const driftCount = PASSING_DRIFT_COUNT + 1;
     const regularCount = 15 - driftCount;
 
-    if (verbose) {
-      console.log(
-        `\n🔄 Testing: ${driftCount} drift + ${regularCount} regular + 1 borrow (expecting failure)`
+    try {
+      await runLiquidationScenario(env, {
+        driftCount,
+        regularCount,
+        scenarioIndex: 99,
+      });
+      assert.fail("Should have thrown IntegrationPositionLimitExceeded");
+    } catch (e: any) {
+      // 0x1844 = 6212 = IntegrationPositionLimitExceeded
+      assert.ok(
+        e.message.includes("0x1844"),
+        `Expected error 0x1844 (IntegrationPositionLimitExceeded), got: ${e.message}`
       );
-    }
-
-    const result = await runLiquidationScenario(env, {
-      driftCount,
-      regularCount,
-      scenarioIndex: 99,
-    });
-
-    assert.equal(result.success, false, `${driftCount} drift positions should fail`);
-    if (verbose) {
-      console.log(`   Error type: ${result.errorType}`);
-      console.log(`   Error message: ${result.errorMessage}`);
     }
   });
 });

@@ -3,7 +3,7 @@ use crate::{
     check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     state::{bank::BankImpl, bank_config::BankConfigImpl},
-    utils::NumTraitsWithTolerance,
+    utils::{is_integration_asset_tag, NumTraitsWithTolerance},
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -11,7 +11,7 @@ use marginfi_type_crate::{
     constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
         ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
-        EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48, MAX_KAMINO_POSITIONS,
+        EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48, MAX_INTEGRATION_POSITIONS,
         MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
@@ -907,17 +907,17 @@ impl<'a> BankAccountWrapper<'a> {
                 Ok(Self { balance, bank })
             }
             None => {
-                // Enforce Kamino position limit before creating a new Kamino position
-                if bank.config.asset_tag == ASSET_TAG_KAMINO {
-                    let kamino_position_count = lending_account
+                // Enforce integration position limit before creating a new integration position
+                if is_integration_asset_tag(bank.config.asset_tag) {
+                    let integration_position_count = lending_account
                         .balances
                         .iter()
-                        .filter(|b| b.is_active() && b.bank_asset_tag == ASSET_TAG_KAMINO)
+                        .filter(|b| b.is_active() && is_integration_asset_tag(b.bank_asset_tag))
                         .count();
 
                     check!(
-                        kamino_position_count < MAX_KAMINO_POSITIONS,
-                        MarginfiError::KaminoPositionLimitExceeded
+                        integration_position_count < MAX_INTEGRATION_POSITIONS,
+                        MarginfiError::IntegrationPositionLimitExceeded
                     );
                 }
 
