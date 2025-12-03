@@ -2,6 +2,7 @@ use crate::{
     bank_signer, check,
     constants::{DRIFT_PROGRAM_ID, PROGRAM_VERSION},
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
+    ix_utils::{get_discrim_hash, Hashable},
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
@@ -495,5 +496,11 @@ impl<'info> DriftWithdraw<'info> {
         let decimals = self.mint.decimals;
         transfer_checked(cpi_ctx, amount, decimals)?;
         Ok(())
+    }
+}
+
+impl Hashable for DriftWithdraw<'_> {
+    fn get_hash() -> [u8; 8] {
+        get_discrim_hash("global", "drift_withdraw")
     }
 }
