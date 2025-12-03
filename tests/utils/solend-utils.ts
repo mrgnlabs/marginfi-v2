@@ -13,7 +13,6 @@ export const SOLEND_NULL_PUBKEY = new PublicKey(
 );
 
 // Import and re-export from local solend-sdk
-import { LENDING_MARKET_SIZE as SDK_LENDING_MARKET_SIZE } from "./solend-sdk/state/lendingMarket";
 import { parseReserve } from "./solend-sdk/state/reserve";
 export {
   LendingMarket as SolendLendingMarket,
@@ -52,14 +51,6 @@ export const SOLEND_USDC_RESERVE_SEED = Buffer.from(
 export const SOLEND_TOKENA_RESERVE_SEED = Buffer.from(
   "SOLEND_TOKENA_RESERVE_SEED_00000"
 );
-
-/**
- * Layout sizes
- */
-export const LENDING_MARKET_SIZE = SDK_LENDING_MARKET_SIZE; // Using size from SDK
-export const RESERVE_SIZE = 619; // Calculated from the Reserve structure
-export const OBLIGATION_SIZE = 1300; // Base size, can be larger with more deposits/borrows
-
 /**
  * Max number of deposits/borrows in an obligation
  */

@@ -1,6 +1,7 @@
-use crate::{constants::EXP_10_I80F48, math_error, SolendMocksError};
+use crate::{math_error, SolendMocksError};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
+use marginfi_type_crate::constants::EXP_10_I80F48;
 
 // Account versions (Solend uses versions instead of discriminators)
 pub const PROGRAM_VERSION: u8 = 1;
@@ -18,9 +19,6 @@ pub const RESERVE_LEN: usize = 619;
 // Obligation size constant for manual validation (Solend's official size)
 pub const OBLIGATION_LEN: usize = 1300;
 pub const LENDING_MARKET_LEN: usize = 290;
-
-// assert_struct_size!(MinimalReserve, RESERVE_LEN);
-// assert_struct_align!(MinimalReserve, 1);
 
 // EXPERIMENTAL: Using Anchor's zero_copy with manual 1-byte discriminator
 // This treats Solend's version byte as an Anchor discriminator

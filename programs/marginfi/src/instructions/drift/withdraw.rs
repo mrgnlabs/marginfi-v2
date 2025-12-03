@@ -422,7 +422,7 @@ impl<'info> DriftWithdraw<'info> {
         // Construct remaining accounts in the required order for Drift:
         // 1. Oracle accounts (if provided) - main oracle first, then reward oracle
         // 2. Spot market accounts - main spot market first, then reward spot market
-        // 3. Token mint (if needed for Token-2022)
+        // 3. Token mint (required for Token-2022, harmless to include for regular mints)
         //
         // IMPORTANT: If admin deposits exist in other markets (rewards), you MUST:
         // 1. Include the reward oracle and spot market accounts

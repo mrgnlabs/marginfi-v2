@@ -227,7 +227,7 @@ impl<'info> DriftInitUser<'info> {
         // Construct remaining accounts in the required order for Drift:
         // 1. Oracle accounts (if provided)
         // 2. Spot market account (always required)
-        // 3. Token mint (if needed for Token-2022)
+        // 3. Token mint (required for Token-2022, harmless to include for regular mints)
         let mut remaining_accounts = Vec::new();
 
         // Add oracle if provided (not needed for USDC/market 0)
