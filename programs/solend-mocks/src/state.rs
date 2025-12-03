@@ -20,9 +20,6 @@ pub const RESERVE_LEN: usize = 619;
 pub const OBLIGATION_LEN: usize = 1300;
 pub const LENDING_MARKET_LEN: usize = 290;
 
-// assert_struct_size!(MinimalReserve, RESERVE_LEN);
-// assert_struct_align!(MinimalReserve, 1);
-
 // EXPERIMENTAL: Using Anchor's zero_copy with manual 1-byte discriminator
 // This treats Solend's version byte as an Anchor discriminator
 // WARNING: This is an experimental approach to load Solend accounts through Anchor
