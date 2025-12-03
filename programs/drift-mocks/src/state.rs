@@ -6,16 +6,6 @@ pub const SPOT_MARKET_DISCRIMINATOR: [u8; 8] = [100, 177, 8, 107, 168, 65, 65, 3
 pub const USER_DISCRIMINATOR: [u8; 8] = [159, 117, 95, 227, 239, 151, 58, 236];
 pub const USER_STATS_DISCRIMINATOR: [u8; 8] = [176, 223, 136, 27, 122, 79, 32, 227];
 
-// Size assertions based on actual Drift account sizes
-// assert_struct_size!(MinimalSpotMarket, 776);
-// assert_struct_size!(MinimalUser, 4376);
-// assert_struct_size!(MinimalUserStats, 240);
-
-// Alignment requirements
-// assert_struct_align!(MinimalSpotMarket, 8);
-// assert_struct_align!(MinimalUser, 8);
-// assert_struct_align!(MinimalUserStats, 8);
-
 /// Minimal representation of a spot position within a User account
 #[zero_copy(unsafe)]
 #[repr(C)]
