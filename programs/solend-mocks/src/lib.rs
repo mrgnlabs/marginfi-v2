@@ -1,4 +1,3 @@
-pub mod constants;
 pub mod cpi;
 pub mod macros;
 pub mod state;

@@ -1,4 +1,5 @@
-use crate::{constants::EXP_10_I80F48, math_error, SolendMocksError};
+use crate::{math_error, SolendMocksError};
+use marginfi_type_crate::constants::EXP_10_I80F48;
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 
