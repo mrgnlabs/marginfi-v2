@@ -497,9 +497,8 @@ impl CollateralExchangeRate {
         } else {
             let mint_supply = I80F48::from_num(reserve.collateral_mint_total_supply);
 
-            let rate = mint_supply
-                .checked_div(total_liquidity)
-                .ok_or_else(math_error!())?;
+            // Safe to do the unchecked version here since we explicitly check for zeros above
+            let rate = mint_supply / total_liquidity;
 
             Ok(CollateralExchangeRate(rate))
         }
@@ -508,7 +507,8 @@ impl CollateralExchangeRate {
     /// Convert collateral to liquidity using this rate
     pub fn collateral_to_liquidity(&self, collateral_amount: u64) -> Result<u64> {
         let collateral = I80F48::from_num(collateral_amount);
-        let liquidity = collateral.checked_div(self.0).ok_or_else(math_error!())?;
+        // Safe to do the unchecked version here since we explicitly check for zeros above
+        let liquidity = collateral / self.0;
 
         liquidity
             .checked_to_num::<u64>()
