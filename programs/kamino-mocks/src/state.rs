@@ -212,6 +212,8 @@ impl MinimalReserve {
     }
 }
 
+// TODO: factor out these conversion functions into type-crate and use in Kamino and Solend
+
 /// Safe conversion from i128 to I80F48
 #[inline]
 fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
@@ -242,8 +244,7 @@ pub fn adjust_i64(raw: i64, liq_to_col_ratio: I80F48) -> Result<i64> {
     let adj = I80F48::from_num(raw)
         .checked_mul(liq_to_col_ratio)
         .ok_or_else(math_error!())?;
-    adj.checked_to_num::<i64>()
-        .ok_or(KaminoMocksError::MathError.into())
+    Ok(adj.checked_to_num::<i64>().ok_or_else(math_error!())?)
 }
 
 /// Wrapper for u64 values (used by Pyth confidence)
@@ -252,8 +253,7 @@ pub fn adjust_u64(raw: u64, liq_to_col_ratio: I80F48) -> Result<u64> {
     let adj = I80F48::from_num(raw)
         .checked_mul(liq_to_col_ratio)
         .ok_or_else(math_error!())?;
-    adj.checked_to_num::<u64>()
-        .ok_or(KaminoMocksError::MathError.into())
+    Ok(adj.checked_to_num::<u64>().ok_or_else(math_error!())?)
 }
 
 /// A minimal copy of Kamino's Obligation for zero-copy deserialization

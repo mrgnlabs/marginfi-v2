@@ -84,7 +84,7 @@ pub struct SolendMinimalReserve {
 impl SolendMinimalReserve {
     /// Returns (total_liquidity, total_collateral) both as I80F48
     /// scaled down by 10^liquidity_mint_decimals
-    fn scaled_supplies(&self) -> Result<(I80F48, I80F48)> {
+    pub fn scaled_supplies(&self) -> Result<(I80F48, I80F48)> {
         let decimals: I80F48 = EXP_10_I80F48[self.liquidity_mint_decimals as usize];
 
         // Calculate total liquidity (available + borrowed - fees)
@@ -99,60 +99,6 @@ impl SolendMinimalReserve {
             .ok_or_else(math_error!())?;
 
         Ok((total_liq, total_col))
-    }
-
-    /// Core oracle value adjustment based on collateral/liquidity exchange rate
-    ///
-    /// Applies the formula: adjusted = raw * (total_liquidity / total_collateral)
-    /// This adjusts oracle values to account for the exchange rate between cTokens and underlying tokens.
-    fn adjust_oracle_value(&self, raw: I80F48) -> Result<I80F48> {
-        // Prevent division by zero on reserves that have no assets
-        if self.collateral_mint_total_supply == 0 {
-            return Ok(raw);
-        }
-
-        let (total_liq, total_col) = self.scaled_supplies()?;
-
-        let adjusted: I80F48 = raw
-            .checked_mul(total_liq)
-            .ok_or_else(math_error!())?
-            .checked_div(total_col)
-            .ok_or_else(math_error!())?;
-
-        Ok(adjusted)
-    }
-
-    /// Wrapper for i64 values (used by Pyth Pull oracle prices)
-    #[inline]
-    pub fn adjust_i64(&self, raw: i64) -> Result<i64> {
-        let raw_fx = I80F48::from_num(raw);
-        let adjusted = self.adjust_oracle_value(raw_fx)?;
-
-        adjusted
-            .checked_to_num::<i64>()
-            .ok_or(SolendMocksError::MathError.into())
-    }
-
-    /// Wrapper for u64 values (used by Pyth Pull oracle confidence intervals)
-    #[inline]
-    pub fn adjust_u64(&self, raw: u64) -> Result<u64> {
-        let raw_fx = I80F48::from_num(raw);
-        let adjusted = self.adjust_oracle_value(raw_fx)?;
-
-        adjusted
-            .checked_to_num::<u64>()
-            .ok_or(SolendMocksError::MathError.into())
-    }
-
-    /// Wrapper for i128 values (used by Switchboard Pull oracles)
-    #[inline]
-    pub fn adjust_i128(&self, raw: i128) -> Result<i128> {
-        let raw_fx = I80F48::from_num(raw);
-        let adjusted = self.adjust_oracle_value(raw_fx)?;
-
-        adjusted
-            .checked_to_num::<i128>()
-            .ok_or(SolendMocksError::MathError.into())
     }
 
     /// Convert collateral tokens to liquidity tokens
@@ -231,6 +177,50 @@ impl SolendMinimalReserve {
         // Solend uses INITIAL_COLLATERAL_RATE = 1
         I80F48::from_num(1)
     }
+}
+
+// TODO: factor out these conversion functions into type-crate and use in Kamino and Solend
+
+/// Safe conversion from i128 to I80F48
+#[inline]
+fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
+    const FRAC_BITS: u32 = 48;
+    const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
+    const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
+
+    if !(SHIFTED_MIN_I128..=SHIFTED_MAX_I128).contains(&x) {
+        return None;
+    }
+    // Safe: (x << 48) cannot overflow by the guard above
+    Some(I80F48::from_bits(x << FRAC_BITS))
+}
+
+/// Wrapper for i128 values (used by Switchboard Pull oracles)
+#[inline]
+pub fn adjust_i128(raw: i128, liq_to_col_ratio: I80F48) -> Result<i128> {
+    let raw_fx = i80_from_i128_checked(raw).ok_or_else(math_error!())?;
+    let adj_fx = raw_fx
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
+}
+
+/// Wrapper for i64 values (used by Pyth Pull oracle prices)
+#[inline]
+pub fn adjust_i64(raw: i64, liq_to_col_ratio: I80F48) -> Result<i64> {
+    let adj = I80F48::from_num(raw)
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    Ok(adj.checked_to_num::<i64>().ok_or_else(math_error!())?)
+}
+
+/// Wrapper for u64 values (used by Pyth Pull oracle confidence intervals)
+#[inline]
+pub fn adjust_u64(raw: u64, liq_to_col_ratio: I80F48) -> Result<u64> {
+    let adj = I80F48::from_num(raw)
+        .checked_mul(liq_to_col_ratio)
+        .ok_or_else(math_error!())?;
+    Ok(adj.checked_to_num::<u64>().ok_or_else(math_error!())?)
 }
 
 /// Convert a Solend WAD-scaled `u128` (value × 10¹⁸) to `I80F48`.

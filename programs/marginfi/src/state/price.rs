@@ -9,7 +9,10 @@ use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state
 use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
-use kamino_mocks::state::{adjust_i128, adjust_i64, adjust_u64, MinimalReserve};
+use kamino_mocks::state::{
+    adjust_i128 as kamino_adjust_i128, adjust_i64 as kamino_adjust_i64,
+    adjust_u64 as kamino_adjust_u64, MinimalReserve,
+};
 use marginfi_type_crate::{
     constants::{
         CONF_INTERVAL_MULTIPLE, EXP_10_I80F48, MAX_CONF_INTERVAL, STD_DEV_MULTIPLE, U32_MAX,
@@ -19,6 +22,10 @@ use marginfi_type_crate::{
 };
 use pyth_solana_receiver_sdk::price_update::{self, FeedId, PriceUpdateV2};
 use pyth_solana_receiver_sdk::PYTH_PUSH_ORACLE_ID;
+use solend_mocks::state::{
+    adjust_i128 as solend_adjust_i128, adjust_i64 as solend_adjust_i64,
+    adjust_u64 as solend_adjust_u64,
+};
 use std::{cell::Ref, cmp::min};
 use switchboard_on_demand::{
     CurrentResult, Discriminator, PullFeedAccountData, SPL_TOKEN_PROGRAM_ID,
@@ -267,12 +274,14 @@ impl OraclePriceFeedAdapter {
                     let liq_to_col_ratio = total_liq / total_col;
 
                     // Adjust prices & confidence in place
-                    price_feed.price.price = adjust_i64(price_feed.price.price, liq_to_col_ratio)?;
+                    price_feed.price.price =
+                        kamino_adjust_i64(price_feed.price.price, liq_to_col_ratio)?;
                     price_feed.ema_price.price =
-                        adjust_i64(price_feed.ema_price.price, liq_to_col_ratio)?;
-                    price_feed.price.conf = adjust_u64(price_feed.price.conf, liq_to_col_ratio)?;
+                        kamino_adjust_i64(price_feed.ema_price.price, liq_to_col_ratio)?;
+                    price_feed.price.conf =
+                        kamino_adjust_u64(price_feed.price.conf, liq_to_col_ratio)?;
                     price_feed.ema_price.conf =
-                        adjust_u64(price_feed.ema_price.conf, liq_to_col_ratio)?;
+                        kamino_adjust_u64(price_feed.ema_price.conf, liq_to_col_ratio)?;
                 }
 
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
@@ -318,9 +327,9 @@ impl OraclePriceFeedAdapter {
 
                     // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
                     price_feed.feed.result.value =
-                        adjust_i128(price_feed.feed.result.value, liq_to_col_ratio)?;
+                        kamino_adjust_i128(price_feed.feed.result.value, liq_to_col_ratio)?;
                     price_feed.feed.result.std_dev =
-                        adjust_i128(price_feed.feed.result.std_dev, liq_to_col_ratio)?;
+                        kamino_adjust_i128(price_feed.feed.result.std_dev, liq_to_col_ratio)?;
                 }
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
@@ -485,12 +494,20 @@ impl OraclePriceFeedAdapter {
                 let mut price_feed =
                     PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
 
-                // Adjust Pyth prices & confidence in place
-                price_feed.price.price = reserve.adjust_i64(price_feed.price.price)?;
-                price_feed.ema_price.price = reserve.adjust_i64(price_feed.ema_price.price)?;
-                price_feed.price.conf = reserve.adjust_u64(price_feed.price.conf)?;
-                price_feed.ema_price.conf = reserve.adjust_u64(price_feed.ema_price.conf)?;
+                let (total_liq, total_col) = reserve.scaled_supplies()?;
+                if total_col > I80F48::ZERO {
+                    let liq_to_col_ratio = total_liq / total_col;
 
+                    // Adjust Pyth prices & confidence in place
+                    price_feed.price.price =
+                        solend_adjust_i64(price_feed.price.price, liq_to_col_ratio)?;
+                    price_feed.ema_price.price =
+                        solend_adjust_i64(price_feed.ema_price.price, liq_to_col_ratio)?;
+                    price_feed.price.conf =
+                        solend_adjust_u64(price_feed.price.conf, liq_to_col_ratio)?;
+                    price_feed.ema_price.conf =
+                        solend_adjust_u64(price_feed.ema_price.conf, liq_to_col_ratio)?;
+                }
                 Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
             }
             OracleSetup::SolendSwitchboardPull => {
@@ -527,10 +544,16 @@ impl OraclePriceFeedAdapter {
                     max_age,
                 )?;
 
-                // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
-                price_feed.feed.result.value = reserve.adjust_i128(price_feed.feed.result.value)?;
-                price_feed.feed.result.std_dev =
-                    reserve.adjust_i128(price_feed.feed.result.std_dev)?;
+                let (total_liq, total_col) = reserve.scaled_supplies()?;
+                if total_col > I80F48::ZERO {
+                    let liq_to_col_ratio = total_liq / total_col;
+
+                    // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
+                    price_feed.feed.result.value =
+                        solend_adjust_i128(price_feed.feed.result.value, liq_to_col_ratio)?;
+                    price_feed.feed.result.std_dev =
+                        solend_adjust_i128(price_feed.feed.result.std_dev, liq_to_col_ratio)?;
+                }
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
