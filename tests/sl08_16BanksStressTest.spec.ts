@@ -66,6 +66,7 @@ describe("sl08: 16 Banks Stress Test", () => {
 
   const startingSeed = 800;
   const REGULAR_BANKS_COUNT = 15;
+  const SOLEND_BANKS_COUNT = 8; // Limited by MAX_INTEGRATION_POSITIONS
 
   const seedAmountLst = new BN(10 * 10 ** ecosystem.lstAlphaDecimals);
   const userDepositAmountUsdc = new BN(1000 * 10 ** ecosystem.usdcDecimals);
@@ -101,9 +102,9 @@ describe("sl08: 16 Banks Stress Test", () => {
     throwawayGroup = result.throwawayGroup;
   });
 
-  it("setup 15 Solend banks with obligations", async () => {
+  it("setup Solend banks with obligations", async () => {
     const bankConfigs = [
-      ...Array.from({ length: 15 }, (_, i) => ({
+      ...Array.from({ length: SOLEND_BANKS_COUNT }, (_, i) => ({
         mint: ecosystem.usdcMint.publicKey,
         reserve: SOLEND_USDC_RESERVE,
         collateralMint: SOLEND_USDC_COLLATERAL_MINT,
@@ -352,7 +353,7 @@ describe("sl08: 16 Banks Stress Test", () => {
     }
   });
 
-  it("(user A) worst-case deposit complexity: 15 Solend deposits + 1 regular borrow", async () => {
+  it("(user A) worst-case deposit complexity: 8 Solend deposits + 1 regular borrow", async () => {
     for (let i = 0; i < solendBanks.length; i++) {
       const bank = solendBanks[i];
 
@@ -446,7 +447,8 @@ describe("sl08: 16 Banks Stress Test", () => {
       const price = bytesToF64(priceWrapped);
       return price !== 0;
     });
-    assert.equal(nonZeroPrices.length, 16);
+    // 8 Solend deposits + 1 borrow = 9 positions
+    assert.equal(nonZeroPrices.length, SOLEND_BANKS_COUNT + 1);
   });
 
   it("(user B) worst-case borrow complexity: 1 Solend deposit + 15 regular borrows", async () => {

@@ -232,7 +232,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     }
   });
 
-  it("(admin) Tries to deposit into 9th Kamino bank - should fail with KaminoPositionLimitExceeded", async () => {
+  it("(admin) Tries to deposit into 9th Kamino bank - should fail with IntegrationPositionLimitExceeded", async () => {
     const user = groupAdmin;
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const market = kaminoAccounts.get(MARKET);
@@ -289,7 +289,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     depositTx.sign(user.wallet);
     const result = await banksClient.tryProcessTransaction(depositTx);
 
-    // Should fail with error 6212 (0x1844 in hex) - KaminoPositionLimitExceeded
+    // Should fail with error 6212 (0x1844 in hex) - IntegrationPositionLimitExceeded
     assertBankrunTxFailed(result, 6212);
   });
 

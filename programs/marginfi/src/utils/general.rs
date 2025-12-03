@@ -405,3 +405,12 @@ pub fn is_drift_asset_tag(asset_tag: u8) -> bool {
 pub fn is_solend_asset_tag(asset_tag: u8) -> bool {
     asset_tag == ASSET_TAG_SOLEND
 }
+
+/// Helper function - checks if asset tag is an integration type (Kamino, Drift, or Solend)
+/// These integrations share a position limit due to their 3-account-per-position overhead
+pub fn is_integration_asset_tag(asset_tag: u8) -> bool {
+    matches!(
+        asset_tag,
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND
+    )
+}
