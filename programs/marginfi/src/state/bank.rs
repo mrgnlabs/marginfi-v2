@@ -31,7 +31,7 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        CLOSE_ENABLED_FLAG, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
@@ -108,9 +108,7 @@ pub trait BankImpl {
     ) -> MarginfiResult;
     fn socialize_loss(&mut self, loss_amount: I80F48) -> MarginfiResult<bool>;
     fn get_flag(&self, flag: u64) -> bool;
-    fn override_emissions_flag(&mut self, flag: u64);
     fn update_flag(&mut self, value: bool, flag: u64);
-    fn verify_emissions_flags(flags: u64) -> bool;
     fn verify_group_flags(flags: u64) -> bool;
     fn increment_lending_position_count(&mut self);
     fn decrement_lending_position_count(&mut self);
@@ -158,9 +156,9 @@ impl BankImpl for Bank {
             last_update: current_timestamp,
             config,
             flags: CLOSE_ENABLED_FLAG,
-            emissions_rate: 0,
-            emissions_remaining: I80F48::ZERO.into(),
-            emissions_mint: Pubkey::default(),
+            _emissions_rate_deprecated: 0,
+            _emissions_remaining_deprecated: I80F48::ZERO.into(),
+            _emissions_mint_deprecated: Pubkey::default(),
             collected_program_fees_outstanding: I80F48::ZERO.into(),
             emode: EmodeSettings::zeroed(),
             fees_destination_account: Pubkey::default(),
@@ -670,11 +668,6 @@ impl BankImpl for Bank {
         (self.flags & flag) == flag
     }
 
-    fn override_emissions_flag(&mut self, flag: u64) {
-        assert!(Self::verify_emissions_flags(flag));
-        self.flags = flag;
-    }
-
     fn update_flag(&mut self, value: bool, flag: u64) {
         assert!(Self::verify_group_flags(flag));
 
@@ -683,10 +676,6 @@ impl BankImpl for Bank {
         } else {
             self.flags &= !flag;
         }
-    }
-
-    fn verify_emissions_flags(flags: u64) -> bool {
-        flags & EMISSION_FLAGS == flags
     }
 
     fn verify_group_flags(flags: u64) -> bool {

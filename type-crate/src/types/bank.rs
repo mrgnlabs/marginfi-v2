@@ -78,17 +78,17 @@ pub struct Bank {
 
     /// Bank Config Flags
     ///
-    /// - EMISSIONS_FLAG_BORROW_ACTIVE: 1
-    /// - EMISSIONS_FLAG_LENDING_ACTIVE: 2
     /// - PERMISSIONLESS_BAD_DEBT_SETTLEMENT: 4
     /// - FREEZE_SETTINGS: 8
     ///
+    /// Note: Emissions flags (1, 2) are deprecated and no longer used.
     pub flags: u64,
-    /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
-    /// (bank mint) (native amount) per 1 YEAR.
-    pub emissions_rate: u64,
-    pub emissions_remaining: WrappedI80F48,
-    pub emissions_mint: Pubkey,
+    /// Deprecated: Emissions have been sunset. This field is preserved for account layout compatibility.
+    pub _emissions_rate_deprecated: u64,
+    /// Deprecated: Emissions have been sunset. This field is preserved for account layout compatibility.
+    pub _emissions_remaining_deprecated: WrappedI80F48,
+    /// Deprecated: Emissions have been sunset. This field is preserved for account layout compatibility.
+    pub _emissions_mint_deprecated: Pubkey,
 
     /// Fees collected and pending withdraw for the `FeeState.global_fee_wallet`'s canonical ATA for `mint`
     pub collected_program_fees_outstanding: WrappedI80F48,

@@ -185,31 +185,6 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
-    /// (delegate_emissions_admin only)
-    pub fn lending_pool_setup_emissions(
-        ctx: Context<LendingPoolSetupEmissions>,
-        flags: u64,
-        rate: u64,
-        total_emissions: u64,
-    ) -> MarginfiResult {
-        marginfi_group::lending_pool_setup_emissions(ctx, flags, rate, total_emissions)
-    }
-
-    /// (delegate_emissions_admin only)
-    pub fn lending_pool_update_emissions_parameters(
-        ctx: Context<LendingPoolUpdateEmissionsParameters>,
-        emissions_flags: Option<u64>,
-        emissions_rate: Option<u64>,
-        additional_emissions: Option<u64>,
-    ) -> MarginfiResult {
-        marginfi_group::lending_pool_update_emissions_parameters(
-            ctx,
-            emissions_flags,
-            emissions_rate,
-            additional_emissions,
-        )
-    }
-
     /// Handle bad debt of a bankrupt marginfi account for a given bank.
     pub fn lending_pool_handle_bankruptcy<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingPoolHandleBankruptcy<'info>>,
@@ -285,18 +260,6 @@ pub mod marginfi {
         marginfi_account::lending_account_close_balance(ctx)
     }
 
-    pub fn lending_account_withdraw_emissions<'info>(
-        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissions<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_withdraw_emissions(ctx)
-    }
-
-    pub fn lending_account_settle_emissions(
-        ctx: Context<LendingAccountSettleEmissions>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_settle_emissions(ctx)
-    }
-
     /// Liquidate a lending account balance of an unhealthy marginfi account
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
@@ -316,12 +279,6 @@ pub mod marginfi {
         ctx: Context<'_, '_, 'info, 'info, LendingAccountEndFlashloan<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_end_flashloan(ctx)
-    }
-
-    pub fn marginfi_account_update_emissions_destination_account<'info>(
-        ctx: Context<'_, '_, 'info, 'info, MarginfiAccountUpdateEmissionsDestinationAccount<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::marginfi_account_update_emissions_destination_account(ctx)
     }
 
     // Operational instructions
@@ -390,12 +347,6 @@ pub mod marginfi {
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
-    }
-
-    pub fn lending_account_withdraw_emissions_permissionless<'info>(
-        ctx: Context<'_, '_, 'info, 'info, LendingAccountWithdrawEmissionsPermissionless<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_withdraw_emissions_permissionless(ctx)
     }
 
     /// (Permissionless) Refresh the internal risk engine health cache. Useful for liquidators and

@@ -35,10 +35,6 @@ pub fn lending_pool_close_bank(ctx: Context<LendingPoolCloseBank>) -> MarginfiRe
                 .is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
         MarginfiError::BankCannotClose
     );
-    check!(
-        I80F48::from(bank.emissions_remaining).is_zero_with_tolerance(ZERO_AMOUNT_THRESHOLD),
-        MarginfiError::BankCannotClose
-    );
 
     drop(bank);
 

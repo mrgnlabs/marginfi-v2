@@ -53,7 +53,6 @@ pub fn transfer_to_new_account(ctx: Context<TransferToNewAccount>) -> MarginfiRe
         current_timestamp,
     );
     new_account.lending_account = old_account.lending_account;
-    new_account.emissions_destination_account = old_account.emissions_destination_account;
     new_account.account_flags = old_account.account_flags;
     new_account.migrated_from = ctx.accounts.old_marginfi_account.key();
 
@@ -177,7 +176,6 @@ pub fn transfer_to_new_account_pda(
         current_timestamp,
     );
     new_account.lending_account = old_account.lending_account;
-    new_account.emissions_destination_account = old_account.emissions_destination_account;
     new_account.account_flags = old_account.account_flags;
     new_account.migrated_from = ctx.accounts.old_marginfi_account.key();
     new_account.account_index = account_index;
