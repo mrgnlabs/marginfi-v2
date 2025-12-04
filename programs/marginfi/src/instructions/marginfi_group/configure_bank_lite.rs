@@ -21,6 +21,7 @@ pub fn lending_pool_configure_bank_interest_only(
         bank.config
             .interest_rate_config
             .update(&interest_rate_config);
+        bank.config.interest_rate_config.validate()?;
         msg!("Bank configured!");
     }
 
