@@ -12,8 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        assert_within_one_token, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
-        is_kamino_asset_tag, validate_bank_state, InstructionKind,
+        assert_within_one_token, fetch_asset_price_for_bank_low_bias,
+        fetch_unbiased_price_for_bank, is_kamino_asset_tag, validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
 };
@@ -97,8 +97,12 @@ pub fn kamino_withdraw<'info>(
 
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
-            let price =
-                fetch_asset_price_for_bank_low_bias(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+            let price = fetch_asset_price_for_bank_low_bias(
+                &bank_key,
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);

@@ -12,8 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank, is_marginfi_asset_tag,
-        validate_bank_state, InstructionKind,
+        self, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
+        is_marginfi_asset_tag, validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
