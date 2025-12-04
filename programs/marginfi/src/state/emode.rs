@@ -4,8 +4,11 @@ use fixed_macro::types::I80F48;
 use marginfi_type_crate::types::{BankConfig, EmodeSettings, EMODE_ON};
 
 use crate::{
-    check, errors::MarginfiError, prelude::MarginfiResult, state::bank_config::BankConfigImpl,
-    state::marginfi_account::RequirementType,
+    check,
+    errors::MarginfiError,
+    math_error,
+    prelude::MarginfiResult,
+    state::{bank_config::BankConfigImpl, marginfi_account::RequirementType},
 };
 use marginfi_type_crate::types::u32_to_basis;
 
@@ -59,15 +62,19 @@ pub fn calculate_max_leverage(
     );
 
     //  ratio =  CW/LW
-    let ratio = collateral_weight / liability_weight;
+    let ratio: I80F48 = collateral_weight
+        .checked_div(liability_weight)
+        .ok_or_else(math_error!())?;
 
     // denominator = 1 - CW/LW
-    let denominator = I80F48::ONE - ratio;
+    let denominator: I80F48 = I80F48::ONE - ratio;
 
     check!(denominator > I80F48::ZERO, MarginfiError::BadEmodeConfig);
 
     //  leverage: 1 / (1 - CW/LW)
-    let leverage = I80F48::ONE / denominator;
+    let leverage: I80F48 = I80F48::ONE
+        .checked_div(denominator)
+        .ok_or_else(math_error!())?;
 
     Ok(leverage)
 }
