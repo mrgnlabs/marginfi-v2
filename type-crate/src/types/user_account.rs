@@ -40,11 +40,8 @@ pub struct MarginfiAccount {
     ///   receivership, a liquidator is able to control borrows and withdraws until the end of the
     ///   tx. This flag will only appear within a tx.
     pub account_flags: u64, // 8
-    /// Set with `update_emissions_destination_account`. Emissions rewards can be withdrawn to the
-    /// cannonical ATA of this wallet without the user's input (withdraw_emissions_permissionless).
-    /// If pubkey default, the user has not opted into this feature, and must claim emissions
-    /// manually (withdraw_emissions).
-    pub emissions_destination_account: Pubkey, // 32
+    /// Deprecated: Emissions have been sunset. This field is preserved for account layout compatibility.
+    pub _emissions_destination_account_deprecated: Pubkey, // 32
     pub health_cache: HealthCache,
     /// If this account was migrated from another one, store the original account key
     pub migrated_from: Pubkey, // 32
@@ -150,7 +147,8 @@ pub struct Balance {
     pub _pad0: [u8; 6],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
-    pub emissions_outstanding: WrappedI80F48,
+    /// Deprecated: Emissions have been sunset. This field is preserved for account layout compatibility.
+    pub _emissions_outstanding_deprecated: WrappedI80F48,
     pub last_update: u64,
     pub _padding: [u64; 1],
 }
@@ -202,7 +200,7 @@ impl Balance {
             _pad0: [0; 6],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
-            emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),
+            _emissions_outstanding_deprecated: WrappedI80F48::from(I80F48::ZERO),
             last_update: 0,
             _padding: [0; 1],
         }

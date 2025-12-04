@@ -545,42 +545,6 @@ impl MarginfiAccountFixture {
             .await
     }
 
-    pub async fn try_withdraw_emissions(
-        &self,
-        bank: &BankFixture,
-        recv_account: &TokenAccountFixture,
-    ) -> std::result::Result<(), BanksClientError> {
-        let emissions_mint = bank.load().await.emissions_mint;
-        let ix = Instruction {
-            program_id: marginfi::ID,
-            accounts: marginfi::accounts::LendingAccountWithdrawEmissions {
-                group: self.load().await.group,
-                marginfi_account: self.key,
-                authority: self.ctx.borrow().payer.pubkey(),
-                emissions_mint,
-                emissions_auth: get_emissions_authority_address(bank.key, emissions_mint).0,
-                emissions_vault: get_emissions_token_account_address(bank.key, emissions_mint).0,
-                destination_account: recv_account.key,
-                bank: bank.key,
-                token_program: recv_account.token_program,
-            }
-            .to_account_metas(Some(true)),
-            data: marginfi::instruction::LendingAccountWithdrawEmissions {}.data(),
-        };
-
-        let ctx = self.ctx.borrow_mut();
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&ctx.payer.pubkey().clone()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
-        );
-
-        ctx.banks_client
-            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
-            .await
-    }
-
     pub async fn make_lending_account_start_flashloan_ix(&self, end_index: u64) -> Instruction {
         Instruction {
             program_id: marginfi::ID,

@@ -210,8 +210,7 @@ mod tests {
 
     use crate::{
         EndLiquidation, InitLiquidationRecord, LendingAccountEndFlashloan, LendingAccountRepay,
-        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
-        LendingAccountWithdrawEmissions, StartLiquidation,
+        LendingAccountStartFlashloan, LendingAccountWithdraw, StartLiquidation,
     };
 
     use super::*;
@@ -274,16 +273,6 @@ mod tests {
         // ─── LendingAccountRepay ─────────────────────────────────────────────────
         let got_repay = LendingAccountRepay::get_hash();
         let want_repay = ix_discriminators::LENDING_ACCOUNT_REPAY;
-        assert_eq!(got_repay, want_repay);
-
-        // ─── LendingAccountWithdrawEmissions ─────────────────────────────────────────────────
-        let got_repay = LendingAccountWithdrawEmissions::get_hash();
-        let want_repay = ix_discriminators::LENDING_SETTLE_EMISSIONS;
-        assert_eq!(got_repay, want_repay);
-
-        // ─── LendingAccountSettleEmissions ─────────────────────────────────────────────────
-        let got_repay = LendingAccountSettleEmissions::get_hash();
-        let want_repay = ix_discriminators::LENDING_WITHDRAW_EMISSIONS;
         assert_eq!(got_repay, want_repay);
 
         // ─── LendingAccountStartFlashloan ─────────────────────────────────────────────────
