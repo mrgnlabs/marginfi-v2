@@ -559,6 +559,7 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?;
 
         update_interest_rates(&mut self.cache, &interest_rates);
+
         Ok(())
     }
 
