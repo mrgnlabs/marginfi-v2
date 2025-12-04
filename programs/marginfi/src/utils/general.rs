@@ -334,9 +334,10 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
 }
 
 /// Fetch a low-biased price for a given bank from a properly structured remaining accounts slice as
-/// passed to any risk check. Errors if the bank is not found.
+/// passed to any risk check.
 ///
-/// * Errors if bank/oracles don't appear in the slice in the correct order
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+/// * If a RiskEngine available, consider `get_unbiased_price_for_bank` instead
 pub fn fetch_asset_price_for_bank_low_bias<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
@@ -356,10 +357,8 @@ pub fn fetch_asset_price_for_bank_low_bias<'info>(
 
 /// Fetch an unbiased oracle price (no safety bias) for a given bank.
 ///
-/// * Errors if the bank is not found or the price is zero.
-///
-/// * Typically used if a RiskEngine is not available, if a RiskEngine is already constructed, use
-/// `get_unbiased_price_for_bank` instead
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+/// * If a RiskEngine available, consider `get_unbiased_price_for_bank` instead
 pub fn fetch_unbiased_price_for_bank<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
@@ -376,6 +375,7 @@ pub fn fetch_unbiased_price_for_bank<'info>(
     Ok(price)
 }
 
+/// Locate a bank's oracle information from a properly formatted slice of remaining accounts.
 fn oracle_accounts_for_bank<'info>(
     bank_key: &Pubkey,
     bank: &Bank,

@@ -197,12 +197,12 @@ pub fn lending_account_borrow<'info>(
     risk_result?;
     health_cache.program_version = PROGRAM_VERSION;
 
+    let bank_pk = &ctx.accounts.bank.key();
+    let mut bank = ctx.accounts.bank.load_mut()?;
+    bank.update_bank_cache(group)?;
     if let Some(engine) = risk_engine {
-        if let Ok(price) = engine.get_unbiased_price_for_bank(&ctx.accounts.bank.key()) {
-            ctx.accounts
-                .bank
-                .load_mut()?
-                .update_cache_price(Some(price))?;
+        if let Ok(price) = engine.get_unbiased_price_for_bank(bank_pk) {
+            bank.update_cache_price(Some(price))?;
         }
     }
     health_cache.set_engine_ok(true);
