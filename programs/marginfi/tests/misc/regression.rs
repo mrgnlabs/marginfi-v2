@@ -73,7 +73,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(balance_1.emissions_outstanding),
+        I80F48::from(balance_1._emissions_outstanding_deprecated),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
@@ -99,7 +99,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("3806372611.588862122556122").unwrap()
     );
     assert_eq!(
-        I80F48::from(balance_2.emissions_outstanding),
+        I80F48::from(balance_2._emissions_outstanding_deprecated),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
@@ -151,7 +151,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(balance_1.emissions_outstanding),
+        I80F48::from(balance_1._emissions_outstanding_deprecated),
         I80F48::from_str("26891413.388324654086347").unwrap()
     );
     assert_eq!(
@@ -177,7 +177,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(balance_2.emissions_outstanding),
+        I80F48::from(balance_2._emissions_outstanding_deprecated),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
@@ -234,7 +234,7 @@ async fn account_field_values_reg() -> anyhow::Result<()> {
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
-        I80F48::from(balance_1.emissions_outstanding),
+        I80F48::from(balance_1._emissions_outstanding_deprecated),
         I80F48::from_str("0").unwrap()
     );
     assert_eq!(
@@ -671,15 +671,15 @@ async fn bank_field_values_reg() -> anyhow::Result<()> {
     assert_eq!(bank.config._padding1, [0; 32]);
 
     assert_eq!(
-        I80F48::from(bank.emissions_rate),
+        I80F48::from(bank._emissions_rate_deprecated),
         I80F48::from_str("170000").unwrap()
     );
     assert_eq!(
-        I80F48::from(bank.emissions_remaining),
+        I80F48::from(bank._emissions_remaining_deprecated),
         I80F48::from_str("130585694893.67407796351017").unwrap()
     );
     assert_eq!(
-        bank.emissions_mint,
+        bank._emissions_mint_deprecated,
         pubkey!("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
     );
     // Legacy banks have no program fees

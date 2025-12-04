@@ -108,9 +108,9 @@ async fn add_bank_success() -> anyhow::Result<()> {
             last_update,
             config,
             flags,
-            emissions_rate,
-            emissions_remaining,
-            emissions_mint,
+            _emissions_rate_deprecated,
+            _emissions_remaining_deprecated,
+            _emissions_mint_deprecated,
             collected_program_fees_outstanding,
             fees_destination_account,
             cache,
@@ -144,9 +144,9 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
             assert_eq!(flags, CLOSE_ENABLED_FLAG);
-            assert_eq!(emissions_rate, 0);
-            assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
-            assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(_emissions_rate_deprecated, 0);
+            assert_eq!(_emissions_mint_deprecated, Pubkey::new_from_array([0; 32]));
+            assert_eq!(_emissions_remaining_deprecated, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
             assert_eq!(cache, BankCache::default());
@@ -249,9 +249,9 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             last_update,
             config,
             flags,
-            emissions_rate,
-            emissions_remaining,
-            emissions_mint,
+            _emissions_rate_deprecated,
+            _emissions_remaining_deprecated,
+            _emissions_mint_deprecated,
             collected_program_fees_outstanding,
             fees_destination_account,
             cache,
@@ -285,9 +285,9 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(total_asset_shares, I80F48!(0.0).into());
             assert_eq!(config, bank_config);
             assert_eq!(flags, CLOSE_ENABLED_FLAG);
-            assert_eq!(emissions_rate, 0);
-            assert_eq!(emissions_mint, Pubkey::new_from_array([0; 32]));
-            assert_eq!(emissions_remaining, I80F48!(0.0).into());
+            assert_eq!(_emissions_rate_deprecated, 0);
+            assert_eq!(_emissions_mint_deprecated, Pubkey::new_from_array([0; 32]));
+            assert_eq!(_emissions_remaining_deprecated, I80F48!(0.0).into());
             assert_eq!(collected_program_fees_outstanding, I80F48!(0.0).into());
             assert_eq!(fees_destination_account, Pubkey::default());
             assert_eq!(cache, BankCache::default());
