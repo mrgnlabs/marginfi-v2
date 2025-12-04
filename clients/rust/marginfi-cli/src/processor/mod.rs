@@ -302,6 +302,8 @@ pub fn group_configure(
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
+            emode_max_init_leverage: None,
+            emode_max_maint_leverage: None,
         })
         .instructions()?;
 
