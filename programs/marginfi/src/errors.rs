@@ -208,7 +208,7 @@ pub enum MarginfiError {
     DailyWithdrawalLimitExceeded,
     #[msg("Cannot set daily withdrawal limit to zero")] // 6102
     ZeroWithdrawalLimit,
-    #[msg("Account is frozen")] // 6103
+    #[msg("Account is frozen by the group admin")] // 6103
     AccountFrozen,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
