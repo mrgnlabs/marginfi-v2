@@ -128,6 +128,11 @@ pub fn lending_account_withdraw<'info>(
         // If in deleverage mode and deleverage is complete, you get what's left!
         let amount_pre_fee = if bank.get_flag(TOKENLESS_REPAYMENTS_COMPLETE) {
             let actual = accessor::amount(&bank_liquidity_vault.to_account_info())?;
+            msg!(
+                "amount expected withdrawn: {:?}, actual: {:?}",
+                amount_pre_fee,
+                actual
+            );
             u64::min(amount_pre_fee, actual)
         } else {
             amount_pre_fee
