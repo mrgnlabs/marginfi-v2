@@ -538,16 +538,15 @@ impl BankImpl for Bank {
         Ok(())
     }
 
-    /// Updates bank cache with the actual values for interest/fee rates and oracle price.
+    /// Updates bank cache with the actual values for interest/fee rates.
     ///
     /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
     ///
     /// # Arguments
     /// * `group` - The marginfi group
-    /// * `oracle_price` - Optional oracle price (with confidence) used in this instruction (if any)
     fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
-        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
-        let total_liabilities_amount =
+        let total_assets_amount: I80F48 = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount: I80F48 =
             self.get_liability_amount(self.total_liability_shares.into())?;
 
         if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
@@ -560,7 +559,7 @@ impl BankImpl for Bank {
             .interest_rate_config
             .create_interest_rate_calculator(group);
 
-        let utilization_rate = total_liabilities_amount
+        let utilization_rate: I80F48 = total_liabilities_amount
             .checked_div(total_assets_amount)
             .ok_or_else(math_error!())?;
         let interest_rates = ir_calc
@@ -574,26 +573,28 @@ impl BankImpl for Bank {
         Ok(())
     }
 
+    /// Updates bank cache with the last used oracle price.
+    ///
+    /// Should be called in instructions that consume a bank's price to record the last-used value.
+    ///
+    /// # Arguments
+    /// * `group` - The marginfi group
+    /// * `oracle_price` - Optional oracle price (with confidence) used in this instruction (if any)
     fn update_cache_price(
         &mut self,
         oracle_price: Option<OraclePriceWithConfidence>,
     ) -> MarginfiResult<()> {
-        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
-        let total_liabilities_amount =
-            self.get_liability_amount(self.total_liability_shares.into())?;
-
-        if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
-            return Ok(());
-        }
-
         if let Some(price_with_confidence) = oracle_price {
             self.cache.last_oracle_price = price_with_confidence.price.into();
             self.cache.last_oracle_price_confidence = price_with_confidence.confidence.into();
             self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
+        } else {
+            msg!("price cache update failed");
         }
 
         Ok(())
     }
+
     fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,

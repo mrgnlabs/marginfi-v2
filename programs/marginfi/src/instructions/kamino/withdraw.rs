@@ -12,7 +12,7 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        assert_within_one_token, fetch_asset_price_for_bank, fetch_unbiased_price_for_bank,
+        assert_within_one_token, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
         is_kamino_asset_tag, validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
@@ -98,7 +98,7 @@ pub fn kamino_withdraw<'info>(
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
             let price =
-                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+                fetch_asset_price_for_bank_low_bias(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
@@ -200,19 +200,19 @@ pub fn kamino_withdraw<'info>(
         risk_result?;
         health_cache.program_version = PROGRAM_VERSION;
 
-        // Try to get price from risk engine, fallback to None for rates-only update
-        let price_for_cache =
-            risk_engine.and_then(|engine| engine.get_unbiased_price_for_bank(&bank_key).ok());
-
-        ctx.accounts
-            .bank
-            .load_mut()?
-            .update_cache_price(price_for_cache)?;
+        // Note: in flashloans, risk_engine is None, and we skip the cache price update.
+        let bank_loader = &ctx.accounts.bank;
+        if let Some(engine) = risk_engine {
+            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
+                bank_loader.load_mut()?.update_cache_price(Some(price))?;
+            }
+        }
 
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     } else {
-        // Update price cache even in receivership for consistency
+        // Note: the caller can simply omit risk accounts since the risk check is ignored here, in
+        // that case the cache doesn't update and this does nothing.
         let mut bank = ctx.accounts.bank.load_mut()?;
         let price_for_cache =
             fetch_unbiased_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts).ok();

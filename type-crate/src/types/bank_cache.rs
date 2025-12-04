@@ -35,10 +35,10 @@ pub struct BankCache {
     /// * in token, in native decimals, as I80F48
     pub accumulated_since_last_update: WrappedI80F48,
 
-    /// Oracle price used in the last instruction that modified this bank's shares
-    /// * Only updated when instruction modifies shares AND uses oracle price
-    /// * Not updated for operations that don't require prices (e.g., deposit, repay)
-    /// * Price in USD (or quote currency) per token, as I80F48 (includes any bias applied)
+    /// Oracle price used in the last instruction that consumed an oracle price
+    /// * Only updated when instruction uses an oracle price, not updated for operations that don't
+    ///   require prices (e.g., deposit, repay)
+    /// * Price in USD, with no price bias
     /// * Zero if never updated
     pub last_oracle_price: WrappedI80F48,
 
@@ -50,6 +50,7 @@ pub struct BankCache {
     /// Confidence interval reported by the oracle when last_oracle_price was fetched
     /// * Always non-negative
     /// * Zero if never updated
+    /// * Note: this value is the confidence reported by oracles, multiplied by `STD_DEV_MULTIPLE`
     pub last_oracle_price_confidence: WrappedI80F48,
     _padding: [u8; 24],
     _reserved0: [u8; 64],

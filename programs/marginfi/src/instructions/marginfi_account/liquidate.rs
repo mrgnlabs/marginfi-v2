@@ -7,7 +7,7 @@ use crate::state::marginfi_account::{
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
-    fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
+    fetch_asset_price_for_bank_low_bias, is_marginfi_asset_tag, validate_asset_tags,
     validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
 use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
@@ -162,18 +162,22 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
-    let risk_engine_for_prices =
+    let risk_engine_pre_liq =
         RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?;
-    let (pre_liquidation_health, _, _) = risk_engine_for_prices
+    let (pre_liquidation_health, _, _) = risk_engine_pre_liq
         .check_pre_liquidation_condition_and_get_account_health(
             Some(&ctx.accounts.liab_bank.key()),
             &mut None,
             false,
         )?;
-    let asset_price_for_cache =
-        risk_engine_for_prices.get_unbiased_price_for_bank(&ctx.accounts.asset_bank.key())?;
-    let liab_price_for_cache =
-        risk_engine_for_prices.get_unbiased_price_for_bank(&ctx.accounts.liab_bank.key())?;
+    // To record in the bank's price cache
+    let asset_price_unbiased = risk_engine_pre_liq
+        .get_unbiased_price_for_bank(&ctx.accounts.asset_bank.key())
+        .ok();
+    let liab_price_unbiased = risk_engine_pre_liq
+        .get_unbiased_price_for_bank(&ctx.accounts.liab_bank.key())
+        .ok();
+    // TODO (low priority) get `asset_price` and `liab_price` here instead of loading them later
 
     // ##Accounting changes##
 
@@ -184,7 +188,7 @@ pub fn lending_account_liquidate<'info>(
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&asset_bank)? - 1;
 
-        let asset_price: I80F48 = fetch_asset_price_for_bank(
+        let asset_price: I80F48 = fetch_asset_price_for_bank_low_bias(
             &asset_bank_key,
             &asset_bank,
             &clock,
@@ -385,10 +389,10 @@ pub fn lending_account_liquidate<'info>(
                 .into();
 
         asset_bank.update_bank_cache(group)?;
-        asset_bank.update_cache_price(Some(asset_price_for_cache))?;
+        asset_bank.update_cache_price(asset_price_unbiased)?;
 
         liab_bank.update_bank_cache(group)?;
-        liab_bank.update_cache_price(Some(liab_price_for_cache))?;
+        liab_bank.update_cache_price(liab_price_unbiased)?;
 
         (
             LiquidationBalances {

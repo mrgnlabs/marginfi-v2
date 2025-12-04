@@ -12,7 +12,7 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, fetch_asset_price_for_bank, fetch_unbiased_price_for_bank, is_marginfi_asset_tag,
+        self, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank, is_marginfi_asset_tag,
         validate_bank_state, InstructionKind,
     },
 };
@@ -75,7 +75,7 @@ pub fn lending_account_withdraw<'info>(
 
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
-            let price = fetch_asset_price_for_bank(
+            let price = fetch_asset_price_for_bank_low_bias(
                 &bank_loader.key(),
                 &bank,
                 &clock,
@@ -198,6 +198,7 @@ pub fn lending_account_withdraw<'info>(
         risk_result?;
         health_cache.program_version = PROGRAM_VERSION;
 
+        // Note: in flashloans, risk_engine is None, and we skip the cache price update.
         if let Some(engine) = risk_engine {
             if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
                 bank_loader.load_mut()?.update_cache_price(Some(price))?;
@@ -206,15 +207,12 @@ pub fn lending_account_withdraw<'info>(
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     } else {
-        // Update price cache even in receivership for consistency
+        // Note: the caller can simply omit risk accounts since the risk check is ignored here, in
+        // that case the cache doesn't update and this does nothing.
+        let bank_key = &bank_loader.key();
         let mut bank = bank_loader.load_mut()?;
-        let price_for_cache = fetch_unbiased_price_for_bank(
-            &bank_loader.key(),
-            &bank,
-            &clock,
-            ctx.remaining_accounts,
-        )
-        .ok();
+        let price_for_cache =
+            fetch_unbiased_price_for_bank(bank_key, &bank, &clock, ctx.remaining_accounts).ok();
 
         bank.update_cache_price(price_for_cache)?;
     }

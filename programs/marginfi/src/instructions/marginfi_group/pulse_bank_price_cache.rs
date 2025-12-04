@@ -1,5 +1,4 @@
 use crate::state::bank::BankImpl;
-use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter};
 use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
@@ -27,11 +26,6 @@ pub fn lending_pool_pulse_bank_price_cache<'info>(
 
 #[derive(Accounts)]
 pub struct LendingPoolPulseBankPriceCache<'info> {
-    #[account(
-        constraint = (
-            !group.load()?.is_protocol_paused()
-        ) @ MarginfiError::ProtocolPaused
-    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
