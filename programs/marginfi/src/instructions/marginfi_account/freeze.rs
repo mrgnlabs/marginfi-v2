@@ -15,7 +15,7 @@ pub fn set_account_freeze(ctx: Context<SetAccountFreeze>, frozen: bool) -> Margi
     if frozen {
         marginfi_account.set_flag(ACCOUNT_FROZEN, true);
     } else {
-        marginfi_account.unset_flag(ACCOUNT_FROZEN, false);
+        marginfi_account.unset_flag(ACCOUNT_FROZEN, true);
     }
     marginfi_account.last_update = Clock::get()?.unix_timestamp as u64;
 

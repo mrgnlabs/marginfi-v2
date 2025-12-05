@@ -96,13 +96,13 @@ pub struct TransferToNewAccount<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = old_marginfi_account.load()?;
-            let g = group.load()?;
-            is_signer_authorized(&a, g.admin, authority.key(), false)
-        } @ MarginfiError::Unauthorized,
+            account_not_frozen_for_authority(&a, authority.key())
+        } @ MarginfiError::AccountFrozen,
         constraint = {
             let a = old_marginfi_account.load()?;
-            account_not_frozen_for_authority(&a, authority.key())
-        } @ MarginfiError::AccountFrozen
+            let g = group.load()?;
+            is_signer_authorized(&a, g.admin, authority.key(), false)
+        } @ MarginfiError::Unauthorized
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -232,13 +232,13 @@ pub struct TransferToNewAccountPda<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = old_marginfi_account.load()?;
-            let g = group.load()?;
-            is_signer_authorized(&a, g.admin, authority.key(), false)
-        } @ MarginfiError::Unauthorized,
+            account_not_frozen_for_authority(&a, authority.key())
+        } @ MarginfiError::AccountFrozen,
         constraint = {
             let a = old_marginfi_account.load()?;
-            account_not_frozen_for_authority(&a, authority.key())
-        } @ MarginfiError::AccountFrozen
+            let g = group.load()?;
+            is_signer_authorized(&a, g.admin, authority.key(), false)
+        } @ MarginfiError::Unauthorized
     )]
     pub old_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
