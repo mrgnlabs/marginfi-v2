@@ -197,14 +197,15 @@ pub fn lending_account_borrow<'info>(
     risk_result?;
     health_cache.program_version = PROGRAM_VERSION;
 
-    let bank_pk = &ctx.accounts.bank.key();
+    let bank_pk = ctx.accounts.bank.key();
+    // Note: if engine none, skips price cache update.
+    let price =
+        risk_engine.and_then(|engine_ok| engine_ok.get_unbiased_price_for_bank(&bank_pk).ok());
+
     let mut bank = ctx.accounts.bank.load_mut()?;
     bank.update_bank_cache(group)?;
-    if let Some(engine) = risk_engine {
-        if let Ok(price) = engine.get_unbiased_price_for_bank(bank_pk) {
-            bank.update_cache_price(Some(price))?;
-        }
-    }
+    bank.update_cache_price(price)?;
+
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 
