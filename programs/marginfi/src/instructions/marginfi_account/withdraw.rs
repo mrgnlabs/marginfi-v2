@@ -27,7 +27,7 @@ use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, TOKENLESS_REPAYMENTS_COMPLETE},
     types::{
-        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
+        Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_DELEVERAGE,
         ACCOUNT_IN_RECEIVERSHIP,
     },
 };
@@ -52,7 +52,6 @@ pub fn lending_account_withdraw<'info>(
         bank_liquidity_vault_authority,
         bank: bank_loader,
         group: marginfi_group_loader,
-        authority,
         ..
     } = ctx.accounts;
     let clock = Clock::get()?;
@@ -139,7 +138,7 @@ pub fn lending_account_withdraw<'info>(
         };
 
         // Note: we only care about the withdraw limit in case of deleverage
-        if authority.key() == group.risk_admin {
+        if marginfi_account.get_flag(ACCOUNT_IN_DELEVERAGE) {
             let withdrawn_equity = calc_value(
                 I80F48::from_num(amount_pre_fee),
                 price,

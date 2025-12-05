@@ -16,7 +16,7 @@ use marginfi_type_crate::{
     constants::ix_discriminators,
     types::{
         HealthCache, LiquidationRecord, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED,
-        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+        ACCOUNT_IN_DELEVERAGE, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 
@@ -61,6 +61,7 @@ pub fn start_deleverage<'info>(
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let mut liq_record = ctx.accounts.liquidation_record.load_mut()?;
     liq_record.liquidation_receiver = ctx.accounts.risk_admin.key();
+    marginfi_account.set_flag(ACCOUNT_IN_DELEVERAGE, false);
     start_receivership(
         &mut marginfi_account,
         &mut liq_record,
