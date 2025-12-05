@@ -193,13 +193,10 @@ async fn bank_cache_updates_on_liquidation() -> anyhow::Result<()> {
     let sol_price_post: I80F48 = sol_bank_post.cache.last_oracle_price.into();
     let usdc_price_post: I80F48 = usdc_bank_post.cache.last_oracle_price.into();
 
-    // SOL bank (asset bank) has no liabilities, so cache is reset per update_bank_cache logic
-    // (when total_liability_shares == 0, cache is reset to default)
-    assert_eq!(
-        sol_price_post,
-        I80F48::ZERO,
-        "SOL bank cache should be zero since bank has no liabilities"
-    );
+    let expected_price: I80F48 = I80F48::from_num(sol_bank_f.get_price().await);
+
+    // SOL bank (asset bank) cache price still set even though it has no shares now
+    assert_eq_noise!(sol_price_post, expected_price);
 
     // USDC bank (liability bank) should have non-zero cached price after liquidation
     assert!(

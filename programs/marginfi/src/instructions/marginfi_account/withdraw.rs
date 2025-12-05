@@ -10,6 +10,7 @@ use crate::{
             calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
+        price::OraclePriceWithConfidence,
     },
     utils::{
         self, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
@@ -186,6 +187,10 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
+    // To update the bank's price cache
+    let maybe_price: Option<OraclePriceWithConfidence>;
+    let bank_pk = bank_loader.key();
+
     // Note: during receivership, we skip all health checks until the end of the transaction.
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
@@ -199,23 +204,19 @@ pub fn lending_account_withdraw<'info>(
         health_cache.program_version = PROGRAM_VERSION;
 
         // Note: in flashloans, risk_engine is None, and we skip the cache price update.
-        if let Some(engine) = risk_engine {
-            if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
-                bank_loader.load_mut()?.update_cache_price(Some(price))?;
-            }
-        }
+        maybe_price = risk_engine.and_then(|e| e.get_unbiased_price_for_bank(&bank_pk).ok());
+
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
     } else {
         // Note: the caller can simply omit risk accounts since the risk check is ignored here, in
         // that case the cache doesn't update and this does nothing.
-        let bank_key = &bank_loader.key();
-        let mut bank = bank_loader.load_mut()?;
-        let price_for_cache =
-            fetch_unbiased_price_for_bank(bank_key, &bank, &clock, ctx.remaining_accounts).ok();
-
-        bank.update_cache_price(price_for_cache)?;
+        let bank = bank_loader.load()?;
+        maybe_price =
+            fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();
     }
+
+    bank_loader.load_mut()?.update_cache_price(maybe_price)?;
 
     Ok(())
 }
