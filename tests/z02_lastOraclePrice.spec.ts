@@ -20,7 +20,7 @@ import {
   composeRemainingAccounts,
   depositIx,
   repayIx,
-  bankPricePulse,
+  pulseBankPrice,
 } from "./utils/user-instructions";
 import { accrueInterest } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -154,7 +154,6 @@ describe("Bank cache last oracle price", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
-
     // Bump the oracle price and refresh the on-chain oracle account
     const originalOraclePrice = oracles.lstAlphaPrice;
     const newOraclePrice = originalOraclePrice * 1.2;
@@ -164,7 +163,7 @@ describe("Bank cache last oracle price", () => {
     // Trigger a permissionless bank price pulse that will refresh the cache
     {
       const tx = new Transaction().add(
-        await bankPricePulse(user.mrgnBankrunProgram, {
+        await pulseBankPrice(user.mrgnBankrunProgram, {
           group: throwawayGroupPk,
           bank: banks[1],
           remaining: [oracles.pythPullLst.publicKey],
@@ -220,12 +219,14 @@ describe("Bank cache last oracle price", () => {
     assertI80F48Equal(afterFields.conf, beforeFields.conf);
   });
 
-  it("(user 0) full repay resets bank cache when liabilities go to zero", async () => {
+  it("(user 0) full repay resets bank cache, but not price, when liabs go to zero", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
 
-	    const bankBefore = await bankrunProgram.account.bank.fetch(banks[1]);
-	    readCacheFields(bankBefore.cache); // ensure cache is populated before repay
+    const bankBefore = await bankrunProgram.account.bank.fetch(banks[1]);
+    const { price: priceBefore, conf: confBefore } = readCacheFields(
+      bankBefore.cache
+    ); // ensure cache is populated before repay
 
     const tx = new Transaction().add(
       await repayIx(user.mrgnBankrunProgram, {
@@ -243,8 +244,8 @@ describe("Bank cache last oracle price", () => {
     const bankAfter = await bankrunProgram.account.bank.fetch(banks[1]);
     const { price, conf } = readCacheFields(bankAfter.cache);
 
-    // When total liabilities (or assets) go to zero, update_bank_cache resets the cache
-    assertI80F48Equal(price, 0);
-    assertI80F48Equal(conf, 0);
+    // When liabilities (or assets) go to zero, resets rest of cache, not price
+    assertI80F48Equal(price, priceBefore);
+    assertI80F48Equal(conf, confBefore);
   });
 });

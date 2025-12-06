@@ -61,3 +61,18 @@ impl Default for BankCache {
         Self::zeroed()
     }
 }
+
+impl BankCache {
+    /// Reset cached rate metrics while preserving the last oracle price snapshot.
+    pub fn reset_preserving_oracle_price(&mut self) {
+        let last_oracle_price = self.last_oracle_price;
+        let last_oracle_price_timestamp = self.last_oracle_price_timestamp;
+        let last_oracle_price_confidence = self.last_oracle_price_confidence;
+
+        *self = Self::default();
+
+        self.last_oracle_price = last_oracle_price;
+        self.last_oracle_price_timestamp = last_oracle_price_timestamp;
+        self.last_oracle_price_confidence = last_oracle_price_confidence;
+    }
+}

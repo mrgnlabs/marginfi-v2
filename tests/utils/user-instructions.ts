@@ -544,7 +544,7 @@ export type HealthPulseArgs = {
   remaining: PublicKey[];
 };
 
-export type BankPricePulseArgs = {
+export type PulseBankPriceArgs = {
   group: PublicKey;
   bank: PublicKey;
   remaining: PublicKey[];
@@ -584,9 +584,9 @@ export const healthPulse = (
  * * `remaining` - pass the oracle accounts required for this bank
  *   in the same order as used for other oracle reads for that bank.
  */
-export const bankPricePulse = (
+export const pulseBankPrice = (
   program: Program<Marginfi>,
-  args: BankPricePulseArgs
+  args: PulseBankPriceArgs
 ) => {
   const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
     return { pubkey, isSigner: false, isWritable: false };

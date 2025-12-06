@@ -37,10 +37,7 @@ use marginfi_type_crate::{
         LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
     },
-    types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
-        MarginfiGroup,
-    },
+    types::{Bank, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings, MarginfiGroup},
 };
 
 pub trait BankImpl {
@@ -550,7 +547,7 @@ impl BankImpl for Bank {
             self.get_liability_amount(self.total_liability_shares.into())?;
 
         if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
-            self.cache = BankCache::default();
+            self.cache.reset_preserving_oracle_price();
             return Ok(());
         }
 
@@ -589,7 +586,7 @@ impl BankImpl for Bank {
             self.cache.last_oracle_price_confidence = price_with_confidence.confidence.into();
             self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
         } else {
-            msg!("price cache update failed");
+            // no cache update, nothing...
         }
 
         Ok(())
