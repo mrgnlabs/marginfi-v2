@@ -200,13 +200,19 @@ pub mod marginfi {
         marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
     }
 
-    /// (emode_admin only)
+    /// (emode_admin only) Copies emode settings from one bank to another. Useful when applying
+    /// emode settings from e.g. one LST to another.
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
         entries: [EmodeEntry; MAX_EMODE_ENTRIES],
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
+    }
+
+    /// (admin or risk_admin)
+    pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_emode(ctx)
     }
 
     /// (delegate_emissions_admin only)
