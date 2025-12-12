@@ -65,8 +65,7 @@ const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_123400000K14");
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
-/** Maximum number of Kamino positions allowed per account (hardcoded limit) */
-const MAX_KAMINO_POSITIONS = 8;
+const MAX_KAMINO_POSITIONS = 16;
 const USER_ACCOUNT_THROWAWAY = "throwaway_account_k14";
 
 let kaminoBanks: PublicKey[] = [];
@@ -183,8 +182,10 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     // Note: Kamino deposits sans-LUT are severely limited.
     const depositsPerTx = 2;
 
-    // Only deposit into the first MAX_KAMINO_POSITIONS banks
-    for (let i = 0; i < MAX_KAMINO_POSITIONS; i += depositsPerTx) {
+    // NOTE: We only deposit into 8 banks for this test suite since we don't use a LUT.
+    // Testing 16 positions requires a LUT (see k17 test suite).
+    const numDepositsForTest = 8;
+    for (let i = 0; i < numDepositsForTest; i += depositsPerTx) {
       const chunk = kaminoBanks.slice(i, i + depositsPerTx);
       const depositTx: Transaction = new Transaction();
       for (const bank of chunk) {
@@ -234,66 +235,6 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     }
   });
 
-  it("(admin) Tries to deposit into 9th Kamino bank - should fail with KaminoPositionLimitExceeded", async () => {
-    const user = groupAdmin;
-    const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
-    const market = kaminoAccounts.get(MARKET);
-    const tokenAReserve = kaminoAccounts.get(TOKEN_A_RESERVE);
-    const farmState = farmAccounts.get(A_FARM_STATE);
-
-    // Try to deposit into the 9th Kamino bank (index 8)
-    const ninthBank = kaminoBanks[MAX_KAMINO_POSITIONS];
-    const amount = new BN(10 * 10 ** ecosystem.tokenADecimals);
-
-    const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
-      bankrunProgram.programId,
-      ninthBank
-    );
-    const [kaminoObligation] = deriveBaseObligation(
-      liquidityVaultAuthority,
-      market
-    );
-    const [userState] = deriveUserState(
-      FARMS_PROGRAM_ID,
-      farmState,
-      kaminoObligation
-    );
-
-    const depositTx = new Transaction().add(
-      await simpleRefreshReserve(
-        klendBankrunProgram,
-        tokenAReserve,
-        market,
-        oracles.tokenAOracle.publicKey
-      ),
-      await simpleRefreshObligation(
-        klendBankrunProgram,
-        market,
-        kaminoObligation,
-        [tokenAReserve]
-      ),
-      await makeKaminoDepositIx(
-        user.mrgnBankrunProgram,
-        {
-          marginfiAccount: userAccount,
-          bank: ninthBank,
-          signerTokenAccount: user.tokenAAccount,
-          lendingMarket: market,
-          reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
-          obligationFarmUserState: userState,
-          reserveFarmState: farmState,
-        },
-        amount
-      )
-    );
-
-    depositTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    depositTx.sign(user.wallet);
-    const result = await banksClient.tryProcessTransaction(depositTx);
-
-    // Should fail with error 6212 (0x1844 in hex) - KaminoPositionLimitExceeded
-    assertBankrunTxFailed(result, 6212);
-  });
 
   it("(admin) Withdraws from one Kamino bank and reopens a new position", async () => {
     const user = groupAdmin;
@@ -303,11 +244,13 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     const farmState = farmAccounts.get(A_FARM_STATE);
 
     const withdrawBank = kaminoBanks[0];
-    const replacementBank = kaminoBanks[MAX_KAMINO_POSITIONS];
+    // Use bank 8 (index 8) as replacement - this is the first unused bank
+    // (we only deposited into banks 0-7)
+    const replacementBank = kaminoBanks[8];
 
     // Remaining accounts exclude the bank being closed
     const remainingPositions = [];
-    for (let i = 1; i < MAX_KAMINO_POSITIONS; i++) {
+    for (let i = 1; i < 8; i++) {
       remainingPositions.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,

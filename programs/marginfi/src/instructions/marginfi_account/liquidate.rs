@@ -1,8 +1,10 @@
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
-    MarginfiAccountImpl, RiskEngine,
+    calc_amount, calc_value, check_account_init_health_with_heap_reuse,
+    check_post_liquidation_condition_and_get_account_health_with_heap_reuse,
+    check_pre_liquidation_with_heap_reuse, get_remaining_accounts_per_bank, LendingAccountImpl,
+    MarginfiAccountImpl,
 };
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
@@ -162,13 +164,13 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
-    let (pre_liquidation_health, _, _) =
-        RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-            .check_pre_liquidation_condition_and_get_account_health(
-                Some(&ctx.accounts.liab_bank.key()),
-                &mut None,
-                false,
-            )?;
+    let (pre_liquidation_health, _, _) = check_pre_liquidation_with_heap_reuse(
+        &liquidatee_marginfi_account,
+        liquidatee_remaining_accounts,
+        Some(&ctx.accounts.liab_bank.key()),
+        &mut None,
+        false,
+    )?;
 
     // ##Accounting changes##
 
@@ -407,29 +409,25 @@ pub fn lending_account_liquidate<'info>(
     let liquidator_remaining_accounts =
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
-    // TODO why call RiskEngine::new here again instead of reusing the one we made in line ~151? Is
-    // it because we mutated the liab bank and corresponding balance? Is reloading the entire engine
-    // more CU intensive than mutating the old engine with the updated balance + bank
-
-    // Verify liquidatee liquidation post health
+    // Verify liquidatee liquidation post health using heap-efficient parity checks
     let post_liquidation_health =
-        RiskEngine::new(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?
-            .check_post_liquidation_condition_and_get_account_health(
-                &ctx.accounts.liab_bank.key(),
-                pre_liquidation_health,
-            )?;
+        check_post_liquidation_condition_and_get_account_health_with_heap_reuse(
+            &liquidatee_marginfi_account,
+            liquidatee_remaining_accounts,
+            &ctx.accounts.liab_bank.key(),
+            pre_liquidation_health,
+        )?;
 
     // TODO consider if health cache update here is worth blowing the extra CU
 
     liquidator_marginfi_account.lending_account.sort_balances();
 
-    // Verify liquidator account health
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
+    // Verify liquidator account health using heap-efficient version (includes isolated-tier check)
+    check_account_init_health_with_heap_reuse(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
         &mut None,
-    );
-    risk_result?;
+    )?;
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
