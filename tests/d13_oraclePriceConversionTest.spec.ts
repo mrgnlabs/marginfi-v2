@@ -10,10 +10,10 @@ import {
   driftAccounts,
   driftGroup,
   DRIFT_USDC_BANK,
-  DRIFT_TOKENA_BANK,
+  DRIFT_TOKEN_A_BANK,
   DRIFT_USDC_SPOT_MARKET,
-  DRIFT_TOKENA_SPOT_MARKET,
-  DRIFT_TOKENA_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
+  DRIFT_TOKEN_A_PULL_ORACLE,
   users,
   bankrunContext,
   bankrunProgram,
@@ -48,7 +48,7 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
 
   before(async () => {
     driftUsdcBank = driftAccounts.get(DRIFT_USDC_BANK);
-    driftTokenABank = driftAccounts.get(DRIFT_TOKENA_BANK);
+    driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
   });
 
   it("Creates temporary-seed marginfi accounts for both users", async () => {
@@ -112,7 +112,7 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
         marginfiAccount: user1Account,
         bank: driftTokenABank,
         signerTokenAccount: users[1].tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       tokenADepositAmount,
       TOKEN_A_MARKET_INDEX
@@ -200,7 +200,7 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
 
     const updateTokenAIx = await makeUpdateSpotMarketCumulativeInterestIx(
       driftBankrunProgram,
-      { oracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE) },
+      { oracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE) },
       TOKEN_A_MARKET_INDEX
     );
 
@@ -331,7 +331,7 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
           isWritable: false,
         },
         {
-          pubkey: driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+          pubkey: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           isSigner: false,
           isWritable: false,
         },

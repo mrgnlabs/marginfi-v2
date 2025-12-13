@@ -7,12 +7,16 @@ import {
 import BN from "bn.js";
 import { Program, IdlAccounts, IdlTypes } from "@coral-xyz/anchor";
 import { Drift } from "tests/fixtures/drift_v2";
-import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { I80F48_ONE, ORACLE_CONF_INTERVAL } from "../utils/types";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { setPythPullOraclePrice } from "./bankrun-oracles";
 import { Oracles } from "./mocks";
-import { DRIFT_TOKENA_PULL_ORACLE, DRIFT_TOKENA_PULL_FEED } from "../rootHooks";
+import {
+  DRIFT_TOKEN_A_PULL_ORACLE,
+  DRIFT_TOKEN_A_PULL_FEED,
+  ecosystem,
+} from "../rootHooks";
 
 // Import Drift account types using IdlAccounts - the clean Anchor-native way
 export type DriftState = IdlAccounts<Drift>["state"];
@@ -379,6 +383,13 @@ const DRIFT_DISPLAY_DECIMALS = 9;
 // Export the scaled balance decimals constant from drift-mocks
 export const DRIFT_SCALED_BALANCE_DECIMALS = 9;
 
+export const USDC_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.usdcDecimals
+); // 10^3 = 1,000
+export const TOKEN_A_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.tokenADecimals
+); // 10^1 = 10
+
 /**
  * Formats Drift internal deposit amounts with consistent 9-decimal precision
  * @param amount - The raw deposit amount from Drift
@@ -441,9 +452,6 @@ export const getUserPositions = async (
     .filter((pos) => pos.marketIndex !== 0 || !pos.scaledBalance.isZero())
     .map((pos) => formatSpotPosition(pos));
 };
-
-// Drift asset tag constant
-export const ASSET_TAG_DRIFT = 4;
 
 // Drift utilization calculation uses 6 decimal precision (1000000 = 100%)
 export const DRIFT_UTILIZATION_PRECISION = 1000000;
@@ -579,8 +587,8 @@ export async function refreshDriftOracles(
   banksClient: BanksClient
 ) {
   // Get the Drift Token A oracle and feed from the map
-  const tokenAOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
-  const tokenAFeed = driftAccounts.get(DRIFT_TOKENA_PULL_FEED);
+  const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+  const tokenAFeed = driftAccounts.get(DRIFT_TOKEN_A_PULL_FEED);
 
   if (tokenAOracle && tokenAFeed) {
     // Update Drift's Token A oracle with mainnet Pyth program ID

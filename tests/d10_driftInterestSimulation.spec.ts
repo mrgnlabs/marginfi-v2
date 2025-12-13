@@ -21,8 +21,8 @@ import {
   groupAdmin,
   banksClient,
   DRIFT_USDC_SPOT_MARKET,
-  DRIFT_TOKENA_SPOT_MARKET,
-  DRIFT_TOKENA_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
+  DRIFT_TOKEN_A_PULL_ORACLE,
 } from "./rootHooks";
 import { refreshPullOracles } from "./utils/pyth-pull-mocks";
 import { MockUser } from "./utils/mocks";
@@ -30,7 +30,6 @@ import { processBankrunTransaction } from "./utils/tools";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { deriveBankWithSeed } from "./utils/pdas";
 import {
-  ASSET_TAG_DRIFT,
   defaultDriftBankConfig,
   getSpotMarketAccount,
   getDriftUserAccount,
@@ -53,7 +52,7 @@ import { Clock } from "solana-bankrun";
 
 describe("d10: Drift Interest Simulation", () => {
   const NEW_DRIFT_USDC_BANK = "new_drift_usdc_bank";
-  const NEW_DRIFT_TOKENA_BANK = "new_drift_tokena_bank";
+  const NEW_DRIFT_TOKEN_A_BANK = "new_drift_tokena_bank";
   const NEW_DRIFT_ACCOUNT = "gd_new_acc";
 
   let newDriftUsdcBank: PublicKey;
@@ -109,7 +108,7 @@ describe("d10: Drift Interest Simulation", () => {
     );
 
     driftAccounts.set(NEW_DRIFT_USDC_BANK, newDriftUsdcBank);
-    driftAccounts.set(NEW_DRIFT_TOKENA_BANK, newDriftTokenABank);
+    driftAccounts.set(NEW_DRIFT_TOKEN_A_BANK, newDriftTokenABank);
     const usdcConfig = defaultDriftBankConfig(oracles.usdcOracle.publicKey);
     usdcConfig.depositLimit = new BN(10_000_000).mul(
       new BN(10 ** DRIFT_SCALED_BALANCE_DECIMALS)
@@ -141,7 +140,7 @@ describe("d10: Drift Interest Simulation", () => {
         group: driftGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.tokenAMint.publicKey,
-        driftSpotMarket: driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+        driftSpotMarket: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
         oracle: oracles.tokenAOracle.publicKey,
       },
       {
@@ -210,7 +209,7 @@ describe("d10: Drift Interest Simulation", () => {
         feePayer: groupAdmin.wallet.publicKey,
         bank: newDriftTokenABank,
         signerTokenAccount: groupAdmin.tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       {
         amount: initUserAmount,
@@ -231,7 +230,7 @@ describe("d10: Drift Interest Simulation", () => {
 
   it("funds users with tokens for testing", async () => {
     const LARGE_USDC_AMOUNT = new BN(1_000_000 * 10 ** ecosystem.usdcDecimals);
-    const LARGE_TOKENA_AMOUNT = new BN(50_000 * 10 ** ecosystem.tokenADecimals);
+    const LARGE_TOKEN_A_AMOUNT = new BN(50_000 * 10 ** ecosystem.tokenADecimals);
     const fundUserATx = new Transaction()
       .add(
         createMintToInstruction(
@@ -266,7 +265,7 @@ describe("d10: Drift Interest Simulation", () => {
           ecosystem.tokenAMint.publicKey,
           userB.tokenAAccount,
           globalProgramAdmin.wallet.publicKey,
-          LARGE_TOKENA_AMOUNT.toNumber()
+          LARGE_TOKEN_A_AMOUNT.toNumber()
         )
       );
     await processBankrunTransaction(bankrunContext, fundUserBTx, [
@@ -319,10 +318,10 @@ describe("d10: Drift Interest Simulation", () => {
       : oracles.tokenAOracle.publicKey;
     const spotMarket = isUsdc
       ? driftAccounts.get(DRIFT_USDC_SPOT_MARKET)!
-      : driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET)!;
+      : driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET)!;
     const driftOracle = isUsdc
       ? null
-      : driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
+      : driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
     const activePositions: PublicKey[][] = [];
     const marginfiAccount = await bankrunProgram.account.marginfiAccount.fetch(
       userAccount
@@ -401,7 +400,7 @@ describe("d10: Drift Interest Simulation", () => {
     const tokenAccount = isUsdc ? user.usdcAccount : user.tokenAAccount;
     const driftOracle = isUsdc
       ? null
-      : driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
+      : driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
 
     const activePositions: PublicKey[][] = [];
     const marginfiAccount = await bankrunProgram.account.marginfiAccount.fetch(
@@ -482,15 +481,15 @@ describe("d10: Drift Interest Simulation", () => {
   });
 
   it("tests very large deposits without overflow", async () => {
-    const HUGE_TOKENA = new BN(40_000 * 10 ** ecosystem.tokenADecimals);
+    const HUGE_TOKEN_A = new BN(40_000 * 10 ** ecosystem.tokenADecimals);
 
-    await makeDepositThroughMarginfi(userB, newDriftTokenABank, HUGE_TOKENA);
+    await makeDepositThroughMarginfi(userB, newDriftTokenABank, HUGE_TOKEN_A);
 
     operationLog.push({
       user: userB.wallet.publicKey.toString(),
       type: "deposit",
       bank: newDriftTokenABank,
-      amount: HUGE_TOKENA,
+      amount: HUGE_TOKEN_A,
       decimals: ecosystem.tokenADecimals,
       symbol: "TKA",
       timestamp: Date.now(),
@@ -517,7 +516,7 @@ describe("d10: Drift Interest Simulation", () => {
         mint: ecosystem.tokenAMint.publicKey,
         decimals: ecosystem.tokenADecimals,
         symbol: "TKA",
-        spotMarket: driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET)!,
+        spotMarket: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET)!,
         marketIndex: TOKEN_A_MARKET_INDEX,
       },
     ];
@@ -713,7 +712,7 @@ describe("d10: Drift Interest Simulation", () => {
         bank.driftUser
       );
       const spotPosition = driftUser.spotPositions[0];
-      const scaledBalance = new BN(spotPosition.scaledBalance.toString());
+      const scaledBalance = spotPosition.scaledBalance;
 
       if (scaledBalance.eq(new BN(0))) {
         return simulateRandomOperation(user, banks);
@@ -782,7 +781,7 @@ describe("d10: Drift Interest Simulation", () => {
         mint: ecosystem.tokenAMint.publicKey,
         decimals: ecosystem.tokenADecimals,
         symbol: "TKA",
-        spotMarket: driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET)!,
+        spotMarket: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET)!,
         marketIndex: TOKEN_A_MARKET_INDEX,
       },
     ];

@@ -4,10 +4,10 @@ import {
   ecosystem,
   driftAccounts,
   DRIFT_USDC_BANK,
-  DRIFT_TOKENA_BANK,
+  DRIFT_TOKEN_A_BANK,
   DRIFT_USDC_SPOT_MARKET,
-  DRIFT_TOKENA_SPOT_MARKET,
-  DRIFT_TOKENA_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
+  DRIFT_TOKEN_A_PULL_ORACLE,
   users,
   bankrunContext,
   bankrunProgram,
@@ -23,13 +23,8 @@ import {
   assertBNEqual,
   getTokenBalance,
   assertBankrunTxFailed,
-  assertBNApproximately,
 } from "./utils/genericTests";
-import {
-  getDriftScalingFactor,
-  getDriftUserAccount,
-  getSpotMarketAccount,
-} from "./utils/drift-utils";
+import { getDriftUserAccount } from "./utils/drift-utils";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { composeRemainingAccounts } from "./utils/user-instructions";
 
@@ -39,7 +34,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
   before(async () => {
     driftUsdcBank = driftAccounts.get(DRIFT_USDC_BANK);
-    driftTokenABank = driftAccounts.get(DRIFT_TOKENA_BANK);
+    driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
   });
 
   async function assertDriftWithdrawSuccess(
@@ -63,7 +58,7 @@ describe("d08: Drift Withdraw Tests", () => {
     );
 
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    new BN(spotPositionAfter.scaledBalance.toString());
+    spotPositionAfter.scaledBalance; // WTFFFFFFFFFFFF
   }
 
   it("(user 0) Partial withdrawal from Drift - 50 USDC", async () => {
@@ -77,9 +72,7 @@ describe("d08: Drift Withdraw Tests", () => {
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
-    const scaledBalanceBefore = new BN(
-      spotPositionBefore.scaledBalance.toString()
-    );
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const marginfiAccountBefore =
       await bankrunProgram.account.marginfiAccount.fetch(
         user.accounts.get(USER_ACCOUNT_D)
@@ -112,7 +105,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -139,9 +132,7 @@ describe("d08: Drift Withdraw Tests", () => {
       bank.driftUser
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    const scaledBalanceAfter = new BN(
-      spotPositionAfter.scaledBalance.toString()
-    );
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     const scaledBalanceDecrease = scaledBalanceBefore.sub(scaledBalanceAfter);
 
     const marginfiAccountAfter =
@@ -187,7 +178,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -258,16 +249,14 @@ describe("d08: Drift Withdraw Tests", () => {
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
-    const scaledBalanceBefore = new BN(
-      spotPositionBefore.scaledBalance.toString()
-    );
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
         marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       {
         amount: amount,
@@ -276,7 +265,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -302,9 +291,7 @@ describe("d08: Drift Withdraw Tests", () => {
       bank.driftUser
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    const scaledBalanceAfter = new BN(
-      spotPositionAfter.scaledBalance.toString()
-    );
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     const scaledBalanceDecrease = scaledBalanceBefore.sub(scaledBalanceAfter);
 
     await assertDriftWithdrawSuccess(user, driftTokenABank);
@@ -320,7 +307,7 @@ describe("d08: Drift Withdraw Tests", () => {
         marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       {
         amount: excessiveAmount,
@@ -334,7 +321,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -364,16 +351,14 @@ describe("d08: Drift Withdraw Tests", () => {
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
-    const scaledBalanceBefore = new BN(
-      spotPositionBefore.scaledBalance.toString()
-    );
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
         marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       {
         amount: zeroAmount,
@@ -382,7 +367,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -408,9 +393,7 @@ describe("d08: Drift Withdraw Tests", () => {
       bank.driftUser
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    const scaledBalanceAfter = new BN(
-      spotPositionAfter.scaledBalance.toString()
-    );
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     assertBNEqual(scaledBalanceAfter, scaledBalanceBefore);
   });
 
@@ -424,16 +407,14 @@ describe("d08: Drift Withdraw Tests", () => {
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
-    const scaledBalanceBefore = new BN(
-      spotPositionBefore.scaledBalance.toString()
-    );
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
         marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
-        driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+        driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
       },
       {
         amount: new BN(0),
@@ -447,7 +428,7 @@ describe("d08: Drift Withdraw Tests", () => {
           [
             driftTokenABank,
             oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET),
+            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
           ],
         ]),
       },
@@ -474,9 +455,7 @@ describe("d08: Drift Withdraw Tests", () => {
       bank.driftUser
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    const scaledBalanceAfter = new BN(
-      spotPositionAfter.scaledBalance.toString()
-    );
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     assertBNEqual(scaledBalanceAfter, new BN(0));
 
     const marginfiAccountAfter =

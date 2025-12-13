@@ -12,8 +12,8 @@ import {
   groupAdmin,
   globalProgramAdmin,
   driftAccounts,
-  DRIFT_TOKENA_SPOT_MARKET,
-  DRIFT_TOKENA_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
+  DRIFT_TOKEN_A_PULL_ORACLE,
   oracles,
   verbose,
   bankrunContext,
@@ -99,7 +99,7 @@ describe("d09: Drift Liquidation", () => {
   });
 
   it("(admin) init drift Token A bank", async () => {
-    const driftSpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
 
     let defaultConfig = defaultDriftBankConfig(oracles.tokenAOracle.publicKey);
 
@@ -139,7 +139,7 @@ describe("d09: Drift Liquidation", () => {
           feePayer: groupAdmin.wallet.publicKey,
           bank: driftTokenABank,
           signerTokenAccount: groupAdmin.tokenAAccount,
-          driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+          driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
         },
         {
           amount: initUserAmount,
@@ -178,7 +178,7 @@ describe("d09: Drift Liquidation", () => {
   it("(user 0) deposits Token A into Drift, borrows LST from bank [0]", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY_D);
-    const driftSpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
 
     if (verbose) {
       console.log(
@@ -195,9 +195,7 @@ describe("d09: Drift Liquidation", () => {
       bank.driftUser
     );
     const spotPositionBefore = driftUserBefore.spotPositions[0];
-    const scaledBalanceBefore = new BN(
-      spotPositionBefore.scaledBalance.toString()
-    );
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
     let tx = new Transaction().add(
       await makeDriftDepositIx(
@@ -206,7 +204,7 @@ describe("d09: Drift Liquidation", () => {
           marginfiAccount: userAccount,
           bank: driftTokenABank,
           signerTokenAccount: user.tokenAAccount,
-          driftOracle: driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE),
+          driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
         },
         depositAmountTokenA,
         TOKEN_A_MARKET_INDEX
@@ -225,9 +223,7 @@ describe("d09: Drift Liquidation", () => {
       bank.driftUser
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
-    const scaledBalanceAfter = new BN(
-      spotPositionAfter.scaledBalance.toString()
-    );
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     const scaledBalanceChange = scaledBalanceAfter.sub(scaledBalanceBefore);
 
     if (verbose) {
@@ -289,7 +285,7 @@ describe("d09: Drift Liquidation", () => {
 
     const liquidatee = users[0];
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_THROWAWAY_D);
-    const driftSpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
     tx = new Transaction().add(
       await healthPulse(liquidatee.mrgnBankrunProgram, {
         marginfiAccount: liquidateeAccount,
@@ -333,7 +329,7 @@ describe("d09: Drift Liquidation", () => {
     const liquidateeAccount = liquidatee.accounts.get(USER_ACCOUNT_THROWAWAY_D);
     const liquidator = users[1];
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_THROWAWAY_D);
-    const driftSpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
     const depositAmount = new BN(1 * 10 ** ecosystem.lstAlphaDecimals);
 
     const spotMarket = await getSpotMarketAccount(
