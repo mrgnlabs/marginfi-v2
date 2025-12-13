@@ -1,6 +1,5 @@
 import { assert } from "chai";
 import { PublicKey, Transaction, Keypair } from "@solana/web3.js";
-import { BN } from "@coral-xyz/anchor";
 import {
   ecosystem,
   groupAdmin,
@@ -28,7 +27,6 @@ import {
   TOKEN_A_MARKET_INDEX,
 } from "./utils/drift-utils";
 import {
-  ORACLE_CONF_INTERVAL,
   DRIFT_ORACLE_RECEIVER_PROGRAM_ID,
 } from "./utils/types";
 import { createBankrunPythOracleAccount } from "./utils/bankrun-oracles";

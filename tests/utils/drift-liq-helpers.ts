@@ -174,7 +174,7 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
   // 3. Initialize drift user for each drift bank
   for (let i = 0; i < PASSING_DRIFT_COUNT + 1; i++) {
     const driftBank = driftBanks[i];
-    const initUserAmount = new BN(100);
+    const initUserAmount = new BN(100 + i);
 
     const fundTx = new Transaction().add(
       createMintToInstruction(

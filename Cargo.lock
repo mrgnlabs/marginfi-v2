@@ -6616,6 +6616,7 @@ dependencies = [
  "bytemuck",
  "fixed",
  "fixed-macro",
+ "marginfi-type-crate",
  "static_assertions",
 ]
 
