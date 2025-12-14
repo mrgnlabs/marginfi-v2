@@ -987,7 +987,11 @@ pub fn get_health_components_with_heap_reuse<'info>(
         {
             let heap_after_oracle = heap_pos();
             let heap_used = heap_after_oracle.saturating_sub(heap_checkpoint);
-            msg!("HEAP_MEASURE: position={} heap_used={} bytes", position_index, heap_used);
+            msg!(
+                "HEAP_MEASURE: position={} heap_used={} bytes",
+                position_index,
+                heap_used
+            );
         }
 
         // Calculate weighted value for this position
