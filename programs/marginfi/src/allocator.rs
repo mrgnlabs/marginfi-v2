@@ -47,46 +47,112 @@ Code (simplified):
     pos &= !(align - 1);                // Align
 ```
 
-## Why Backward Allocation Breaks with Extended Heap
+## Why Backward Allocation Breaks Without requestHeapFrame
 
-If we simply compile program with increased HEAP_LENGTH without changing direction
-and or not using `requestHeapFrame` (for functions that fit in 32 KiB), we get this situation:
+The key issue with the default backward allocation is NOT that it's incompatible with extended heaps,
+but rather that it REQUIRES `requestHeapFrame` to be called when compiled with a larger
+HEAP_LENGTH. Here's the problem:
 
+**Critical insight**: The compiled allocator is completely UNAWARE of what the VM actually
+provides. It only knows its compiled HEAP_LENGTH constant. When a program is compiled with
+HEAP_LENGTH > 32 KiB (e.g., 256 KiB), EVERY allocation assumes that much space is available.
+The allocator calculates its starting position as: `pos = HEAP_START + HEAP_LENGTH`
+
+The Solana VM, however, only makes 32 KiB accessible by DEFAULT. The VM boundary is
+only extended when `requestHeapFrame` is explicitly called. Without it, the VM has no
+way to know the program was compiled with a larger heap expectation.
+
+This creates a fundamental mismatch:
+  - Program thinks it has: HEAP_LENGTH bytes (compiled constant, e.g., 256 KiB)
+  - VM actually provides: 32 KiB (default) or requestHeapFrame size
+
+The allocator cannot dynamically adapt to the actual heap size—it blindly uses the
+compiled constant. (See: https://github.com/solana-labs/solana/issues/32607)
+
+Practical implication: if you compile the backward allocator with HEAP_LENGTH > 32
+KiB (say 128 KiB), every transaction that invokes the program must include a
+`request_heap_frame` of at least that size (up to the 256 KiB cap) before the
+program call. Otherwise, the very first allocation points outside the VM-mapped
+32 KiB and will fault, even if that instruction only needs a few bytes.
+
+If you compile with HEAP_LENGTH = 256 KiB and request only a 64 KiB heap frame,
+the backward allocator still starts at +256 KiB and the first allocation will
+point outside the mapped 64 KiB, so you must request at least the compiled
+HEAP_LENGTH (up to the 256 KiB cap).
 
 ```
+Without requestHeapFrame (VM provides 32 KiB, program compiled for 256 KiB):
+────────────────────────────────────────────────────────────────────────────
 0x300000000           0x300008000                          0x300040000
       │                    │                                     │
       ▼                    ▼                                     ▼
-      [--------------------│-------------------------------------]
+      [====================│ · · · · inaccessible · · · · · · · ·]
       ^                    ^                                     ^
       │                    │                                     │
- VM Lower              VM Upper                           pos starts HERE!
- Boundary              Boundary                           ACCESS VIOLATION!
- (always valid)        (without requestHeapFrame)
+ VM Lower              VM Upper                     Backward allocator starts HERE!
+ Boundary              Boundary                     ACCESS VIOLATION!
+ (accessible)          (32 KiB limit)               (outside VM boundary)
 ```
 
-The allocator tries to start at 0x300040000, which is OUTSIDE the default 32 KiB
-VM-accessible region (0x300000000 - 0x300008000), causing immediate access violation.
+This means backward allocation with extended HEAP_LENGTH:
+  ✗ FAILS without requestHeapFrame (starts outside VM boundary)
+  ✓ WORKS with requestHeapFrame (VM boundary extended to match)
 
 ## Marginfi Solution: Forward Allocation
 
-By allocating FORWARD from the bottom, we guarantee safety:
+By allocating FORWARD from the bottom, we achieve universal compatibility. The key insight
+is that the starting position (HEAP_START + sizeof(ptr)) is ALWAYS within the VM-accessible
+region, regardless of what the VM provides. The forward allocator grows toward whatever
+boundary exists—be it 32 KiB (default) or 256 KiB (with requestHeapFrame):
 
 ```
+Scenario A - Without requestHeapFrame (default 32 KiB VM boundary):
+────────────────────────────────────────────────────────────────────────────
 0x300000000           0x300008000                          0x300040000
       │                    │                                     │
       ▼                    ▼                                     ▼
-      [--------------------│-------------------------------------]
-      ▲                    ▲                                     ▲
+      [====================│ · · · · inaccessible · · · · · · · ·]
+      ▲        ──▶        ▲
+      │                   │
+ pos starts HERE     Allocations stay within 32 KiB
+ (ALWAYS SAFE!)      (operations that fit in 32 KiB work fine)
+
+
+Scenario B - With requestHeapFrame (extended 256 KiB VM boundary):
+────────────────────────────────────────────────────────────────────────────
+0x300000000           0x300008000                          0x300040000
       │                    │                                     │
- pos starts HERE      32 KiB boundary                    256 KiB boundary
- (ALWAYS SAFE!)       (no requestHeapFrame)              (with requestHeapFrame)
+      ▼                    ▼                                     ▼
+      [====================│=====================================]
+      ▲                                         ──▶              ▲
+      │                                                          │
+ pos starts HERE                                        Full 256 KiB available
+ (SAME starting point!)                                 (for large operations)
 
 Code (this allocator):
     pos = HEAP_START + sizeof(ptr);     // Start at bottom (after reserved)
     pos = align_up(pos, align);         // Align upward
     pos = pos + size;                   // Move up
 ```
+
+The forward allocator is compatible with BOTH scenarios:
+  ✓ Functions NOT needing extra heap: work without requestHeapFrame (stay within 32 KiB)
+  ✓ Functions needing extra heap: work with requestHeapFrame (can use up to 256 KiB)
+
+This flexibility allows the same compiled program to handle both small operations
+(within default heap) and large operations (with extended heap) without code changes.
+Note: when compiled for 256 KiB, this allocator only bounds to that compiled
+limit. If you allocate past ~32 KiB without calling `requestHeapFrame`, the
+allocator will still hand back a pointer, but the VM will fault once you touch
+the unmapped region. You must still request a larger heap before using more than
+the default 32 KiB.
+
+**What happens when allocations exceed the VM boundary?**
+  - Backward allocator: FAILS IMMEDIATELY at first allocation (starts outside boundary)
+  - Forward allocator: Works fine up to the VM-mapped size (32 KiB by default).
+    Beyond that, accesses will fault unless `requestHeapFrame` expanded the heap.
+    The `null_mut()` guard only triggers past the compiled 256 KiB ceiling, so
+    always request a heap frame before relying on >32 KiB allocations.
 
 ================================================================================
 KEY IMPROVEMENTS OVER NATIVE SOLANA ALLOCATOR
@@ -106,14 +172,18 @@ KEY IMPROVEMENTS OVER NATIVE SOLANA ALLOCATOR
    - Native Solana: No way to reclaim memory mid-execution
    - Marginfi: heap_restore() allows "freeing" temporary allocations
 
-   Without recycling (16 positions × ~3 KiB each = 48+ KiB):
+   Measured heap usage per position (oracle adapter only):
+     - Pyth Push oracles: ~64 bytes
+     - Switchboard Pull oracles: ~128 bytes
+
+   Without recycling, all positions stay allocated simultaneously:
    ┌────────┬────────┬────────┬─────────────────┬────────┐
-   │ Pos 1  │ Pos 2  │ Pos 3  │ ... 48+ KiB ... │ Pos 16 │  EXCEEDS 32 KiB!
+   │ Pos 1  │ Pos 2  │ Pos 3  │ ... all stay ...│ Pos 16 │
    └────────┴────────┴────────┴─────────────────┴────────┘
 
-   With recycling (same memory reused, peak ~3-4 KiB):
+   With recycling (same memory reused, peak ~128 bytes):
    ┌────────┐     ┌────────┐           ┌────────┐
-   │ Pos 1  │ ──▶ │ Pos 2  │ ──▶ ... ─▶│ Pos 16 │  FITS IN 32 KiB!
+   │ Pos 1  │ ──▶ │ Pos 2  │ ──▶ ... ─▶│ Pos 16 │  Minimal footprint!
    └────────┘     └────────┘           └────────┘
        ▼              ▼                     ▼
     restore()     restore()            restore()
@@ -154,8 +224,8 @@ REFERENCES
 Native Solana allocator source:
   - https://github.com/solana-labs/solana/blob/master/sdk/program/src/entrypoint.rs
 
-Solana custom heap example:
-  - https://github.com/solana-labs/solana-program-library/blob/master/examples/rust/custom-heap/src/entrypoint.rs
+Squads Forward heap allocator implementation:
+  - https://github.com/Squads-Grid/external-signature-program/blob/main/src/allocator.rs
 
 */
 
