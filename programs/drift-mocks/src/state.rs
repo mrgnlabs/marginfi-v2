@@ -126,6 +126,7 @@ pub struct MinimalUserStats {
 
 // Implementation methods for MinimalSpotMarket
 impl MinimalSpotMarket {
+    /// Calculate how much scaled balance is expected to decrease on withdraw
     pub fn get_scaled_balance_decrement(&self, amount: u64) -> Result<u64> {
         // See `get_spot_balance` function on drift program
         let precision_increase = get_precision_increase(self.decimals)?;

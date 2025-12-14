@@ -12,8 +12,7 @@ import {
   driftBankrunProgram,
   bankRunProvider,
 } from "./rootHooks";
-import { assert } from "chai";
-import { MockUser, USER_ACCOUNT_D } from "./utils/mocks";
+import { USER_ACCOUNT_D } from "./utils/mocks";
 import { processBankrunTransaction } from "./utils/tools";
 import { makeDriftDepositIx } from "./utils/drift-instructions";
 import {
@@ -23,13 +22,12 @@ import {
 } from "./utils/genericTests";
 import {
   getDriftUserAccount,
-  getSpotMarketAccount,
   USDC_MARKET_INDEX,
   TOKEN_A_MARKET_INDEX,
   USDC_SCALING_FACTOR,
   TOKEN_A_SCALING_FACTOR,
+  assertDriftBankBalance,
 } from "./utils/drift-utils";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("d07: Drift Deposit Tests", () => {
   let driftUsdcBank: PublicKey;
@@ -40,30 +38,7 @@ describe("d07: Drift Deposit Tests", () => {
     driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
   });
 
-  async function assertDriftDepositSuccess(
-    user: MockUser,
-    bankPubkey: PublicKey,
-    expectedBalance: BN
-  ) {
-    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
-
-    const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
-      marginfiAccount
-    );
-
-    const balance = userAcc.lendingAccount.balances.find(
-      (b) => b.bankPk.equals(bankPubkey) && b.active === 1
-    );
-
-    assert(balance);
-
-    const assetSharesBN = new BN(
-      wrappedI80F48toBigNumber(balance.assetShares).toString()
-    );
-    assertBNEqual(assetSharesBN, expectedBalance);
-  }
-
-  it("(user 0) Deposit 100 USDC and then 50 USDC to Drift - happy path", async () => {
+  it("(user 0) Deposits 100 USDC and then 50 USDC to Drift - happy path", async () => {
     const user = users[0];
     const amount = new BN(100 * 10 ** ecosystem.usdcDecimals);
 
@@ -109,13 +84,13 @@ describe("d07: Drift Deposit Tests", () => {
     const spotPositionAfter = driftUserAfter.spotPositions[0];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
 
-    // Note: we account here for the initial amount deposited when the Drift user was created.
+    // Note: we account here for the initial amount deposited when the Drift user was created
     assertBNEqual(
       scaledBalanceAfter.sub(scaledBalanceBefore),
       amount.mul(USDC_SCALING_FACTOR)
     );
 
-    await assertDriftDepositSuccess(
+    await assertDriftBankBalance(
       user,
       driftUsdcBank,
       amount.mul(USDC_SCALING_FACTOR)
@@ -154,14 +129,14 @@ describe("d07: Drift Deposit Tests", () => {
       scaledBalanceAfter.add(secondAmount.mul(USDC_SCALING_FACTOR))
     );
 
-    await assertDriftDepositSuccess(
+    await assertDriftBankBalance(
       user,
       driftUsdcBank,
       amount.add(secondAmount).mul(USDC_SCALING_FACTOR)
     );
   });
 
-  it("(user 1) Deposit 200 USDC to Drift - happy path", async () => {
+  it("(user 1) Deposits 200 USDC to Drift - happy path", async () => {
     const user = users[1];
     const amount = new BN(200 * 10 ** ecosystem.usdcDecimals);
     const bank = await bankrunProgram.account.bank.fetch(driftUsdcBank);
@@ -194,13 +169,13 @@ describe("d07: Drift Deposit Tests", () => {
     const spotPositionAfter = driftUserAfter.spotPositions[0];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
 
-    // Note: we account here for the initial amount + the amount deposited by user 0.
+    // Note: we account here for the initial amount + the amount deposited by user 0
     assertBNEqual(
       scaledBalanceAfter.sub(scaledBalanceBefore),
       amount.mul(USDC_SCALING_FACTOR)
     );
 
-    await assertDriftDepositSuccess(
+    await assertDriftBankBalance(
       user,
       driftUsdcBank,
       amount.mul(USDC_SCALING_FACTOR)
@@ -234,7 +209,7 @@ describe("d07: Drift Deposit Tests", () => {
     assertBankrunTxFailed(result, "0x1772");
   });
 
-  it("(user 0) Deposit 5 Token A to Drift - happy path", async () => {
+  it("(user 0) Deposits 5 Token A to Drift - happy path", async () => {
     const user = users[0];
     const amount = new BN(5 * 10 ** ecosystem.tokenADecimals);
 
@@ -288,7 +263,7 @@ describe("d07: Drift Deposit Tests", () => {
       amount.mul(TOKEN_A_SCALING_FACTOR)
     );
 
-    await assertDriftDepositSuccess(
+    await assertDriftBankBalance(
       user,
       driftTokenABank,
       amount.mul(TOKEN_A_SCALING_FACTOR)

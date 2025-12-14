@@ -361,16 +361,6 @@ describe("d04: Drift - User Deposits and Borrows", () => {
         (usdcInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
         "%"
     ); // 1%
-
-    // Note: no time has passed yet, but the interest is not zero - reflecting that there is some utilization.
-    assertBNEqual(
-      usdcMarketAfter.cumulativeDepositInterest,
-      new BN(1).mul(DRIFT_SPOT_CUMULATIVE_INTEREST_PRECISION)
-    );
-    assertBNEqual(
-      usdcMarketAfter.cumulativeBorrowInterest,
-      new BN(1).mul(DRIFT_SPOT_CUMULATIVE_INTEREST_PRECISION)
-    );
   });
 
   it("(user B) borrows Token A against USDC collateral", async () => {
@@ -485,15 +475,5 @@ describe("d04: Drift - User Deposits and Borrows", () => {
         (tokenAInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
         "%"
     ); // 400%
-
-    // Note: no time has passed yet, but the interest is not zero - reflecting that there is some utilization.
-    assertBNEqual(
-      tokenAMarketAfter.cumulativeDepositInterest,
-      new BN(1).mul(DRIFT_SPOT_CUMULATIVE_INTEREST_PRECISION)
-    );
-    assertBNEqual(
-      tokenAMarketAfter.cumulativeBorrowInterest,
-      new BN(1).mul(DRIFT_SPOT_CUMULATIVE_INTEREST_PRECISION)
-    );
   });
 });

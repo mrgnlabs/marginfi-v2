@@ -209,11 +209,13 @@ export interface DriftWithdrawAccounts {
   marginfiAccount: PublicKey;
   bank: PublicKey;
   destinationTokenAccount: PublicKey;
-  driftOracle?: PublicKey; // Oracle account for the asset (not needed if using oracle type QuoteAsset)
-  driftRewardOracle?: PublicKey; // Oracle for first reward asset (only needed if rewards exist)
-  driftRewardSpotMarket?: PublicKey; // Spot market for first reward asset (only needed if rewards exist)
-  driftRewardOracle2?: PublicKey; // Oracle for second reward asset (backup in case multiple rewards)
-  driftRewardSpotMarket2?: PublicKey; // Spot market for second reward asset (backup in case multiple rewards)
+  driftOracle?: PublicKey; // not needed if using oracle type QuoteAsset
+  driftRewardOracle?: PublicKey; // only needed if rewards exist
+  driftRewardSpotMarket?: PublicKey; // only needed if rewards exist
+  driftRewardMint?: PublicKey; // only needed if rewards exist
+  driftRewardOracle2?: PublicKey; // backup in case multiple rewards
+  driftRewardSpotMarket2?: PublicKey; // backup in case multiple rewards
+  driftRewardMint2?: PublicKey; // backup in case multiple rewards
   tokenProgram?: PublicKey;
 }
 

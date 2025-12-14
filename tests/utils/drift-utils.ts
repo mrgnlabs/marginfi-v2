@@ -11,11 +11,12 @@ import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { I80F48_ONE, ORACLE_CONF_INTERVAL } from "../utils/types";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { setPythPullOraclePrice } from "./bankrun-oracles";
-import { Oracles } from "./mocks";
+import { MockUser, Oracles, USER_ACCOUNT_D } from "./mocks";
 import {
   DRIFT_TOKEN_A_PULL_ORACLE,
   DRIFT_TOKEN_A_PULL_FEED,
   ecosystem,
+  bankrunProgram,
 } from "../rootHooks";
 
 // Import Drift account types using IdlAccounts - the clean Anchor-native way
@@ -636,6 +637,8 @@ export interface DriftAccountValuation {
 import { decodePriceUpdateV2 } from "./pyth-pull-mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { Marginfi } from "../../target/types/marginfi";
+import { assert } from "chai";
+import { assertBNEqual } from "./genericTests";
 
 // Constants for Drift
 export const DRIFT_SCALED_BALANCE_PRECISION = new BN(1_000_000_000); // 10^9
@@ -1135,3 +1138,32 @@ export const getDriftUser = async (
 
   return await driftProgram.account.user.fetch(userPDA);
 };
+
+export async function assertDriftBankBalance(
+  user: MockUser,
+  bankPubkey: PublicKey,
+  expectedBalance: BN
+) {
+  const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
+
+  const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+    marginfiAccount
+  );
+
+  const balance = userAcc.lendingAccount.balances.find(
+    (b) => b.bankPk.equals(bankPubkey) && b.active === 1
+  );
+
+  if (expectedBalance.isZero())
+  {
+    assert(balance === undefined);
+    return;
+  }
+
+  assert(balance);
+
+  const assetSharesBN = new BN(
+    wrappedI80F48toBigNumber(balance.assetShares).toString()
+  );
+  assertBNEqual(assetSharesBN, expectedBalance);
+}
