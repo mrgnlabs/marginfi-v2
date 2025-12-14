@@ -49,6 +49,7 @@ import { getTokenBalance, assertBNEqual } from "./utils/genericTests";
 import { composeRemainingAccounts } from "./utils/user-instructions";
 import { createMintToInstruction } from "@solana/spl-token";
 import { Clock } from "solana-bankrun";
+import { ASSET_TAG_DRIFT } from "./utils/types";
 
 describe("d10: Drift Interest Simulation", () => {
   const NEW_DRIFT_USDC_BANK = "new_drift_usdc_bank";

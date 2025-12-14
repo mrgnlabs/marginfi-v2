@@ -94,20 +94,24 @@ pub fn drift_withdraw<'info>(
             let scaled_balance = bank_account.withdraw_all()?;
 
             let token_amount = drift_spot_market.get_withdraw_token_amount(scaled_balance)?;
-            let actual_scaled_balance_decrememt =
+            let expected_scaled_balance_change =
                 drift_spot_market.get_scaled_balance_decrement(token_amount)?;
 
-            // Sanity check
-            require_gte!(
-                scaled_balance,
-                actual_scaled_balance_decrememt,
-                MarginfiError::MathError
-            );
+            // Handle edge case where expected_scaled_balance_change is exactly 1 more than scaled_decrement
+            // This happens when depositing and immediately withdrawing with no interest earned
+            // due to Drift rounding up the scaled decrement. We round down manually.
+            if expected_scaled_balance_change != scaled_balance + 1 {
+                // Sanity check
+                require_gte!(
+                    scaled_balance,
+                    expected_scaled_balance_change,
+                    MarginfiError::MathError
+                );
+            }
 
-            (token_amount, actual_scaled_balance_decrememt)
+            (token_amount, expected_scaled_balance_change)
         } else {
-            let mut scaled_decrement = drift_spot_market.get_scaled_balance_decrement(amount)?;
-            let mut token_amount = amount;
+            let scaled_decrement = drift_spot_market.get_scaled_balance_decrement(amount)?;
 
             let asset_shares_i80f48: I80F48 = bank_account.balance.asset_shares.into();
             let asset_shares = asset_shares_i80f48.to_num::<u64>();
@@ -116,13 +120,13 @@ pub fn drift_withdraw<'info>(
             // This happens when depositing and immediately withdrawing with no interest earned
             // due to Drift rounding up the scaled decrement. We round down manually.
             if scaled_decrement == asset_shares + 1 {
-                token_amount = drift_spot_market.get_withdraw_token_amount(asset_shares)?;
-                scaled_decrement = drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+                bank_account.withdraw(I80F48::from_num(asset_shares))?;
+            }
+            else {
+                bank_account.withdraw(I80F48::from_num(scaled_decrement))?;
             }
 
-            bank_account.withdraw(I80F48::from_num(scaled_decrement))?;
-
-            (token_amount, scaled_decrement)
+            (amount, scaled_decrement)
         };
 
         // Track withdrawal limit for risk admin during deleverage

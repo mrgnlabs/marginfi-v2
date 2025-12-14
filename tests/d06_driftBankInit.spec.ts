@@ -26,8 +26,10 @@ import {
   defaultDriftBankConfig,
   DRIFT_SCALED_BALANCE_DECIMALS,
   getDriftUserAccount,
+  TOKEN_A_INIT_DEPOSIT_AMOUNT,
   TOKEN_A_MARKET_INDEX,
   TOKEN_A_SCALING_FACTOR,
+  USDC_INIT_DEPOSIT_AMOUNT,
   USDC_MARKET_INDEX,
   USDC_SCALING_FACTOR,
 } from "./utils/drift-utils";
@@ -101,7 +103,6 @@ describe("d06: Init Drift banks", () => {
     await processBankrunTransaction(ctx, tx, [groupAdmin.wallet], false, true);
 
     driftAccounts.set(DRIFT_USDC_BANK, bankKey);
-    const initUserAmount = new BN(100); // 100 smallest units (0.0001 USDC)
     const initUserTx = new Transaction().add(
       await makeInitDriftUserIx(
         users[0].mrgnBankrunProgram,
@@ -111,7 +112,7 @@ describe("d06: Init Drift banks", () => {
           signerTokenAccount: users[0].usdcAccount,
         },
         {
-          amount: initUserAmount,
+          amount: USDC_INIT_DEPOSIT_AMOUNT,
         },
         0 // USDC market index
       )
@@ -196,7 +197,7 @@ describe("d06: Init Drift banks", () => {
     assert.equal(usdcPosition.marketIndex, USDC_MARKET_INDEX);
     assertBNEqual(
       usdcPosition.scaledBalance,
-      initUserAmount.mul(USDC_SCALING_FACTOR)
+      USDC_INIT_DEPOSIT_AMOUNT.mul(USDC_SCALING_FACTOR)
     );
   });
 
@@ -336,7 +337,6 @@ describe("d06: Init Drift banks", () => {
 
   it("(user 1) Init Drift user for Token A bank - happy path", async () => {
     const user = users[1];
-    const initUserAmount = new BN(200);
     const bankKey = driftAccounts.get(DRIFT_TOKEN_A_BANK);
     const initUserTx = new Transaction().add(
       await makeInitDriftUserIx(
@@ -348,7 +348,7 @@ describe("d06: Init Drift banks", () => {
           driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE)!,
         },
         {
-          amount: initUserAmount,
+          amount: TOKEN_A_INIT_DEPOSIT_AMOUNT,
         },
         1
       )
@@ -372,7 +372,7 @@ describe("d06: Init Drift banks", () => {
     assert.equal(tokenAPosition.marketIndex, TOKEN_A_MARKET_INDEX);
     assertBNEqual(
       tokenAPosition.scaledBalance,
-      initUserAmount.mul(TOKEN_A_SCALING_FACTOR)
+      TOKEN_A_INIT_DEPOSIT_AMOUNT.mul(TOKEN_A_SCALING_FACTOR)
     );
 
     // USDC is still zero

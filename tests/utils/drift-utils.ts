@@ -135,6 +135,10 @@ export const TOKEN_A_POOL3_MARKET_INDEX = 3;
 export const POOL2_ID = 2;
 export const POOL3_ID = 3;
 
+// The initial deposits for respective Drift banks. Used during Drift Users initialization.
+export const USDC_INIT_DEPOSIT_AMOUNT = new BN(100); // 100 smallest units (0.0001 USDC)
+export const TOKEN_A_INIT_DEPOSIT_AMOUNT = new BN(200); // 200 smallest units (0.000002 Token A)
+
 // Default spot market configuration
 export interface SpotMarketConfig {
   optimalUtilization: number;
@@ -1142,7 +1146,7 @@ export const getDriftUser = async (
 export async function assertDriftBankBalance(
   user: MockUser,
   bankPubkey: PublicKey,
-  expectedBalance: BN
+  expectedBalance: BN | null
 ) {
   const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
 
@@ -1154,7 +1158,7 @@ export async function assertDriftBankBalance(
     (b) => b.bankPk.equals(bankPubkey) && b.active === 1
   );
 
-  if (expectedBalance.isZero())
+  if (expectedBalance === null)
   {
     assert(balance === undefined);
     return;
