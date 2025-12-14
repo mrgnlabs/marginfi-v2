@@ -981,6 +981,15 @@ pub fn get_health_components_with_heap_reuse<'info>(
         // Create oracle adapter (heap allocation happens here)
         let price_adapter_result = OraclePriceFeedAdapter::try_from_bank(&bank, oracle_ais, &clock);
 
+        // Log heap usage per position for measurement/debugging
+        // Measured results: Pyth ~64 bytes, Switchboard ~128 bytes per position
+        #[cfg(target_os = "solana")]
+        {
+            let heap_after_oracle = heap_pos();
+            let heap_used = heap_after_oracle.saturating_sub(heap_checkpoint);
+            msg!("HEAP_MEASURE: position={} heap_used={} bytes", position_index, heap_used);
+        }
+
         // Calculate weighted value for this position
         let (asset_val, liab_val, price, err_code) = calc_weighted_value_for_balance(
             balance,
