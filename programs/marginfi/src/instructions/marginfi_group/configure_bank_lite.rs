@@ -3,6 +3,7 @@ use crate::state::bank::BankImpl;
 use crate::state::interest_rate::InterestRateConfigImpl;
 use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
+use marginfi_type_crate::constants::{TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE};
 use marginfi_type_crate::{
     constants::FREEZE_SETTINGS,
     types::{Bank, InterestRateConfigOpt, MarginfiGroup},
@@ -80,6 +81,34 @@ pub struct LendingPoolConfigureBankLimitsOnly<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub delegate_limit_admin: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = group @ MarginfiError::InvalidGroup,
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+}
+
+pub fn lending_pool_force_tokenless_repay_complete(
+    ctx: Context<LendingPoolForceTokenlessRepayComplete>,
+) -> MarginfiResult {
+    let mut bank = ctx.accounts.bank.load_mut()?;
+
+    if bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED) {
+        bank.update_flag(true, TOKENLESS_REPAYMENTS_COMPLETE);
+    }
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolForceTokenlessRepayComplete<'info> {
+    #[account(
+        has_one = risk_admin @ MarginfiError::Unauthorized,
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    pub risk_admin: Signer<'info>,
 
     #[account(
         mut,

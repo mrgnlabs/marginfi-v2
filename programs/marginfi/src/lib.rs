@@ -179,6 +179,15 @@ pub mod marginfi {
         )
     }
 
+    /// (risk_admin only) - Signals all of a bank's liability have been deleveraged. Used if a bank
+    /// still has liability dust after the risk admin has completed deleveraging all debts. The
+    /// risk admin is trusted not to execute this until all non-dust debts have been deleveraged.
+    pub fn lending_pool_force_tokenless_repay_complete(
+        ctx: Context<LendingPoolForceTokenlessRepayComplete>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_force_tokenless_repay_complete(ctx)
+    }
+
     /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
