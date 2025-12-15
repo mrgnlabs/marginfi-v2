@@ -121,8 +121,7 @@ pub fn drift_withdraw<'info>(
             // due to Drift rounding up the scaled decrement. We round down manually.
             if scaled_decrement == asset_shares + 1 {
                 bank_account.withdraw(I80F48::from_num(asset_shares))?;
-            }
-            else {
+            } else {
                 bank_account.withdraw(I80F48::from_num(scaled_decrement))?;
             }
 
