@@ -1,7 +1,7 @@
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use fixtures::{assert_eq_noise, marginfi_account::MarginfiAccountFixture, prelude::*};
-use marginfi_type_crate::types::{BankCache, BankConfigOpt};
+use marginfi_type_crate::types::BankConfigOpt;
 use solana_program_test::tokio;
 
 async fn setup_borrow_with_price_cache(
@@ -80,7 +80,19 @@ async fn bank_cache_resets_after_full_repay() -> anyhow::Result<()> {
         .await?;
 
     let bank_after_repay = sol_bank.load().await;
-    assert_eq!(bank_after_repay.cache, BankCache::default());
+    // No change (uses the price from the prior borrow price!)
+    let expected_price: I80F48 = I80F48::from_num(sol_bank.get_price().await);
+    let cached_price: I80F48 = bank_after_repay.cache.last_oracle_price.into();
+    assert_eq_noise!(cached_price, expected_price);
+    assert_eq!(
+        bank_after_borrow.cache.last_oracle_price_timestamp,
+        bank_after_repay.cache.last_oracle_price_timestamp
+    );
+
+    // The rate fields are reset when liabs are 0
+    assert_eq!(bank_after_repay.cache.base_rate, 0);
+    assert_eq!(bank_after_repay.cache.lending_rate, 0);
+    assert_eq!(bank_after_repay.cache.borrowing_rate, 0);
 
     Ok(())
 }
@@ -118,9 +130,13 @@ async fn bank_cache_pulse_refreshes_price_from_oracle() -> anyhow::Result<()> {
 
     let bank_after_pulse = sol_bank_f.load().await;
     let cached_price_after_pulse: I80F48 = bank_after_pulse.cache.last_oracle_price.into();
-    let expected_price = I80F48::from_num(sol_bank_f.get_price().await);
+    let cached_conf_after_pulse: I80F48 =
+        bank_after_pulse.cache.last_oracle_price_confidence.into();
+    let expected_price: I80F48 = I80F48::from_num(sol_bank_f.get_price().await);
 
     assert_eq_noise!(cached_price_after_pulse, expected_price);
+    // Note: No confidence bands in the Rust tests
+    assert_eq_noise!(cached_conf_after_pulse, I80F48::ZERO);
 
     Ok(())
 }
