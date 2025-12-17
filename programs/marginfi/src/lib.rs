@@ -440,6 +440,13 @@ pub mod marginfi {
         marginfi_account::lending_account_pulse_health(ctx)
     }
 
+    /// (Permissionless) Refresh the cached oracle price for a bank.
+    pub fn lending_pool_pulse_bank_price_cache<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolPulseBankPriceCache<'info>>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_pulse_bank_price_cache(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(

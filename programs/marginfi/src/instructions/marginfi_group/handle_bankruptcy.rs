@@ -68,8 +68,12 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
     health_cache.program_version = PROGRAM_VERSION;
-    RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?
-        .check_account_bankrupt(&mut Some(&mut health_cache))?;
+
+    let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
+    risk_engine.check_account_bankrupt(&mut Some(&mut health_cache))?;
+    let cached_price = risk_engine
+        .get_unbiased_price_for_bank(&bank_loader.key())
+        .ok();
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 
@@ -175,7 +179,9 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     )?
     .repay(bad_debt)?;
 
+    // Update bank cache after all manipulations (interest accrual, loss socialization, repay)
     bank.update_bank_cache(group)?;
+    bank.update_cache_price(cached_price)?;
 
     marginfi_account.set_flag(ACCOUNT_DISABLED, true);
     marginfi_account.last_update = clock.unix_timestamp as u64;
