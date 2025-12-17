@@ -214,6 +214,12 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
+    /// (admin or emode_admin) Copies emode settings from one bank to another. Useful when applying
+    /// emode settings from e.g. one LST to another.
+    pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_emode(ctx)
+    }
+
     /// (delegate_emissions_admin only)
     pub fn lending_pool_setup_emissions(
         ctx: Context<LendingPoolSetupEmissions>,
