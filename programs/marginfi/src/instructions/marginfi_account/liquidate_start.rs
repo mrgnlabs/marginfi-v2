@@ -1,6 +1,6 @@
 use crate::{
     check,
-    constants::COMPUTE_PROGRAM_KEY,
+    constants::{ASSOCIATED_TOKEN_KEY, COMPUTE_PROGRAM_KEY, JUP_KEY, TITAN_KEY},
     ix_utils::{
         get_discrim_hash, load_and_validate_instructions, validate_ix_first, validate_ix_last,
         validate_ixes_exclusive, validate_not_cpi_by_stack_height, validate_not_cpi_with_sysvar,
@@ -121,6 +121,9 @@ pub fn validate_instructions(
         COMPUTE_PROGRAM_KEY,
         id_crate::ID,
         kamino_mocks::kamino_lending::ID,
+        JUP_KEY,
+        TITAN_KEY,
+        ASSOCIATED_TOKEN_KEY,
     ];
     let ixes = load_and_validate_instructions(sysvar, Some(allowed_program_ids))?;
     validate_ix_first(
