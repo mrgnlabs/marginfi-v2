@@ -13,7 +13,7 @@ import {
   StakedSettingsEdit,
 } from "./types";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export const MAX_ORACLE_KEYS = 5;
 
@@ -137,6 +137,8 @@ export const addBankWithSeed = (
  * newCurveAdmin - (Optional) pass null to keep current curve admin
  * newLimitAdmin - (Optional) pass null to keep current limit admin
  * newEmissionsAdmin - (Optional) pass null to keep current emissions admin
+ * newMetadataAdmin - (Optional) pass null to keep current meta admin
+ * newRiskAdmin - (Optional) pass null to keep current risk admin
  * marginfiGroup's admin - must sign
  * isArena - default false
  */
@@ -146,6 +148,8 @@ export type GroupConfigureArgs = {
   newCurveAdmin?: PublicKey | null;
   newLimitAdmin?: PublicKey | null;
   newEmissionsAdmin?: PublicKey | null;
+  newMetadataAdmin?: PublicKey | null;
+  newRiskAdmin?: PublicKey | null;
   marginfiGroup: PublicKey;
   isArena?: boolean; // optional; defaults to false if not provided
 };
@@ -161,6 +165,8 @@ export const groupConfigure = async (
   const newLimitAdmin = args.newLimitAdmin ?? group.delegateLimitAdmin;
   const newEmissionsAdmin =
     args.newEmissionsAdmin ?? group.delegateEmissionsAdmin;
+  const newMetadataAdmin = args.newMetadataAdmin ?? group.metadataAdmin;
+  const newRiskAdmin = args.newRiskAdmin ?? group.riskAdmin;
   const isArena = args.isArena ?? false;
 
   const ix = program.methods
@@ -170,6 +176,8 @@ export const groupConfigure = async (
       newCurveAdmin,
       newLimitAdmin,
       newEmissionsAdmin,
+      newMetadataAdmin,
+      newRiskAdmin,
       isArena
     )
     .accounts({
@@ -395,8 +403,7 @@ export const propagateFeeState = (
   args: PropogateFeeStateArgs
 ) => {
   const ix = program.methods
-    .propagateFeeState(
-    )
+    .propagateFeeState()
     .accounts({
       marginfiGroup: args.group,
       // feeState = deriveGlobalFeeState(id),
@@ -405,7 +412,6 @@ export const propagateFeeState = (
 
   return ix;
 };
-
 
 export type InitStakedSettingsArgs = {
   group: PublicKey;
@@ -716,6 +722,23 @@ export const accrueInterest = (
   return ix;
 };
 
+export type MigrateCurveArgs = {
+  bank: PublicKey;
+};
+
+export const migrateCurve = (
+  program: Program<Marginfi>,
+  args: MigrateCurveArgs
+) => {
+  const ix = program.methods
+    .migrateCurve()
+    .accounts({
+      bank: args.bank,
+    })
+    .instruction();
+  return ix;
+};
+
 export type HandleBankruptcyArgs = {
   signer: PublicKey;
   bank: PublicKey;
@@ -822,6 +845,119 @@ export const panicUnpausePermissionless = async (
     .panicUnpausePermissionless()
     .accounts({
       // feeState: args.feeState,
+    })
+    .instruction();
+
+  return ix;
+};
+
+type InitBankMetadataArgs = {
+  bank: PublicKey;
+};
+
+export const initBankMetadata = (
+  program: Program<Marginfi>,
+  args: InitBankMetadataArgs
+) => {
+  const ix = program.methods
+    .initBankMetadata()
+    .accounts({
+      // metadata: args.metadata, // derived from bank
+      bank: args.bank,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type SetFixedPriceArgs = {
+  bank: PublicKey;
+  price: number;
+};
+
+export const setFixedPrice = (
+  program: Program<Marginfi>,
+  args: SetFixedPriceArgs
+) => {
+  const ix = program.methods
+    .lendingPoolSetFixedOraclePrice(bigNumberToWrappedI80F48(args.price))
+    .accounts({
+      // group: // implied from bank
+      // admin: // implied from group
+      bank: args.bank,
+    })
+    .instruction();
+
+  return ix;
+};
+
+type WriteBankMetadataArgs = {
+  metadata: PublicKey;
+  /// Pass undefined to skip. Limit 64 bytes
+  ticker?: string;
+  /// Pass undefined to skip. Limit 128 bytes
+  description?: string;
+};
+
+/**
+ * Write bank metadata (ticker / description).
+ * - Validates UTF-8 byte length (<=64 / <=128).
+ * - Passes Buffer (Some) or null (None) to the program.
+ */
+export const writeBankMetadata = (
+  program: Program<Marginfi>,
+  args: WriteBankMetadataArgs
+) => {
+  const TICKER_CAP = 64;
+  const DESC_CAP = 128;
+
+  const tickerBuf =
+    args.ticker !== undefined ? Buffer.from(args.ticker, "utf8") : null;
+  if (tickerBuf && tickerBuf.length > TICKER_CAP) {
+    throw new Error(
+      `Ticker is ${tickerBuf.length} bytes, exceeds ${TICKER_CAP} byte cap`
+    );
+  }
+
+  const descBuf =
+    args.description !== undefined
+      ? Buffer.from(args.description, "utf8")
+      : null;
+  if (descBuf && descBuf.length > DESC_CAP) {
+    throw new Error(
+      `Description is ${descBuf.length} bytes, exceeds ${DESC_CAP} byte cap`
+    );
+  }
+
+  const ix = program.methods
+    .writeBankMetadata(
+      tickerBuf, // Option<Vec<u8>> -> Some(Buffer) | None(null)
+      descBuf // Option<Vec<u8>> -> Some(Buffer) | None(null)
+    )
+    .accounts({
+      // group: args.group, // implied from metadata
+      // bank: args.bank, // implied from metadata
+      // metadataAdmin: args.metadataAdmin, // implied from metadata
+      metadata: args.metadata,
+    })
+    .instruction();
+
+  return ix;
+};
+
+export type ConfigureDeleverageWithdrawalLimitArgs = {
+  marginfiGroup: PublicKey;
+  limit: number;
+};
+
+export const configureDeleverageWithdrawalLimit = async (
+  program: Program<Marginfi>,
+  args: ConfigureDeleverageWithdrawalLimitArgs
+) => {
+  const ix = await program.methods
+    .configureDeleverageWithdrawalLimit(args.limit)
+    .accounts({
+      marginfiGroup: args.marginfiGroup,
     })
     .instruction();
 

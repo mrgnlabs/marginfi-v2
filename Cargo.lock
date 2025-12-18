@@ -2849,7 +2849,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2888,7 +2888,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi-type-crate"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anchor-lang",
  "bs58",
@@ -2902,7 +2902,7 @@ dependencies = [
 
 [[package]]
 name = "marginfi-v2-cli"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "anchor-client",
  "anchor-spl",
@@ -7525,6 +7525,7 @@ dependencies = [
  "fixed",
  "fixed-macro",
  "futures",
+ "kamino-mocks",
  "lazy_static",
  "marginfi",
  "marginfi-type-crate",

@@ -1,7 +1,7 @@
-use anchor_lang::error::ErrorCode;
+use anchor_lang::{InstructionData, ToAccountMetas};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
-use fixtures::{assert_anchor_error, assert_custom_error, prelude::*};
+use fixtures::{assert_custom_error, prelude::*};
 use marginfi::{
     constants::INIT_BANK_ORIGINATION_FEE_DEFAULT,
     prelude::MarginfiError,
@@ -11,15 +11,21 @@ use marginfi::{
     },
 };
 use marginfi_type_crate::{
-    constants::{CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG},
+    constants::{
+        CLOSE_ENABLED_FLAG, FREEZE_SETTINGS, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        TOKENLESS_REPAYMENTS_ALLOWED,
+    },
     types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
-        MarginfiGroup, OracleSetup, EMODE_ON,
+        make_points, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
+        MarginfiGroup, OracleSetup, RatePoint, EMODE_ON, INTEREST_CURVE_SEVEN_POINT,
     },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::{clock::Clock, pubkey::Pubkey};
+use solana_sdk::{
+    clock::Clock, instruction::Instruction, pubkey::Pubkey, transaction::Transaction,
+};
+use solana_sdk::{signature::Keypair, signer::Signer};
 use test_case::test_case;
 
 #[tokio::test]
@@ -75,7 +81,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
 
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config, None)
             .await;
 
         let marginfi_group: MarginfiGroup = test_f
@@ -221,7 +227,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
 
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank_with_seed(&mint_f, bank_config, bank_seed)
+            .try_lending_pool_add_bank_with_seed(&mint_f, None, bank_config, bank_seed)
             .await;
         assert!(res.is_ok());
 
@@ -333,16 +339,122 @@ async fn marginfi_group_add_bank_failure_inexistent_pyth_feed() -> anyhow::Resul
         .marginfi_group
         .try_lending_pool_add_bank(
             &bank_asset_mint_fixture,
+            None,
             BankConfig {
                 oracle_setup: OracleSetup::PythPushOracle,
                 oracle_keys: create_oracle_key_array(INEXISTENT_PYTH_USDC_FEED),
                 ..*DEFAULT_USDC_TEST_BANK_CONFIG
             },
+            None,
         )
         .await;
 
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::PythPushWrongAccountOwner);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_bank_to_fixed_oracle() -> anyhow::Result<()> {
+    let test_settings = TestSettings {
+        banks: vec![TestBankSetting {
+            mint: BankMint::Usdc,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let test_f = TestFixture::new(Some(test_settings)).await;
+
+    let bank_f = test_f.get_bank(&BankMint::Usdc);
+    let bank_before = bank_f.load().await;
+    assert_ne!(bank_before.config.oracle_setup, OracleSetup::Fixed);
+
+    let price_value = I80F48!(3.5);
+    let price_wrapped = price_value.into();
+
+    {
+        let ctx = test_f.context.borrow_mut();
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {
+                group: test_f.marginfi_group.key,
+                admin: ctx.payer.pubkey(),
+                bank: bank_f.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolSetFixedOraclePrice {
+                price: price_wrapped,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    let bank_after = bank_f.load().await;
+    assert_eq!(bank_after.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_after.config.fixed_price), price_value);
+    assert_eq!(bank_after.config.oracle_keys[0], Pubkey::default());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_fixed_bank_price() -> anyhow::Result<()> {
+    let test_settings = TestSettings {
+        banks: vec![TestBankSetting {
+            mint: BankMint::Fixed,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let test_f = TestFixture::new(Some(test_settings)).await;
+
+    let bank_f = test_f.get_bank(&BankMint::Fixed);
+    let bank_before = bank_f.load().await;
+    assert_eq!(bank_before.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_before.config.fixed_price), I80F48!(2.0));
+
+    let new_price_value = I80F48!(4.2);
+    let new_price_wrapped = new_price_value.into();
+
+    {
+        let ctx = test_f.context.borrow();
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::LendingPoolSetFixedOraclePrice {
+                group: test_f.marginfi_group.key,
+                admin: ctx.payer.pubkey(),
+                bank: bank_f.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingPoolSetFixedOraclePrice {
+                price: new_price_wrapped,
+            }
+            .data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    let bank_after = bank_f.load().await;
+    assert_eq!(bank_after.config.oracle_setup, OracleSetup::Fixed);
+    assert_eq!(I80F48::from(bank_after.config.fixed_price), new_price_value);
 
     Ok(())
 }
@@ -357,17 +469,21 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
 
     let bank = test_f.get_bank(&bank_mint);
     let old_bank = bank.load().await;
+    let exp_points = make_points(&vec![
+        RatePoint::new(1234, 56789),
+        RatePoint::new(2345, 67890),
+    ]);
 
     let config_bank_opt = BankConfigOpt {
         interest_rate_config: Some(InterestRateConfigOpt {
-            optimal_utilization_rate: Some(I80F48::from_num(0.91).into()),
-            plateau_interest_rate: Some(I80F48::from_num(0.44).into()),
-            max_interest_rate: Some(I80F48::from_num(1.44).into()),
             insurance_fee_fixed_apr: Some(I80F48::from_num(0.13).into()),
             insurance_ir_fee: Some(I80F48::from_num(0.11).into()),
             protocol_fixed_fee_apr: Some(I80F48::from_num(0.51).into()),
             protocol_ir_fee: Some(I80F48::from_num(0.011).into()),
             protocol_origination_fee: Some(I80F48::ZERO.into()),
+            zero_util_rate: Some(123),
+            hundred_util_rate: Some(1234567),
+            points: Some(exp_points),
         }),
         ..BankConfigOpt::default()
     };
@@ -394,36 +510,36 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
         oracle_max_confidence,
         permissionless_bad_debt_settlement,
         freeze_settings,
+        tokenless_repayments_allowed,
     } = &config_bank_opt;
     // Compare bank field to opt field if Some, otherwise compare to old bank field
     macro_rules! check_bank_field {
-        ($field:tt, $subfield:tt) => {
+        // Note: some nested fields (e.g. optimal_utilization_rate) don't exist on the config struct
+        ($field:ident, $subfield:ident) => {
             assert_eq!(
                 bank.config.$field.$subfield,
                 $field
                     .as_ref()
-                    .map(|opt| opt
-                        .$subfield
-                        .clone()
-                        .unwrap_or(old_bank.config.$field.$subfield))
-                    .unwrap()
+                    .and_then(|opt| opt.$subfield.clone())
+                    .unwrap_or(old_bank.config.$field.$subfield)
             );
         };
 
-        ($field:tt) => {
+        // Top-level fields are always expected with the same name
+        ($field:ident) => {
             assert_eq!(bank.config.$field, $field.unwrap_or(old_bank.config.$field));
         };
     }
 
     let _ = {
-        check_bank_field!(interest_rate_config, optimal_utilization_rate);
-        check_bank_field!(interest_rate_config, plateau_interest_rate);
-        check_bank_field!(interest_rate_config, max_interest_rate);
         check_bank_field!(interest_rate_config, insurance_fee_fixed_apr);
         check_bank_field!(interest_rate_config, insurance_ir_fee);
         check_bank_field!(interest_rate_config, protocol_fixed_fee_apr);
         check_bank_field!(interest_rate_config, protocol_ir_fee);
         check_bank_field!(interest_rate_config, protocol_origination_fee);
+        check_bank_field!(interest_rate_config, zero_util_rate);
+        check_bank_field!(interest_rate_config, hundred_util_rate);
+        check_bank_field!(interest_rate_config, points);
 
         check_bank_field!(asset_weight_init);
         check_bank_field!(asset_weight_maint);
@@ -453,6 +569,15 @@ async fn configure_bank_success(bank_mint: BankMint) -> anyhow::Result<()> {
             // If None check flag is unchanged
             .unwrap_or(bank.get_flag(FREEZE_SETTINGS) == old_bank.get_flag(FREEZE_SETTINGS)));
 
+        assert!(tokenless_repayments_allowed
+            // If Some(...) check flag set properly
+            .map(|set| set == bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED))
+            // If None check flag is unchanged
+            .unwrap_or(
+                bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+                    == old_bank.get_flag(TOKENLESS_REPAYMENTS_ALLOWED)
+            ));
+
         // Oracles no longer update in the standard config instruction
         assert_eq!(
             bank.config.oracle_keys, old_bank.config.oracle_keys,
@@ -480,6 +605,8 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
             true,
         )
         .await;
@@ -508,7 +635,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config, None)
             .await;
         assert!(res.is_ok());
     }
@@ -520,7 +647,7 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
 
     let res = test_f
         .marginfi_group
-        .try_lending_pool_add_bank(&another_mint, another_config)
+        .try_lending_pool_add_bank(&another_mint, None, another_config, None)
         .await;
 
     assert!(res.is_err());
@@ -536,6 +663,8 @@ async fn add_too_many_arena_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
             false,
         )
         .await;
@@ -574,7 +703,7 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
     for (mint_f, bank_config) in mints {
         let res = test_f
             .marginfi_group
-            .try_lending_pool_add_bank(&mint_f, bank_config)
+            .try_lending_pool_add_bank(&mint_f, None, bank_config, None)
             .await;
         assert!(res.is_ok());
     }
@@ -588,6 +717,8 @@ async fn config_group_as_arena_too_many_banks() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
             true,
         )
         .await;
@@ -607,6 +738,8 @@ async fn config_group_admins() -> anyhow::Result<()> {
     let new_curve_admin = Pubkey::new_unique();
     let new_limit_admin = Pubkey::new_unique();
     let new_emissions_admin = Pubkey::new_unique();
+    let new_metadata_admin = Pubkey::new_unique();
+    let new_risk_admin = Pubkey::new_unique();
 
     let res = test_f
         .marginfi_group
@@ -616,6 +749,8 @@ async fn config_group_admins() -> anyhow::Result<()> {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
             false,
         )
         .await;
@@ -627,6 +762,8 @@ async fn config_group_admins() -> anyhow::Result<()> {
     assert_eq!(group_after.delegate_curve_admin, new_curve_admin);
     assert_eq!(group_after.delegate_limit_admin, new_limit_admin);
     assert_eq!(group_after.delegate_emissions_admin, new_emissions_admin);
+    assert_eq!(group_after.metadata_admin, new_metadata_admin);
+    assert_eq!(group_after.risk_admin, new_risk_admin);
     Ok(())
 }
 
@@ -711,6 +848,142 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     Ok(())
 }
 
+#[tokio::test]
+async fn lending_pool_clone_emode_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank_admin = test_f.get_bank(&BankMint::Sol);
+    let copy_to_bank_emode_admin = test_f.get_bank(&BankMint::PyUSD);
+
+    let copy_to_before = copy_to_bank_admin.load().await;
+    assert_eq!(copy_to_before.emode.flags, 0);
+    assert_eq!(copy_to_before.emode.emode_tag, 0);
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Admin can clone emode settings.
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode(&copy_from_bank, &copy_to_bank_admin)
+        .await?;
+
+    let copy_from_after = copy_from_bank.load().await;
+    let copy_to_after = copy_to_bank_admin.load().await;
+
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
+
+    // A dedicated emode admin can also clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_emode_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            new_emode_admin.pubkey(),
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(
+            &new_emode_admin,
+            &copy_from_bank,
+            &copy_to_bank_emode_admin,
+        )
+        .await?;
+
+    let copy_to_after = copy_to_bank_emode_admin.load().await;
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_clone_emode_unauthorized_fails() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank = test_f.get_bank(&BankMint::Sol);
+
+    let copy_to_before = copy_to_bank.load().await;
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Other group roles must not be able to clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_risk_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            new_risk_admin.pubkey(),
+            false,
+        )
+        .await?;
+
+    let err = test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(&new_risk_admin, &copy_from_bank, &copy_to_bank)
+        .await
+        .unwrap_err();
+    assert_custom_error!(err, MarginfiError::Unauthorized);
+
+    let copy_to_after = copy_to_bank.load().await;
+    assert_eq!(copy_to_after.emode, copy_to_before.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
+
+    Ok(())
+}
+
 #[test_case(BankMint::Usdc)]
 #[test_case(BankMint::PyUSD)]
 #[test_case(BankMint::T22WithFee)]
@@ -770,15 +1043,24 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
     let bank = test_f.get_bank(&BankMint::Usdc);
     let old_bank = bank.load().await;
 
+    let exp_points = make_points(&vec![
+        RatePoint::new(1234, 56789),
+        RatePoint::new(2345, 67890),
+    ]);
+
     let ir_config = InterestRateConfigOpt {
-        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
-        plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
-        max_interest_rate: Some(I80F48::from_num(1.5).into()),
+        // TODO deprecate in 1.7
+        // optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        // plateau_interest_rate: Some(I80F48::from_num(0.5).into()),
+        // max_interest_rate: Some(I80F48::from_num(1.5).into()),
         insurance_fee_fixed_apr: Some(I80F48::from_num(0.01).into()),
         insurance_ir_fee: Some(I80F48::from_num(0.02).into()),
         protocol_fixed_fee_apr: Some(I80F48::from_num(0.03).into()),
         protocol_ir_fee: Some(I80F48::from_num(0.04).into()),
         protocol_origination_fee: Some(I80F48::from_num(0.05).into()),
+        zero_util_rate: Some(123),
+        hundred_util_rate: Some(1234567),
+        points: Some(exp_points),
     };
 
     test_f
@@ -788,20 +1070,23 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
 
     let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
 
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after
             .config
             .interest_rate_config
             .optimal_utilization_rate,
-        ir_config.optimal_utilization_rate.unwrap()
+        I80F48::ZERO.into()
     );
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after.config.interest_rate_config.plateau_interest_rate,
-        ir_config.plateau_interest_rate.unwrap()
+        I80F48::ZERO.into()
     );
+    // TODO deprecate in 1.7
     assert_eq!(
         bank_after.config.interest_rate_config.max_interest_rate,
-        ir_config.max_interest_rate.unwrap()
+        I80F48::ZERO.into()
     );
     assert_eq!(
         bank_after
@@ -832,7 +1117,21 @@ async fn configure_bank_interest_only_success() -> anyhow::Result<()> {
             .protocol_origination_fee,
         ir_config.protocol_origination_fee.unwrap()
     );
+    assert_eq!(
+        bank_after.config.interest_rate_config.zero_util_rate,
+        ir_config.zero_util_rate.unwrap()
+    );
+    assert_eq!(
+        bank_after.config.interest_rate_config.hundred_util_rate,
+        ir_config.hundred_util_rate.unwrap()
+    );
+    assert_eq!(bank_after.config.interest_rate_config.points, exp_points);
+    assert_eq!(
+        bank_after.config.interest_rate_config.curve_type,
+        INTEREST_CURVE_SEVEN_POINT
+    );
 
+    // No change
     assert_eq!(
         bank_after.config.deposit_limit,
         old_bank.config.deposit_limit
@@ -859,12 +1158,14 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
             Pubkey::new_unique(),
             group_before.delegate_limit_admin,
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
             false,
         )
         .await?;
 
     let ir_config = InterestRateConfigOpt {
-        optimal_utilization_rate: Some(I80F48::from_num(0.9).into()),
+        hundred_util_rate: Some(1234567),
         ..Default::default()
     };
 
@@ -873,7 +1174,7 @@ async fn configure_bank_interest_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_interest_only(&bank, ir_config)
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     Ok(())
 }
@@ -924,6 +1225,8 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
             group_before.delegate_curve_admin,
             Pubkey::new_unique(),
             group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
             false,
         )
         .await?;
@@ -933,7 +1236,7 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
         .try_lending_pool_configure_bank_limits_only(&bank, Some(1), Some(1), Some(1))
         .await;
     assert!(res.is_err());
-    assert_anchor_error!(res.unwrap_err(), ErrorCode::ConstraintHasOne);
+    assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
 
     Ok(())
 }

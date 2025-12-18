@@ -13,6 +13,7 @@ use {
             find_bank_vault_pda, find_fee_state_pda, load_observation_account_metas,
             process_transaction, EXP_10_I80F48,
         },
+        RatePointArg,
     },
     anchor_client::{
         anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas},
@@ -39,8 +40,9 @@ use {
             EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, ZERO_AMOUNT_THRESHOLD,
         },
         types::{
-            BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, WrappedI80F48,
+            make_points, BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
+            InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup, RatePoint,
+            WrappedI80F48, CURVE_POINTS, INTEREST_CURVE_SEVEN_POINT,
         },
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
@@ -270,6 +272,8 @@ pub fn group_configure(
     new_curve_admin: Pubkey,
     new_limit_admin: Pubkey,
     new_emissions_admin: Pubkey,
+    new_metadata_admin: Pubkey,
+    new_risk_admin: Pubkey,
     is_arena_group: bool,
 ) -> Result<()> {
     let rpc_client = config.mfi_program.rpc();
@@ -295,6 +299,8 @@ pub fn group_configure(
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
             is_arena_group,
         })
         .instructions()?;
@@ -325,9 +331,9 @@ pub fn group_add_bank(
     liability_weight_maint: f64,
     deposit_limit_ui: u64,
     borrow_limit_ui: u64,
-    optimal_utilization_rate: f64,
-    plateau_interest_rate: f64,
-    max_interest_rate: f64,
+    zero_util_rate: u32,
+    hundred_util_rate: u32,
+    points: Vec<RatePointArg>,
     insurance_fee_fixed_apr: f64,
     insurance_ir_fee: f64,
     group_fixed_fee_apr: f64,
@@ -348,9 +354,9 @@ pub fn group_add_bank(
     let liability_weight_init: WrappedI80F48 = I80F48::from_num(liability_weight_init).into();
     let liability_weight_maint: WrappedI80F48 = I80F48::from_num(liability_weight_maint).into();
 
-    let optimal_utilization_rate: WrappedI80F48 = I80F48::from_num(optimal_utilization_rate).into();
-    let plateau_interest_rate: WrappedI80F48 = I80F48::from_num(plateau_interest_rate).into();
-    let max_interest_rate: WrappedI80F48 = I80F48::from_num(max_interest_rate).into();
+    let optimal_utilization_rate: WrappedI80F48 = I80F48::ZERO.into();
+    let plateau_interest_rate: WrappedI80F48 = I80F48::ZERO.into();
+    let max_interest_rate: WrappedI80F48 = I80F48::ZERO.into();
     let insurance_fee_fixed_apr: WrappedI80F48 = I80F48::from_num(insurance_fee_fixed_apr).into();
     let insurance_ir_fee: WrappedI80F48 = I80F48::from_num(insurance_ir_fee).into();
     let group_fixed_fee_apr: WrappedI80F48 = I80F48::from_num(group_fixed_fee_apr).into();
@@ -364,6 +370,15 @@ pub fn group_add_bank(
     let deposit_limit = deposit_limit_ui * 10_u64.pow(mint.decimals as u32);
     let borrow_limit = borrow_limit_ui * 10_u64.pow(mint.decimals as u32);
 
+    let pts_raw: Vec<RatePoint> = points
+        .iter()
+        .map(|p| RatePoint {
+            util: p.util,
+            rate: p.rate,
+        })
+        .collect();
+    let points: [RatePoint; CURVE_POINTS] = make_points(&pts_raw);
+
     let interest_rate_config = InterestRateConfig {
         optimal_utilization_rate,
         plateau_interest_rate,
@@ -372,6 +387,10 @@ pub fn group_add_bank(
         insurance_ir_fee,
         protocol_fixed_fee_apr: group_fixed_fee_apr,
         protocol_ir_fee: group_ir_fee,
+        zero_util_rate,
+        hundred_util_rate,
+        points,
+        curve_type: INTEREST_CURVE_SEVEN_POINT,
         ..InterestRateConfig::default()
     };
 
@@ -1227,20 +1246,31 @@ pub fn bank_inspect_price_oracle(config: Config, bank_pk: Pubkey) -> Result<()> 
     use marginfi::state::price::{OraclePriceType, PriceBias};
 
     let bank: Bank = config.mfi_program.account(bank_pk)?;
-    let mut price_oracle_account = config
-        .mfi_program
-        .rpc()
-        .get_account(&bank.config.oracle_keys[0])?;
-    let price_oracle_ai =
-        (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
+    let opfa = match bank.config.oracle_setup {
+        OracleSetup::Fixed => OraclePriceFeedAdapter::try_from_bank_with_max_age(
+            &bank,
+            &[],
+            &Clock::default(),
+            u64::MAX,
+        )
+        .unwrap(),
+        _ => {
+            let mut price_oracle_account = config
+                .mfi_program
+                .rpc()
+                .get_account(&bank.config.oracle_keys[0])?;
+            let price_oracle_ai =
+                (&bank.config.oracle_keys[0], &mut price_oracle_account).into_account_info();
 
-    let opfa = OraclePriceFeedAdapter::try_from_bank_config_with_max_age(
-        &bank.config,
-        &[price_oracle_ai],
-        &Clock::default(),
-        u64::MAX,
-    )
-    .unwrap();
+            OraclePriceFeedAdapter::try_from_bank_with_max_age(
+                &bank,
+                &[price_oracle_ai],
+                &Clock::default(),
+                u64::MAX,
+            )
+            .unwrap()
+        }
+    };
 
     let (real_price, maint_asset_price, maint_liab_price, init_asset_price, init_liab_price) = (
         opfa.get_price_of_type_ignore_conf(OraclePriceType::RealTime, None)?,
@@ -1298,10 +1328,13 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
                 *b.config.oracle_keys.clone().first().unwrap(),
             )
         })
-        .partition(|(setup, _, _, _)| match setup {
-            OracleSetup::PythPushOracle => true,
-            OracleSetup::SwitchboardPull => false,
-            _ => panic!("Unknown oracle setup"),
+        .partition(|(setup, _, _, _)| {
+            matches!(
+                setup,
+                OracleSetup::PythPushOracle
+                    | OracleSetup::KaminoPythPush
+                    | OracleSetup::StakedWithPythPush
+            )
         });
 
     let pyth_feeds = pyth_feeds
@@ -1311,6 +1344,7 @@ pub fn show_oracle_ages(config: Config, only_stale: bool) -> Result<()> {
 
     let swb_feeds = swb_feeds
         .into_iter()
+        .filter(|(setup, _, _, _)| matches!(setup, OracleSetup::SwitchboardPull))
         .map(|(_, max_age, mint, key)| (max_age, mint, key))
         .collect::<Vec<_>>();
 
@@ -2353,6 +2387,15 @@ pub fn marginfi_account_liquidate(
     let liability_mint_account = rpc_client.get_account(&liability_bank.mint)?;
     let token_program = liability_mint_account.owner;
 
+    let liquidator_accounts = load_observation_account_metas(
+        &marginfi_account,
+        &banks,
+        vec![liability_bank_pk, asset_bank_pk],
+        vec![],
+    );
+    let liquidatee_accounts =
+        load_observation_account_metas(&liquidatee_marginfi_account, &banks, vec![], vec![]);
+
     let mut ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::LendingAccountLiquidate {
@@ -2373,7 +2416,12 @@ pub fn marginfi_account_liquidate(
             token_program,
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::LendingAccountLiquidate { asset_amount }.data(),
+        data: marginfi::instruction::LendingAccountLiquidate {
+            asset_amount,
+            liquidatee_accounts: liquidatee_accounts.len() as u8,
+            liquidator_accounts: liquidator_accounts.len() as u8,
+        }
+        .data(),
     };
 
     let oracle_accounts = vec![asset_bank, liability_bank].into_iter().map(|bank| {
@@ -2404,18 +2452,8 @@ pub fn marginfi_account_liquidate(
         is_signer: false,
         is_writable: false,
     });
-    ix.accounts.extend(load_observation_account_metas(
-        &marginfi_account,
-        &banks,
-        vec![liability_bank_pk, asset_bank_pk],
-        vec![],
-    ));
-    ix.accounts.extend(load_observation_account_metas(
-        &liquidatee_marginfi_account,
-        &banks,
-        vec![],
-        vec![],
-    ));
+    ix.accounts.extend(liquidator_accounts);
+    ix.accounts.extend(liquidatee_accounts);
 
     let cu_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
 

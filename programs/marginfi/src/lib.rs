@@ -98,6 +98,8 @@ pub mod marginfi {
         new_curve_admin: Pubkey,
         new_limit_admin: Pubkey,
         new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
+        new_risk_admin: Pubkey,
         is_arena_group: bool,
     ) -> MarginfiResult {
         marginfi_group::configure(
@@ -107,6 +109,8 @@ pub mod marginfi {
             new_curve_admin,
             new_limit_admin,
             new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
             is_arena_group,
         )
     }
@@ -127,6 +131,14 @@ pub mod marginfi {
         bank_seed: u64,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
+    }
+
+    /// Staging or localnet only, panics on mainnet
+    pub fn lending_pool_clone_bank(
+        ctx: Context<LendingPoolCloneBank>,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_bank(ctx, bank_seed)
     }
 
     pub fn lending_pool_add_bank_permissionless(
@@ -167,6 +179,15 @@ pub mod marginfi {
         )
     }
 
+    /// (risk_admin only) - Signals all of a bank's liability have been deleveraged. Used if a bank
+    /// still has liability dust after the risk admin has completed deleveraging all debts. The
+    /// risk admin is trusted not to execute this until all non-dust debts have been deleveraged.
+    pub fn lending_pool_force_tokenless_repay_complete(
+        ctx: Context<LendingPoolForceTokenlessRepayComplete>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_force_tokenless_repay_complete(ctx)
+    }
+
     /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
@@ -176,6 +197,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
+    /// (admin only)
+    pub fn lending_pool_set_fixed_oracle_price(
+        ctx: Context<LendingPoolSetFixedOraclePrice>,
+        price: WrappedI80F48,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_set_fixed_oracle_price(ctx, price)
+    }
+
     /// (emode_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
@@ -183,6 +212,12 @@ pub mod marginfi {
         entries: [EmodeEntry; MAX_EMODE_ENTRIES],
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
+    }
+
+    /// (admin or emode_admin) Copies emode settings from one bank to another. Useful when applying
+    /// emode settings from e.g. one LST to another.
+    pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_emode(ctx)
     }
 
     /// (delegate_emissions_admin only)
@@ -301,8 +336,15 @@ pub mod marginfi {
     pub fn lending_account_liquidate<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,
         asset_amount: u64,
+        liquidatee_accounts: u8,
+        liquidator_accounts: u8,
     ) -> MarginfiResult {
-        marginfi_account::lending_account_liquidate(ctx, asset_amount)
+        marginfi_account::lending_account_liquidate(
+            ctx,
+            asset_amount,
+            liquidatee_accounts,
+            liquidator_accounts,
+        )
     }
 
     pub fn lending_account_start_flashloan(
@@ -409,16 +451,6 @@ pub mod marginfi {
         marginfi_account::lending_account_pulse_health(ctx)
     }
 
-    /// (Permissionless) Sorts the lending account balances in descending order and removes the "gaps"
-    /// (i.e. inactive balances in between the active ones), if any.
-    /// This is necessary to ensure any legacy marginfi accounts are compliant with the
-    /// "gapless and sorted" requirements we now have.
-    pub fn lending_account_sort_balances<'info>(
-        ctx: Context<'_, '_, 'info, 'info, SortBalances<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::lending_account_sort_balances(ctx)
-    }
-
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(
@@ -515,6 +547,18 @@ pub mod marginfi {
         marginfi_account::end_liquidation(ctx)
     }
 
+    pub fn start_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_deleverage(ctx)
+    }
+
+    pub fn end_deleverage<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndDeleverage<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_deleverage(ctx)
+    }
+
     pub fn panic_pause(ctx: Context<PanicPause>) -> MarginfiResult {
         marginfi_group::panic_pause(ctx)
     }
@@ -530,15 +574,48 @@ pub mod marginfi {
         marginfi_group::panic_unpause_permissionless(ctx)
     }
 
-    /// (Arena admin) used to withdraw funds from arena liquidity pools to sunset them. Only
-    /// hard-coded arena banks can call this function.
-    pub fn admin_super_withdraw<'info>(
-        ctx: Context<'_, '_, 'info, 'info, AdminSuperWithdraw<'info>>,
-    ) -> MarginfiResult {
-        marginfi_account::admin_super_withdraw(ctx)
+    // TODO deprecate in 1.7
+    /// (Permissionless) Convert a bank from the legacy curve setup to the new setup, with no effect
+    /// on how interest accrues.
+    pub fn migrate_curve(ctx: Context<MigrateCurve>) -> MarginfiResult {
+        marginfi_group::migrate_curve(ctx)
     }
 
-    // Kamino integration instructions
+    /// (permissionless) pay the rent to open a bank's metadata.
+    pub fn init_bank_metadata(ctx: Context<InitBankMetadata>) -> MarginfiResult {
+        marginfi_group::init_bank_metadata(ctx)
+    }
+
+    /// (metadata admin only) Write ticker/descrption information for a bank on-chain. Optional, not
+    /// all Banks are guranteed to have metadata.
+    pub fn write_bank_metadata(
+        ctx: Context<WriteBankMetadata>,
+        ticker: Option<Vec<u8>>,
+        description: Option<Vec<u8>>,
+    ) -> MarginfiResult {
+        marginfi_group::write_bank_metadata(ctx, ticker, description)
+    }
+
+    /// (group admin only) Set the daily withdrawal limit for deleverages per group.
+    pub fn configure_deleverage_withdrawal_limit(
+        ctx: Context<ConfigureDeleverageWithdrawalLimit>,
+        limit: u32,
+    ) -> MarginfiResult {
+        marginfi_group::configure_deleverage_withdrawal_limit(ctx, limit)
+    }
+
+    // TODO deprecate and incorporate this functionality into forced-withdraw in 1.7+
+    /// (risk admin only) Purge a user's lending balance without withdrawing anything. Only usable
+    /// after all the debt has been settled on a bank in deleveraging mode, e.g. when
+    /// `TOKENLESS_REPAYMENTS_ALLOWED` and `TOKENLESS_REPAYMENTS_COMPLETE`. used to purge remaining
+    /// lending assets in a now-worthless bank before it is fully sunset.
+    pub fn purge_deleverage_balance(
+        ctx: Context<LendingAccountPurgeDelevBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_purge_delev_balance(ctx)
+    }
+
+    /****** Kamino integration instructions *****/
 
     /// (permissionless) Initialize a Kamino obligation for a marginfi bank
     /// * amount - In token, in native decimals. Must be >10 (i.e. 10 lamports, not 10 tokens). Lost

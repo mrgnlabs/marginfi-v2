@@ -26,7 +26,7 @@ pub fn lending_account_start_flashloan(
     )?;
 
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
-    marginfi_account.set_flag(ACCOUNT_IN_FLASHLOAN);
+    marginfi_account.set_flag(ACCOUNT_IN_FLASHLOAN, false);
 
     Ok(())
 }
@@ -35,7 +35,7 @@ pub fn lending_account_start_flashloan(
 pub struct LendingAccountStartFlashloan<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
@@ -134,7 +134,7 @@ pub fn lending_account_end_flashloan<'info>(
         MarginfiError::ForbiddenIx
     );
 
-    marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN);
+    marginfi_account.unset_flag(ACCOUNT_IN_FLASHLOAN, false);
 
     let (risk_result, _engine) =
         RiskEngine::check_account_init_health(&marginfi_account, ctx.remaining_accounts, &mut None);
@@ -147,7 +147,7 @@ pub fn lending_account_end_flashloan<'info>(
 pub struct LendingAccountEndFlashloan<'info> {
     #[account(
         mut,
-        has_one = authority
+        has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 

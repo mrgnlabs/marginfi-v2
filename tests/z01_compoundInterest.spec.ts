@@ -5,6 +5,10 @@ happens if nobody interacts with a bank vs if it gets frequent updates.
 This test must run last in the bankrun suite because it advances a lot of time, generating a lot of
 interest, which messes with other tests.
 
+Some of the nomenclature in this test refers to the legacy curve model, e.g. optimal utilization
+rate, plat rate, etc: this test uses just one curve point, so it tracks just the base rate between
+(0, 0) and (.8, 2)
+
 The test demonstrates that interest earned is slightly dependent on compounding schedule. 
 */
 import { BN } from "@coral-xyz/anchor";
@@ -24,7 +28,6 @@ import {
   ecosystem,
   oracles,
   users,
-  globalProgramAdmin,
 } from "./rootHooks";
 import { accrueInterest } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -37,9 +40,10 @@ import {
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { Clock } from "solana-bankrun";
-import { aprToU32, assertBNEqual } from "./utils/genericTests";
+import { aprToU32 } from "./utils/genericTests";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { getEpochAndSlot } from "./utils/stake-utils";
+import { u32_MAX } from "./utils/types";
 
 const startingSeed: number = 399;
 const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000Z1");
@@ -104,12 +108,7 @@ describe("Compound interest demonstration", () => {
     // enough to borrow as much as we want...
     const depositAmt = depositAmount.muln(3);
 
-    let clock = await banksClient.getClock();
-    await refreshPullOraclesBankrun(
-      oracles,
-      bankrunContext,
-      banksClient
-    );
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     const tx = new Transaction();
     tx.add(
@@ -169,20 +168,6 @@ describe("Compound interest demonstration", () => {
           )
       )
     );
-
-    // Log some bank info:
-    const b = await bankrunProgram.account.bank.fetch(banks[1]);
-    const int = b.config.interestRateConfig;
-    if (verbose) {
-      console.log(
-        "Plataeu rate:" +
-        wrappedI80F48toBigNumber(int.plateauInterestRate).toNumber()
-      );
-      console.log(
-        "Optimal rate:" +
-        wrappedI80F48toBigNumber(int.optimalUtilizationRate).toNumber()
-      );
-    }
   });
 
   it("One week elapses", async () => {
@@ -199,13 +184,9 @@ describe("Compound interest demonstration", () => {
       targetUnix
     );
     bankrunContext.setClock(newClock);
-    
+
     // Refresh oracles after clock advancement
-    await refreshPullOraclesBankrun(
-      oracles,
-      bankrunContext,
-      banksClient
-    );
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
   });
 
   it("(user 0 - permissionless) Accrues interest on bank 1 ONLY", async () => {
@@ -272,13 +253,9 @@ describe("Compound interest demonstration", () => {
         targetUnix
       );
       bankrunContext.setClock(newClock);
-      
+
       // Refresh oracles after clock advancement
-      await refreshPullOraclesBankrun(
-        oracles,
-        bankrunContext,
-        banksClient
-      );
+      await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
       const tx = new Transaction();
       tx.add(
@@ -391,12 +368,12 @@ describe("Compound interest demonstration", () => {
       (wrappedI80F48toBigNumber(bank.totalAssetShares).toNumber() *
         wrappedI80F48toBigNumber(bank.assetShareValue).toNumber());
     //aka borrowAmount.toNumber() / depositAmount.toNumber();
-    const optimalRate = wrappedI80F48toBigNumber(
-      bank.config.interestRateConfig.optimalUtilizationRate
-    ).toNumber();
-    const platRate = wrappedI80F48toBigNumber(
-      bank.config.interestRateConfig.plateauInterestRate
-    ).toNumber();
+
+    // We're going to cheat a little here: we know which point applies here.
+    const point = bank.config.interestRateConfig.points[0];
+    const optimalRate = point.util / u32_MAX;
+    const platRate = (point.rate / u32_MAX) * 10;
+
     const groupFixedFee = wrappedI80F48toBigNumber(
       bank.config.interestRateConfig.protocolFixedFeeApr
     ).toNumber();
@@ -464,7 +441,7 @@ describe("Compound interest demonstration", () => {
         bank.cache.accumulatedSinceLastUpdate
       ).toNumber(),
       (bankValuesOneYear[2].asset - bankValuesInitial[2]) *
-      wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
+        wrappedI80F48toBigNumber(bankBefore.totalAssetShares).toNumber()
     );
     assert.equal(bank.cache.baseRate, aprToU32(baseRate));
     assert.equal(bank.cache.lendingRate, aprToU32(lendingRate));

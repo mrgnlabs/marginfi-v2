@@ -104,7 +104,7 @@ pub fn lending_pool_add_bank_kamino(
 pub struct LendingPoolAddBankKamino<'info> {
     #[account(
         mut,
-        has_one = admin
+        has_one = admin @ MarginfiError::Unauthorized
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 

@@ -1,6 +1,7 @@
 use crate::{prelude::MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::MarginfiGroup;
+use fixed::types::I80F48;
+use marginfi_type_crate::{constants::DAILY_RESET_INTERVAL, types::MarginfiGroup};
 use std::fmt::Debug;
 
 pub const PROGRAM_FEES_ENABLED: u64 = 1;
@@ -12,6 +13,8 @@ pub trait MarginfiGroupImpl {
     fn update_curve_admin(&mut self, new_curve_admin: Pubkey);
     fn update_limit_admin(&mut self, new_limit_admin: Pubkey);
     fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey);
+    fn update_metadata_admin(&mut self, new_metadata_admin: Pubkey);
+    fn update_risk_admin(&mut self, new_risk_admin: Pubkey);
     fn set_initial_configuration(&mut self, admin_pk: Pubkey);
     fn get_group_bank_config(&self) -> GroupBankConfig;
     fn set_program_fee_enabled(&mut self, fee_enabled: bool);
@@ -20,6 +23,11 @@ pub trait MarginfiGroupImpl {
     fn is_arena_group(&self) -> bool;
     fn add_bank(&mut self) -> MarginfiResult;
     fn is_protocol_paused(&self) -> bool;
+    fn update_withdrawn_equity(
+        &mut self,
+        withdrawn_equity: I80F48,
+        current_timestamp: i64,
+    ) -> MarginfiResult;
 }
 
 impl MarginfiGroupImpl for MarginfiGroup {
@@ -89,6 +97,33 @@ impl MarginfiGroupImpl for MarginfiGroup {
         }
     }
 
+    fn update_metadata_admin(&mut self, new_meta_admin: Pubkey) {
+        if self.metadata_admin == new_meta_admin {
+            msg!("No change to meta admin: {:?}", new_meta_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set meta admin from {:?} to {:?}",
+                self.metadata_admin,
+                new_meta_admin
+            );
+            self.metadata_admin = new_meta_admin;
+        }
+    }
+    fn update_risk_admin(&mut self, new_risk_admin: Pubkey) {
+        if self.risk_admin == new_risk_admin {
+            msg!("No change to risk admin: {:?}", new_risk_admin);
+            // do nothing
+        } else {
+            msg!(
+                "Set risk admin from {:?} to {:?}",
+                self.risk_admin,
+                new_risk_admin
+            );
+            self.risk_admin = new_risk_admin;
+        }
+    }
+
     /// Set the group parameters when initializing a group.
     /// This should be called only when the group is first initialized.
     #[allow(clippy::too_many_arguments)]
@@ -99,7 +134,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
 
     fn get_group_bank_config(&self) -> GroupBankConfig {
         GroupBankConfig {
-            program_fees: self.group_flags == PROGRAM_FEES_ENABLED,
+            program_fees: self.program_fees_enabled(),
         }
     }
 
@@ -165,6 +200,40 @@ impl MarginfiGroupImpl for MarginfiGroup {
 
         self.panic_state_cache.is_paused_flag()
             && !self.panic_state_cache.is_expired(current_timestamp)
+    }
+
+    fn update_withdrawn_equity(
+        &mut self,
+        withdrawn_equity: I80F48,
+        current_timestamp: i64,
+    ) -> MarginfiResult {
+        if current_timestamp.saturating_sub(
+            self.deleverage_withdraw_window_cache
+                .last_daily_reset_timestamp,
+        ) >= DAILY_RESET_INTERVAL
+        {
+            self.deleverage_withdraw_window_cache.withdrawn_today = 0;
+            self.deleverage_withdraw_window_cache
+                .last_daily_reset_timestamp = current_timestamp;
+        }
+        self.deleverage_withdraw_window_cache.withdrawn_today = self
+            .deleverage_withdraw_window_cache
+            .withdrawn_today
+            .saturating_add(withdrawn_equity.to_num());
+
+        // Note: treat zero limit as "no limit" here for backwards compatibility.
+        if self.deleverage_withdraw_window_cache.daily_limit != 0
+            && self.deleverage_withdraw_window_cache.withdrawn_today
+                > self.deleverage_withdraw_window_cache.daily_limit
+        {
+            msg!(
+                "trying to withdraw more than daily limit: {} > {}",
+                self.deleverage_withdraw_window_cache.withdrawn_today,
+                self.deleverage_withdraw_window_cache.daily_limit
+            );
+            return err!(MarginfiError::DailyWithdrawalLimitExceeded);
+        }
+        Ok(())
     }
 }
 

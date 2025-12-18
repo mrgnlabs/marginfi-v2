@@ -189,7 +189,7 @@ pub struct LendingPoolCollectBankFees<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -287,7 +287,7 @@ pub fn lending_pool_withdraw_fees<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawFees<'info> {
     #[account(
-        has_one = admin,
+        has_one = admin @ MarginfiError::Unauthorized,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
@@ -295,7 +295,7 @@ pub struct LendingPoolWithdrawFees<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -366,7 +366,7 @@ pub fn lending_pool_withdraw_insurance<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolWithdrawInsurance<'info> {
     #[account(
-        has_one = admin,
+        has_one = admin @ MarginfiError::Unauthorized,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
@@ -374,7 +374,7 @@ pub struct LendingPoolWithdrawInsurance<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -425,7 +425,7 @@ pub fn lending_pool_update_fees_destination_account<'info>(
 #[derive(Accounts)]
 pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
     #[account(
-        has_one = admin,
+        has_one = admin @ MarginfiError::Unauthorized,
         constraint = (
             !group.load()?.is_protocol_paused()
         ) @ MarginfiError::ProtocolPaused
@@ -434,7 +434,7 @@ pub struct LendingPoolUpdateFeesDestinationAccount<'info> {
 
     #[account(
         mut,
-        has_one = group
+        has_one = group @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
@@ -498,8 +498,8 @@ pub struct LendingPoolWithdrawFeesPermissionless<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
-        has_one = group,
-        has_one = fees_destination_account,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = fees_destination_account @ MarginfiError::InvalidFeesDestinationAccount,
     )]
     pub bank: AccountLoader<'info, Bank>,
 
