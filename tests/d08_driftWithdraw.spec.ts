@@ -25,7 +25,7 @@ import {
   assertBankrunTxFailed,
 } from "./utils/genericTests";
 import {
-  assertDriftBankBalance,
+  assertBankBalance,
   getDriftUserAccount,
   TOKEN_A_INIT_DEPOSIT_AMOUNT,
   TOKEN_A_SCALING_FACTOR,
@@ -56,10 +56,11 @@ describe("d08: Drift Withdraw Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[0];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         destinationTokenAccount: user.usdcAccount,
         driftOracle: null,
@@ -107,7 +108,7 @@ describe("d08: Drift Withdraw Tests", () => {
     );
 
     // The balance should be cleared
-    await assertDriftBankBalance(user, driftUsdcBank, null);
+    await assertBankBalance(marginfiAccount, driftUsdcBank, null);
   });
 
   it("(user 1) Withdraws 200 USDC (all) from Drift - happy path", async () => {
@@ -124,10 +125,11 @@ describe("d08: Drift Withdraw Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[0];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         destinationTokenAccount: user.usdcAccount,
       },
@@ -169,7 +171,7 @@ describe("d08: Drift Withdraw Tests", () => {
     );
 
     // The balance should be zero (but still active!)
-    await assertDriftBankBalance(user, driftUsdcBank, new BN(0));
+    await assertBankBalance(marginfiAccount, driftUsdcBank, new BN(0));
 
     // Note: now all depositors of MarginFi bank have withdrawn their deposits BUT the actual
     // underlying Drift position never closes because we never withdraw the initial deposit.
@@ -192,11 +194,12 @@ describe("d08: Drift Withdraw Tests", () => {
       getDriftUserAccount(driftBankrunProgram, bank.driftUser),
     ]);
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const marginfiAccountBefore =
       await bankrunProgram.account.marginfiAccount.fetch(
-        user.accounts.get(USER_ACCOUNT_D)
+        marginfiAccount
       );
     const marginfiBalanceBefore =
       marginfiAccountBefore.lendingAccount.balances.find(
@@ -209,7 +212,7 @@ describe("d08: Drift Withdraw Tests", () => {
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
@@ -255,8 +258,8 @@ describe("d08: Drift Withdraw Tests", () => {
     // Note: +1 is expected here due to rounding Drift applies to withdrawals
     assertBNEqual(scaledBalanceDecrease, scaledAmount.add(new BN(1)));
 
-    await assertDriftBankBalance(
-      user,
+    await assertBankBalance(
+      marginfiAccount,
       driftTokenABank,
       sharesBefore.sub(scaledBalanceDecrease)
     );
@@ -268,10 +271,11 @@ describe("d08: Drift Withdraw Tests", () => {
     // TODO: I don't like this though!
     const excessiveAmount = new BN(3 * 10 ** ecosystem.tokenADecimals);
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
@@ -315,10 +319,11 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
@@ -371,10 +376,11 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
@@ -417,7 +423,7 @@ describe("d08: Drift Withdraw Tests", () => {
     );
 
     // The balance should be cleared
-    await assertDriftBankBalance(user, driftTokenABank, null);
+    await assertBankBalance(marginfiAccount, driftTokenABank, null);
 
     // Note: this time the actual underlying Drift position is NOT simply the
     // (initial_deposit - count_of_withdrawals_so_far).

@@ -42,7 +42,6 @@ export interface InitDriftUserAccounts {
   bank: PublicKey;
   signerTokenAccount: PublicKey;
   driftOracle?: PublicKey; // Oracle account for the asset (not needed if using oracle type QuoteAsset)
-  referrer?: PublicKey;
   tokenProgram?: PublicKey;
 }
 
@@ -117,33 +116,21 @@ export const makeInitDriftUserIx = async (
   // Derive the drift state PDA using helper function
   const [driftState] = deriveDriftStatePDA(DRIFT_PROGRAM_ID);
 
-  // Get the bank to find the drift spot market
-  const bank = await program.account.bank.fetch(accounts.bank);
-  const driftSpotMarket = bank.driftSpotMarket;
-
   // Derive the spot market vault PDA using the market index
   const [driftSpotMarketVault] = deriveSpotMarketVaultPDA(
     DRIFT_PROGRAM_ID,
     marketIndex
   );
 
-  // Derive the drift signer PDA
-  const [driftSigner] = PublicKey.findProgramAddressSync(
-    [Buffer.from("drift_signer")],
-    DRIFT_PROGRAM_ID
-  );
-
   const ix = program.methods
     .driftInitUser(args.amount)
     .accounts({
       feePayer: accounts.feePayer,
-      bank: accounts.bank,
       signerTokenAccount: accounts.signerTokenAccount,
+      bank: accounts.bank,
       driftState,
       driftSpotMarketVault,
-      driftSigner,
       driftOracle: accounts.driftOracle || null,
-      referrer: accounts.referrer || null,
       tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
     })
     .instruction();
@@ -378,7 +365,6 @@ export const makeDriftHarvestRewardIx = async (
       harvestDriftSpotMarketVault,
       driftSigner,
       rewardMint,
-      destinationTokenAccount: expectedDestinationTokenAccount,
       // destinationTokenAccount is auto-derived via associated_token constraint
       tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
     })

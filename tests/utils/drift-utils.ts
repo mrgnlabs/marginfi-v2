@@ -11,7 +11,7 @@ import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { I80F48_ONE, ORACLE_CONF_INTERVAL } from "../utils/types";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { setPythPullOraclePrice } from "./bankrun-oracles";
-import { MockUser, Oracles, USER_ACCOUNT_D } from "./mocks";
+import { Oracles } from "./mocks";
 import {
   DRIFT_TOKEN_A_PULL_ORACLE,
   DRIFT_TOKEN_A_PULL_FEED,
@@ -1143,13 +1143,12 @@ export const getDriftUser = async (
   return await driftProgram.account.user.fetch(userPDA);
 };
 
-export async function assertDriftBankBalance(
-  user: MockUser,
+export async function assertBankBalance(
+  marginfiAccount: PublicKey,
   bankPubkey: PublicKey,
-  expectedBalance: BN | null
+  expectedBalance: BN | null,
+  isLiability: boolean = false
 ) {
-  const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
-
   const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
     marginfiAccount
   );
@@ -1158,16 +1157,22 @@ export async function assertDriftBankBalance(
     (b) => b.bankPk.equals(bankPubkey) && b.active === 1
   );
 
-  if (expectedBalance === null)
-  {
+  if (expectedBalance === null) {
     assert(balance === undefined);
     return;
   }
 
   assert(balance);
 
-  const assetSharesBN = new BN(
-    wrappedI80F48toBigNumber(balance.assetShares).toString()
-  );
-  assertBNEqual(assetSharesBN, expectedBalance);
+  if (isLiability) {
+    const liabilitySharesBN = new BN(
+      wrappedI80F48toBigNumber(balance.liabilityShares).toString()
+    );
+    assertBNEqual(liabilitySharesBN, expectedBalance);
+  } else {
+    const assetSharesBN = new BN(
+      wrappedI80F48toBigNumber(balance.assetShares).toString()
+    );
+    assertBNEqual(assetSharesBN, expectedBalance);
+  }
 }

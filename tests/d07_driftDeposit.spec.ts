@@ -26,7 +26,7 @@ import {
   TOKEN_A_MARKET_INDEX,
   USDC_SCALING_FACTOR,
   TOKEN_A_SCALING_FACTOR,
-  assertDriftBankBalance,
+  assertBankBalance,
 } from "./utils/drift-utils";
 
 describe("d07: Drift Deposit Tests", () => {
@@ -51,10 +51,11 @@ describe("d07: Drift Deposit Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[0];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         signerTokenAccount: user.usdcAccount,
       },
@@ -90,8 +91,8 @@ describe("d07: Drift Deposit Tests", () => {
       amount.mul(USDC_SCALING_FACTOR)
     );
 
-    await assertDriftBankBalance(
-      user,
+    await assertBankBalance(
+      marginfiAccount,
       driftUsdcBank,
       amount.mul(USDC_SCALING_FACTOR)
     );
@@ -101,7 +102,7 @@ describe("d07: Drift Deposit Tests", () => {
     const secondDepositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         signerTokenAccount: user.usdcAccount,
       },
@@ -129,8 +130,8 @@ describe("d07: Drift Deposit Tests", () => {
       scaledBalanceAfter.add(secondAmount.mul(USDC_SCALING_FACTOR))
     );
 
-    await assertDriftBankBalance(
-      user,
+    await assertBankBalance(
+      marginfiAccount,
       driftUsdcBank,
       amount.add(secondAmount).mul(USDC_SCALING_FACTOR)
     );
@@ -148,10 +149,11 @@ describe("d07: Drift Deposit Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[0];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         signerTokenAccount: user.usdcAccount,
       },
@@ -175,8 +177,8 @@ describe("d07: Drift Deposit Tests", () => {
       amount.mul(USDC_SCALING_FACTOR)
     );
 
-    await assertDriftBankBalance(
-      user,
+    await assertBankBalance(
+      marginfiAccount,
       driftUsdcBank,
       amount.mul(USDC_SCALING_FACTOR)
     );
@@ -186,10 +188,11 @@ describe("d07: Drift Deposit Tests", () => {
     const user = users[0];
     const amount = new BN(0);
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftUsdcBank,
         signerTokenAccount: user.usdcAccount,
       },
@@ -222,10 +225,11 @@ describe("d07: Drift Deposit Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[1]; // non-USDC -> position 1
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
+    const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: user.accounts.get(USER_ACCOUNT_D),
+        marginfiAccount,
         bank: driftTokenABank,
         signerTokenAccount: user.tokenAAccount,
         driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
@@ -263,8 +267,8 @@ describe("d07: Drift Deposit Tests", () => {
       amount.mul(TOKEN_A_SCALING_FACTOR)
     );
 
-    await assertDriftBankBalance(
-      user,
+    await assertBankBalance(
+      marginfiAccount,
       driftTokenABank,
       amount.mul(TOKEN_A_SCALING_FACTOR)
     );

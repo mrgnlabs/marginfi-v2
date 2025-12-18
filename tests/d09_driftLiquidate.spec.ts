@@ -4,6 +4,7 @@ import {
   ComputeBudgetProgram,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 import { createMintToInstruction } from "@solana/spl-token";
@@ -43,14 +44,15 @@ import { blankBankConfigOptRaw } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 import {
   defaultDriftBankConfig,
-  getDriftScalingFactor,
   getDriftUserAccount,
   formatTokenAmount,
   formatDepositAmount,
   getSpotMarketAccount,
   tokenAmountToScaledBalance,
-  USDC_MARKET_INDEX,
   TOKEN_A_MARKET_INDEX,
+  assertBankBalance,
+  TOKEN_A_INIT_DEPOSIT_AMOUNT,
+  TOKEN_A_SCALING_FACTOR,
 } from "./utils/drift-utils";
 import {
   makeAddDriftBankIx,
@@ -60,13 +62,14 @@ import {
 import { genericMultiBankTestSetup } from "./genericSetups";
 import { deriveBankWithSeed } from "./utils/pdas";
 import { ProgramTestContext } from "solana-bankrun";
+import { assertBNEqual } from "./utils/genericTests";
 
 const startingSeed: number = 10;
 const USER_ACCOUNT_THROWAWAY_D = "throwaway_account_d";
 let ctx: ProgramTestContext;
 
-let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
+let regularLstBank: PublicKey;
 let driftTokenABank: PublicKey;
 let mrgnID: PublicKey;
 
@@ -82,12 +85,12 @@ describe("d09: Drift Liquidation", () => {
 
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
-      2,
+      1,
       USER_ACCOUNT_THROWAWAY_D,
       THROWAWAY_GROUP_SEED_D09,
       startingSeed
     );
-    banks = result.banks;
+    regularLstBank = result.banks[0];
     throwawayGroup = result.throwawayGroup;
 
     [driftTokenABank] = deriveBankWithSeed(
@@ -121,13 +124,12 @@ describe("d09: Drift Liquidation", () => {
     );
     await processBankrunTx(ctx, tx, [groupAdmin.wallet]);
 
-    const initUserAmount = new BN(100);
     const fundAdminTx = new Transaction().add(
       createMintToInstruction(
         ecosystem.tokenAMint.publicKey,
         groupAdmin.tokenAAccount,
         globalProgramAdmin.wallet.publicKey,
-        initUserAmount.toNumber()
+        TOKEN_A_INIT_DEPOSIT_AMOUNT.toNumber()
       )
     );
     await processBankrunTx(ctx, fundAdminTx, [globalProgramAdmin.wallet]);
@@ -142,7 +144,7 @@ describe("d09: Drift Liquidation", () => {
           driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
         },
         {
-          amount: initUserAmount,
+          amount: TOKEN_A_INIT_DEPOSIT_AMOUNT,
         },
         1
       )
@@ -150,32 +152,24 @@ describe("d09: Drift Liquidation", () => {
     await processBankrunTx(ctx, initUserTx, [groupAdmin.wallet]);
   });
 
-  it("(admin) Seeds liquidity in all regular banks", async () => {
+  it("(admin) Seeds liquidity in a regular LST bank", async () => {
     const user = groupAdmin;
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY_D);
-    const depositsPerTx = 5;
 
-    for (let i = 0; i < banks.length; i += depositsPerTx) {
-      const chunk = banks.slice(i, i + depositsPerTx);
-      const tx = new Transaction();
-      let k = 0;
-      for (const bank of chunk) {
-        tx.add(
-          await depositIx(user.mrgnBankrunProgram, {
-            marginfiAccount: userAccount,
-            bank,
-            tokenAccount: user.lstAlphaAccount,
-            amount: seedAmountLst,
-            depositUpToLimit: false,
-          })
-        );
-        k++;
-      }
-      await processBankrunTx(ctx, tx, [user.wallet]);
-    }
+    const tx = new Transaction();
+    tx.add(
+      await depositIx(user.mrgnBankrunProgram, {
+        marginfiAccount: userAccount,
+        bank: regularLstBank,
+        tokenAccount: user.lstAlphaAccount,
+        amount: seedAmountLst,
+        depositUpToLimit: false,
+      })
+    );
+    await processBankrunTx(ctx, tx, [user.wallet]);
   });
 
-  it("(user 0) deposits Token A into Drift, borrows LST from bank [0]", async () => {
+  it("(user 0) Deposits Token A into Drift, borrows LST from bank [0]", async () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY_D);
     const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
@@ -194,7 +188,7 @@ describe("d09: Drift Liquidation", () => {
       driftBankrunProgram,
       bank.driftUser
     );
-    const spotPositionBefore = driftUserBefore.spotPositions[0];
+    const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
     let tx = new Transaction().add(
@@ -222,7 +216,7 @@ describe("d09: Drift Liquidation", () => {
       driftBankrunProgram,
       bank.driftUser
     );
-    const spotPositionAfter = driftUserAfter.spotPositions[0];
+    const spotPositionAfter = driftUserAfter.spotPositions[1];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
     const scaledBalanceChange = scaledBalanceAfter.sub(scaledBalanceBefore);
 
@@ -243,11 +237,11 @@ describe("d09: Drift Liquidation", () => {
     tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: banks[0],
+        bank: regularLstBank,
         tokenAccount: user.lstAlphaAccount,
         remaining: composeRemainingAccounts([
           [driftTokenABank, oracles.tokenAOracle.publicKey, driftSpotMarket],
-          [banks[0], oracles.pythPullLst.publicKey],
+          [regularLstBank, oracles.pythPullLst.publicKey],
         ]),
         amount: borrowAmountLst,
       }),
@@ -255,7 +249,7 @@ describe("d09: Drift Liquidation", () => {
         marginfiAccount: userAccount,
         remaining: composeRemainingAccounts([
           [driftTokenABank, oracles.tokenAOracle.publicKey, driftSpotMarket],
-          [banks[0], oracles.pythPullLst.publicKey],
+          [regularLstBank, oracles.pythPullLst.publicKey],
         ]),
       })
     );
@@ -270,14 +264,14 @@ describe("d09: Drift Liquidation", () => {
     }
   });
 
-  it("(admin) increase bank [0] liability ratio to make user 0 just unhealthy", async () => {
+  it("(admin) Increases LST bank liability ratio to make user 0 just unhealthy", async () => {
     let config = blankBankConfigOptRaw();
     config.liabilityWeightInit = bigNumberToWrappedI80F48(6.0); // 600%
     config.liabilityWeightMaint = bigNumberToWrappedI80F48(5.5); // 550%
 
     let tx = new Transaction().add(
       await configureBank(groupAdmin.mrgnBankrunProgram, {
-        bank: banks[0],
+        bank: regularLstBank,
         bankConfigOpt: config,
       })
     );
@@ -291,7 +285,7 @@ describe("d09: Drift Liquidation", () => {
         marginfiAccount: liquidateeAccount,
         remaining: composeRemainingAccounts([
           [driftTokenABank, oracles.tokenAOracle.publicKey, driftSpotMarket],
-          [banks[0], oracles.pythPullLst.publicKey],
+          [regularLstBank, oracles.pythPullLst.publicKey],
         ]),
       })
     );
@@ -339,7 +333,7 @@ describe("d09: Drift Liquidation", () => {
     let tx = new Transaction().add(
       await depositIx(liquidator.mrgnBankrunProgram, {
         marginfiAccount: liquidatorAccount,
-        bank: banks[0],
+        bank: regularLstBank,
         tokenAccount: liquidator.lstAlphaAccount,
         amount: depositAmount,
         depositUpToLimit: false,
@@ -352,17 +346,43 @@ describe("d09: Drift Liquidation", () => {
     const smallLiquidationAmount = new BN(
       0.01 * 10 ** ecosystem.tokenADecimals
     );
+    const scaledLiquidateAmount = tokenAmountToScaledBalance(
+      smallLiquidationAmount,
+      spotMarket
+    );
+
+    const driftBank = await bankrunProgram.account.bank.fetch(driftTokenABank);
+    const driftUserBefore = await getDriftUserAccount(
+      driftBankrunProgram,
+      driftBank.driftUser
+    );
+    const spotPositionBefore = driftUserBefore.spotPositions[1];
+    const scaledBalanceBefore = spotPositionBefore.scaledBalance;
+
+    const liquidateeAccBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
+    const liquidateeTokenABalanceBefore =
+      liquidateeAccBefore.lendingAccount.balances.find(
+        (b) => b.bankPk.equals(driftTokenABank) && b.active === 1
+      );
+    const liquidateeAssetSharesBefore = new BN(
+      wrappedI80F48toBigNumber(
+        liquidateeTokenABalanceBefore.assetShares
+      ).toString()
+    );
 
     while (true) {
-      const liquidateAmount = tokenAmountToScaledBalance(
-        smallLiquidationAmount,
-        spotMarket
-      );
       const liquidateTx = new Transaction().add(
         ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
+      // dummy ix to trick bankrun
+      SystemProgram.transfer({
+        fromPubkey: liquidator.wallet.publicKey,
+        toPubkey: bankrunProgram.provider.publicKey,
+        lamports: 42 + liquidationCount,
+      }),
         await liquidateIx(liquidator.mrgnBankrunProgram, {
           assetBankKey: driftTokenABank,
-          liabilityBankKey: banks[0],
+          liabilityBankKey: regularLstBank,
           liquidatorMarginfiAccount: liquidatorAccount,
           liquidateeMarginfiAccount: liquidateeAccount,
           remaining: [
@@ -371,7 +391,7 @@ describe("d09: Drift Liquidation", () => {
             oracles.pythPullLst.publicKey, // liab oracle
 
             ...composeRemainingAccounts([
-              [banks[0], oracles.pythPullLst.publicKey],
+              [regularLstBank, oracles.pythPullLst.publicKey],
               [
                 driftTokenABank,
                 oracles.tokenAOracle.publicKey,
@@ -380,7 +400,7 @@ describe("d09: Drift Liquidation", () => {
             ]),
 
             ...composeRemainingAccounts([
-              [banks[0], oracles.pythPullLst.publicKey],
+              [regularLstBank, oracles.pythPullLst.publicKey],
               [
                 driftTokenABank,
                 oracles.tokenAOracle.publicKey,
@@ -388,7 +408,7 @@ describe("d09: Drift Liquidation", () => {
               ],
             ]),
           ],
-          amount: liquidateAmount,
+          amount: scaledLiquidateAmount,
           liquidateeAccounts: 5,
           liquidatorAccounts: 5,
         })
@@ -434,6 +454,12 @@ describe("d09: Drift Liquidation", () => {
 
       liquidationCount++;
       totalLiquidated = totalLiquidated.add(smallLiquidationAmount);
+          console.log(
+            "\liquidationCount: ", liquidationCount
+          );
+          console.log(
+            "\ntotalLiquidated: ", totalLiquidated.toString()
+          );
 
       if (liquidationCount >= 50) {
         if (verbose) {
@@ -442,7 +468,6 @@ describe("d09: Drift Liquidation", () => {
           );
         }
         assert(false);
-        break;
       }
     }
 
@@ -451,132 +476,72 @@ describe("d09: Drift Liquidation", () => {
         marginfiAccount: liquidateeAccount,
         remaining: composeRemainingAccounts([
           [driftTokenABank, oracles.tokenAOracle.publicKey, driftSpotMarket],
-          [banks[0], oracles.pythPullLst.publicKey],
+          [regularLstBank, oracles.pythPullLst.publicKey],
         ]),
       })
     );
     await processBankrunTx(ctx, healthTx, [liquidatee.wallet]);
 
-    const accAfter = await bankrunProgram.account.marginfiAccount.fetch(
-      liquidateeAccount
-    );
-    const cacheAfter = accAfter.healthCache;
-    if (verbose) {
-      logHealthCache("user 0 cache post-liquidate ", cacheAfter);
-    }
+    const liquidateeAccAfter =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
+    const liquidatorAccAfter =
+      await bankrunProgram.account.marginfiAccount.fetch(liquidatorAccount);
 
     if (verbose) {
+      logHealthCache(
+        "user 0 cache post-liquidate ",
+        liquidateeAccAfter.healthCache
+      );
       console.log("\n📊 Final State After All Liquidations:");
-
-      const liquidateeAccAfter =
-        await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
-      const liquidatorAccAfter =
-        await bankrunProgram.account.marginfiAccount.fetch(liquidatorAccount);
 
       console.log("Liquidatee final balances:");
       dumpAccBalances(liquidateeAccAfter);
       console.log("\nLiquidator final balances:");
       dumpAccBalances(liquidatorAccAfter);
-
-      const driftBank = await bankrunProgram.account.bank.fetch(
-        driftTokenABank
-      );
-      const driftUser = await getDriftUserAccount(
-        driftBankrunProgram,
-        driftBank.driftUser
-      );
-      const spotPosition = driftUser.spotPositions[0];
-      const scalingFactor = getDriftScalingFactor(ecosystem.tokenADecimals);
-
-      const liquidateeDriftBalance =
-        liquidateeAccAfter.lendingAccount.balances.find(
-          (b) => b.bankPk.equals(driftTokenABank) && b.active === 1
-        );
-      const liquidatorDriftBalance =
-        liquidatorAccAfter.lendingAccount.balances.find(
-          (b) => b.bankPk.equals(driftTokenABank) && b.active === 1
-        );
-
-      const preLiquidateeDriftShares = new BN("100000000000");
-
-      if (liquidateeDriftBalance) {
-        const assetSharesBigNumber = wrappedI80F48toBigNumber(
-          liquidateeDriftBalance.assetShares
-        );
-        const assetShares = new BN(assetSharesBigNumber.toString());
-        const sharesLost = preLiquidateeDriftShares.sub(assetShares);
-
-        const approxTokens = assetShares.div(scalingFactor);
-        const tokensLost = sharesLost.div(scalingFactor);
-      } else {
-        console.log(`   Liquidatee has no active drift balance`);
-      }
-
-      if (liquidatorDriftBalance) {
-        const assetSharesBigNumber = wrappedI80F48toBigNumber(
-          liquidatorDriftBalance.assetShares
-        );
-        const assetShares = new BN(assetSharesBigNumber.toString());
-        const approxTokens = assetShares.div(scalingFactor);
-      } else {
-        console.log(`   Liquidator has no active drift balance`);
-      }
-
-      const liquidateeLstBalance =
-        liquidateeAccAfter.lendingAccount.balances.find(
-          (b) => b.bankPk.equals(banks[0]) && b.active === 1
-        );
-      const liquidatorLstBalance =
-        liquidatorAccAfter.lendingAccount.balances.find(
-          (b) => b.bankPk.equals(banks[0]) && b.active === 1
-        );
-
-      if (liquidateeLstBalance) {
-        const liabSharesBigNumber = wrappedI80F48toBigNumber(
-          liquidateeLstBalance.liabilityShares
-        );
-        const liabSharesStr = liabSharesBigNumber.toString().split(".")[0];
-        const liabShares = new BN(liabSharesStr);
-      }
-      if (liquidatorLstBalance) {
-        const assetSharesBigNumber = wrappedI80F48toBigNumber(
-          liquidatorLstBalance.assetShares
-        );
-        const assetSharesStr = assetSharesBigNumber.toString().split(".")[0];
-        const assetShares = new BN(assetSharesStr);
-        const liabSharesBigNumber = wrappedI80F48toBigNumber(
-          liquidatorLstBalance.liabilityShares
-        );
-        const liabSharesStr = liabSharesBigNumber.toString().split(".")[0];
-        const liabShares = new BN(liabSharesStr);
-      }
     }
 
-    const finalLiquidateeAcc =
-      await bankrunProgram.account.marginfiAccount.fetch(liquidateeAccount);
-    const finalLiquidatorAcc =
-      await bankrunProgram.account.marginfiAccount.fetch(liquidatorAccount);
-
-    const liquidateeDriftBal = finalLiquidateeAcc.lendingAccount.balances.find(
-      (b) => b.bankPk.equals(driftTokenABank) && b.active === 1
+    const driftUser = await getDriftUserAccount(
+      driftBankrunProgram,
+      driftBank.driftUser
     );
-    const liquidatorDriftBal = finalLiquidatorAcc.lendingAccount.balances.find(
-      (b) => b.bankPk.equals(driftTokenABank) && b.active === 1
+    const spotPositionAfter = driftUser.spotPositions[1];
+    const scaledBalanceAfter = spotPositionAfter.scaledBalance;
+
+    // Nore: the amount of deposited tokens A is still the same, only the ownership changed (for some)
+    assertBNEqual(scaledBalanceBefore, scaledBalanceAfter);
+
+    await assertBankBalance(
+      liquidateeAccount,
+      driftTokenABank,
+      liquidateeAssetSharesBefore.sub(
+        totalLiquidated.mul(TOKEN_A_SCALING_FACTOR)
+      )
     );
 
-    assert.ok(liquidateeDriftBal);
-    const liquidateeShares = new BN(
-      wrappedI80F48toBigNumber(liquidateeDriftBal.assetShares).toString()
+    await assertBankBalance(
+      liquidatorAccount,
+      driftTokenABank,
+      totalLiquidated.mul(TOKEN_A_SCALING_FACTOR)
     );
-    assert.ok(liquidateeShares.lt(new BN("100000000000")));
 
-    assert.ok(liquidatorDriftBal);
-    const liquidatorShares = new BN(
-      wrappedI80F48toBigNumber(liquidatorDriftBal.assetShares).toString()
+    const totalLiquidatedLst = totalLiquidated
+      .mul(new BN(ecosystem.tokenAPrice))
+      .div(new BN(ecosystem.lstAlphaPrice));
+    const liquidateeReceived = totalLiquidatedLst.mul(new BN(0.95));
+    const liquidatorPaid = totalLiquidatedLst.mul(new BN(0.975));
+
+    await assertBankBalance(
+      liquidateeAccount,
+      regularLstBank,
+      borrowAmountLst.sub(liquidateeReceived),
+      true // liability
     );
-    assert.ok(liquidatorShares.gt(new BN(0)));
 
-    assert.ok(liquidationCount > 0);
+    await assertBankBalance(
+      liquidatorAccount,
+      regularLstBank,
+      seedAmountLst.sub(liquidatorPaid)
+    );
 
     if (verbose) {
       console.log(`   Performed ${liquidationCount} liquidations`);
@@ -589,18 +554,4 @@ describe("d09: Drift Liquidation", () => {
       );
     }
   });
-
-  it("(admin) restore bank 0 default liability ratios", async () => {
-    let config = blankBankConfigOptRaw();
-
-    let tx = new Transaction().add(
-      await configureBank(groupAdmin.mrgnBankrunProgram, {
-        bank: banks[0],
-        bankConfigOpt: config,
-      })
-    );
-    await processBankrunTx(ctx, tx, [groupAdmin.wallet]);
-  });
-
-  // TODO test OOM limits at max accounts
 });

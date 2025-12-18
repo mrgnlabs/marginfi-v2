@@ -640,8 +640,8 @@ async function attemptLiquidation(
   )) as BanksTransactionResultWithMeta;
 
   // Transaction succeeded
-  const cuUsed = result.computeUnitsConsumed
-    ? Number(result.computeUnitsConsumed)
+  const cuUsed = result.meta?.computeUnitsConsumed
+    ? Number(result.meta.computeUnitsConsumed)
     : undefined;
 
   return { success: true, cuUsed };
