@@ -35,6 +35,9 @@ pub fn lending_pool_set_fixed_oracle_price(
     bank.config.oracle_keys[0] = Pubkey::default();
 
     let price_i80: I80F48 = price.into();
+    let price_f64 = price_i80.to_num::<f64>();
+    msg!("price: {:?}", price_f64);
+
     check!(
         price_i80 >= I80F48::ZERO,
         MarginfiError::FixedOraclePriceNegative
