@@ -68,6 +68,8 @@ export const EMODE_LST_TAG = 157;
 export const PYTH_PULL_MIGRATED = 1;
 /** In marginfiAccount.flags, indicates an account is disabled and cannot be used. */
 export const ACCOUNT_DISABLED = 1;
+/** In marginfiAccount.flags, indicates the admin has frozen the account. */
+export const ACCOUNT_FROZEN = 1 << 5;
 
 /** In lamports, charged when transfering to a new account */
 export const ACCOUNT_TRANSFER_FEE = 5_000_000;
