@@ -531,7 +531,7 @@ describe("Emode liquidation", () => {
 
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({
-        units: 260_000,
+        units: 300_000,
       }),
       // dummy ix to trick bankrun
       SystemProgram.transfer({

@@ -138,8 +138,7 @@ pub fn lending_account_borrow<'info>(
             ctx.remaining_accounts,
         )?;
 
-        bank.update_bank_cache(group)?;
-
+        // Fetch liability price to cache it (borrow creates a liability)
         emit!(LendingAccountBorrowEvent {
             header: AccountEventHeader {
                 signer: Some(ctx.accounts.authority.key()),
@@ -190,13 +189,23 @@ pub fn lending_account_borrow<'info>(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, _engine) = RiskEngine::check_account_init_health(
+    let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
     );
     risk_result?;
     health_cache.program_version = PROGRAM_VERSION;
+
+    let bank_pk = ctx.accounts.bank.key();
+    // Note: if engine none, skips price cache update.
+    let price =
+        risk_engine.and_then(|engine_ok| engine_ok.get_unbiased_price_for_bank(&bank_pk).ok());
+
+    let mut bank = ctx.accounts.bank.load_mut()?;
+    bank.update_bank_cache(group)?;
+    bank.update_cache_price(price)?;
+
     health_cache.set_engine_ok(true);
     marginfi_account.health_cache = health_cache;
 
