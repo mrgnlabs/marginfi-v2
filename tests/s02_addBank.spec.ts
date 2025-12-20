@@ -35,6 +35,7 @@ import {
   CLOSE_ENABLED_FLAG,
   defaultBankConfig,
   defaultStakedInterestSettings,
+  makeRatePoints,
   ORACLE_SETUP_PYTH_PUSH,
 } from "./utils/types";
 import { assert } from "chai";
@@ -514,6 +515,25 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Equal(interest.protocolIrFee, 0);
 
     assertI80F48Equal(interest.protocolOriginationFee, 0);
+
+    assert.equal(interest.zeroUtilRate, 0);
+    // Note: all U32 conversions can suffer from a tiny amount of rounding error
+    assert.equal(interest.hundredUtilRate, 1234567);
+
+    const expPoints = makeRatePoints([], []);
+    expPoints[0] = { util: 12345, rate: 123456 };
+    assert.equal(interest.points[0].util, expPoints[0].util);
+    assert.equal(interest.points[0].rate, expPoints[0].rate);
+    // Rest is padding
+    for (let i = 1; i < 5; i++) {
+      const p = interest.points[i];
+      if (interest.points[i].util === 0 && interest.points[i].rate === 0) {
+        assert.equal(p.util, 0);
+        assert.equal(p.rate, 0);
+      } else {
+        assert.ok(false, "expected padding");
+      }
+    }
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { stakedWithPythPush: {} });
