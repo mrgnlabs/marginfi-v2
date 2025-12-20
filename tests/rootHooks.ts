@@ -25,6 +25,7 @@ import {
 } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
+import bs58 from "bs58";
 
 // ---------------------------------------------------------------------------
 // Kamino farms (liquidity-incentive) program
@@ -505,7 +506,12 @@ export const mochaHooks = {
         error.logs = logs;
         throw error;
       }
-      return "bankrun-signature";
+
+      // Return real base58-encoded signature for better debug output
+      const signature = isVersioned
+        ? (tx as VersionedTransaction).signatures[0]
+        : (tx as Transaction).signature;
+      return signature ? bs58.encode(signature) : "unsigned-tx";
     };
     connection.confirmTransaction = async () => {
       // Bankrun transactions are confirmed immediately (errors thrown above in sendRawTransaction)
