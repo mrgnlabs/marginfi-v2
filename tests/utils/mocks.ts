@@ -428,7 +428,7 @@ export const setupTestUserBankrun = async (
 
 /**
  * Bankrun-native mint creation.
- * Creates a mint using bankrun transaction (no connection.getMinimumBalanceForRentExemption needed).
+ * Creates a mint using bankrun's rent sysvar for proper rent exemption calculation.
  */
 export const createMintBankrun = async (
   bankrunContext: ProgramTestContext,
@@ -436,8 +436,8 @@ export const createMintBankrun = async (
   decimals: number,
   mintKeypair: Keypair
 ): Promise<void> => {
-  // MintLayout.span is 82 bytes, rent exemption is ~1461600 lamports
-  const MINT_RENT_EXEMPTION = 1461600;
+  const rent = await bankrunContext.banksClient.getRent();
+  const mintRentExemption = rent.minimumBalance(BigInt(MintLayout.span));
 
   const tx = new Transaction();
   tx.add(
@@ -445,7 +445,7 @@ export const createMintBankrun = async (
       fromPubkey: payer.publicKey,
       newAccountPubkey: mintKeypair.publicKey,
       space: MintLayout.span,
-      lamports: MINT_RENT_EXEMPTION,
+      lamports: Number(mintRentExemption),
       programId: TOKEN_PROGRAM_ID,
     })
   );
