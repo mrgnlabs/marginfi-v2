@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program, Provider, Wallet, AnchorProvider } from "@coral-xyz/anchor";
+import { Program, Wallet, AnchorProvider } from "@coral-xyz/anchor";
 import {
   echoEcosystemInfo,
   Ecosystem,
@@ -19,14 +19,10 @@ import {
   SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
   VersionedTransaction,
-  Connection,
-  Signer,
-  ConfirmOptions,
   Commitment,
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
-import { SuccessfulTxSimulationResponse } from "@coral-xyz/anchor/dist/cjs/utils/rpc";
 import fs from "fs";
 import path from "path";
 
@@ -266,147 +262,6 @@ export const A_FARM_VAULTS_AUTHORITY = "FARM_VAULTS_AUTHORITY";
 export const A_TREASURY_VAULTS_AUTHORITY = "TREASURY_VAULTS_AUTHORITY";
 
 // ---------------------------------------------------------------------------
-// Bankrun Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Wallet wrapper that implements the Wallet interface for bankrun.
- * BankrunContextWrapper doesn't have signTransaction, so we need this.
- */
-class BankrunWallet implements Wallet {
-  readonly payer: Keypair;
-  readonly publicKey: PublicKey;
-
-  constructor(keypair: Keypair) {
-    this.payer = keypair;
-    this.publicKey = keypair.publicKey;
-  }
-
-  async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
-    if (tx instanceof Transaction) {
-      tx.partialSign(this.payer);
-    } else {
-      tx.sign([this.payer]);
-    }
-    return tx;
-  }
-
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> {
-    return Promise.all(txs.map((tx) => this.signTransaction(tx)));
-  }
-}
-
-/**
- * Custom BankrunProvider that properly implements Provider with wallet signing.
- * The standard BankrunProvider's BankrunContextWrapper doesn't have signTransaction.
- */
-class CustomBankrunProvider implements Provider {
-  readonly context: ProgramTestContext;
-  readonly wallet: BankrunWallet;
-  readonly connection: Connection;
-  readonly publicKey: PublicKey;
-
-  constructor(context: ProgramTestContext, keypair: Keypair) {
-    this.context = context;
-    this.wallet = new BankrunWallet(keypair);
-    this.publicKey = keypair.publicKey;
-    // Use the standard BankrunProvider's connection for compatibility
-    const baseProvider = new BankrunProvider(context);
-    this.connection = baseProvider.connection;
-  }
-
-  async sendAndConfirm(
-    tx: Transaction | VersionedTransaction,
-    signers?: Signer[],
-    opts?: ConfirmOptions
-  ): Promise<string> {
-    if (tx instanceof Transaction) {
-      // Get fresh blockhash
-      const [blockhash] = await this.context.banksClient.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = this.wallet.publicKey;
-
-      // Sign with all provided signers
-      if (signers) {
-        for (const signer of signers) {
-          tx.partialSign(signer);
-        }
-      }
-
-      // Sign with wallet
-      await this.wallet.signTransaction(tx);
-
-      // Process transaction with error handling
-      const res = await this.context.banksClient.tryProcessTransaction(tx);
-      const errMsg = res.result;
-      if (errMsg !== null) {
-        const logs = res.meta?.logMessages || [];
-        const error = new Error(errMsg) as Error & { logs: string[] };
-        error.logs = logs;
-        throw error;
-      }
-
-      // Return a fake signature (bankrun doesn't return real signatures)
-      return tx.signature?.toString() || "bankrun-signature";
-    } else {
-      // VersionedTransaction
-      const [blockhash] = await this.context.banksClient.getLatestBlockhash();
-      if (signers) {
-        tx.sign(signers);
-      }
-      tx.sign([this.wallet.payer]);
-
-      const res = await this.context.banksClient.tryProcessTransaction(tx);
-      const errMsg = res.result;
-      if (errMsg !== null) {
-        const logs = res.meta?.logMessages || [];
-        const error = new Error(errMsg) as Error & { logs: string[] };
-        error.logs = logs;
-        throw error;
-      }
-      return "bankrun-signature";
-    }
-  }
-
-  async sendAll(
-    txWithSigners: { tx: Transaction | VersionedTransaction; signers?: Signer[] }[],
-    opts?: ConfirmOptions
-  ): Promise<string[]> {
-    const signatures: string[] = [];
-    for (const { tx, signers } of txWithSigners) {
-      const sig = await this.sendAndConfirm(tx, signers, opts);
-      signatures.push(sig);
-    }
-    return signatures;
-  }
-
-  async simulate(
-    tx: Transaction | VersionedTransaction,
-    signers?: Signer[],
-    commitment?: Commitment,
-    includeAccounts?: boolean | PublicKey[]
-  ): Promise<SuccessfulTxSimulationResponse> {
-    // Use bankrun's simulation
-    if (tx instanceof Transaction) {
-      tx.recentBlockhash = this.context.lastBlockhash;
-      tx.feePayer = this.wallet.publicKey;
-      if (signers) {
-        for (const signer of signers) {
-          tx.partialSign(signer);
-        }
-      }
-      await this.wallet.signTransaction(tx);
-    }
-    const result = await this.context.banksClient.simulateTransaction(tx);
-    return {
-      logs: result.meta?.logMessages || [],
-      unitsConsumed: Number(result.meta?.computeUnitsConsumed || 0),
-      returnData: null,
-    };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Staked collateral helpers (Vote accounts + SPL single pools)
 // ---------------------------------------------------------------------------
 
@@ -632,17 +487,25 @@ export const mochaHooks = {
       return { blockhash, lastValidBlockHeight: Number(lastValidBlockHeight) };
     };
     connection.sendRawTransaction = async (rawTransaction: Buffer | Uint8Array) => {
-      const tx = Transaction.from(rawTransaction);
-      // Use tryProcessTransaction to capture errors instead of sendTransaction which may hide them
+      const raw = Buffer.isBuffer(rawTransaction)
+        ? rawTransaction
+        : Buffer.from(rawTransaction);
+
+      // Support both legacy and v0 transactions (LUT / Address Lookup Tables)
+      // Versioned txs have the high bit set on the first byte
+      const isVersioned = (raw[0] & 0x80) !== 0;
+      const tx = isVersioned
+        ? VersionedTransaction.deserialize(raw)
+        : Transaction.from(raw);
+
       const result = await banksClient.tryProcessTransaction(tx);
       if (result.result) {
-        // Transaction failed - throw an error with logs
         const logs = result.meta?.logMessages || [];
         const error = new Error(result.result) as Error & { logs: string[] };
         error.logs = logs;
         throw error;
       }
-      return tx.signature?.toString() || "bankrun-signature";
+      return "bankrun-signature";
     };
     connection.confirmTransaction = async () => {
       // Bankrun transactions are confirmed immediately (errors thrown above in sendRawTransaction)
@@ -663,6 +526,10 @@ export const mochaHooks = {
     );
     anchor.setProvider(anchorProvider);
 
+    // Factory to create AnchorProvider for any wallet, reusing the patched connection
+    const makeProvider = (keypair: Keypair) =>
+      new AnchorProvider(bankRunProvider.connection, new Wallet(keypair), {});
+
     // Create bankrun programs using directly loaded IDLs with explicit program IDs
     // Set address in IDL since Anchor 0.31 requires it
     const marginfiIdlWithAddress = { ...marginfiIdl, address: MARGINFI_PROGRAM_ID.toBase58() };
@@ -670,15 +537,15 @@ export const mochaHooks = {
     const klendIdlWithAddress = { ...klendIdl, address: KLEND_PROGRAM_ID.toBase58() };
     const driftIdlWithAddress = { ...driftIdl, address: DRIFT_PROGRAM_ID.toBase58() };
 
-    bankrunProgram = new Program<Marginfi>(marginfiIdlWithAddress as Marginfi, bankRunProvider);
-    mocksBankrunProgram = new Program<Mocks>(mocksIdlWithAddress as Mocks, bankRunProvider);
+    bankrunProgram = new Program<Marginfi>(marginfiIdlWithAddress as Marginfi, anchorProvider);
+    mocksBankrunProgram = new Program<Mocks>(mocksIdlWithAddress as Mocks, anchorProvider);
     klendBankrunProgram = new Program<KaminoLending>(
       klendIdlWithAddress as KaminoLending,
-      bankRunProvider
+      anchorProvider
     );
     driftBankrunProgram = new Program<Drift>(
       driftIdlWithAddress as Drift,
-      bankRunProvider
+      anchorProvider
     );
 
     const payer = bankrunContext.payer;
@@ -789,49 +656,43 @@ export const mochaHooks = {
 
     // -------------------------------------------------------------------------
     // Step 6: Set up mrgnBankrunProgram for each user
-    // Use CustomBankrunProvider so that provider.sendAndConfirm() works properly
+    // Use AnchorProvider with the shared patched connection
     // -------------------------------------------------------------------------
     console.log("Setting up bankrun programs for users...");
 
     for (let i = 0; i < numUsers; i++) {
-      const userProvider = new CustomBankrunProvider(bankrunContext, users[i].wallet);
+      const userProvider = makeProvider(users[i].wallet);
       users[i].mrgnBankrunProgram = new Program<Marginfi>(marginfiIdlWithAddress as Marginfi, userProvider);
-      // Also set mrgnProgram to point to bankrun program for compatibility
       users[i].mrgnProgram = users[i].mrgnBankrunProgram;
     }
 
-    const globalAdminProvider = new CustomBankrunProvider(bankrunContext, globalProgramAdmin.wallet);
     globalProgramAdmin.mrgnBankrunProgram = new Program<Marginfi>(
       marginfiIdlWithAddress as Marginfi,
-      globalAdminProvider
+      makeProvider(globalProgramAdmin.wallet)
     );
     globalProgramAdmin.mrgnProgram = globalProgramAdmin.mrgnBankrunProgram;
 
-    const groupAdminProvider = new CustomBankrunProvider(bankrunContext, groupAdmin.wallet);
     groupAdmin.mrgnBankrunProgram = new Program<Marginfi>(
       marginfiIdlWithAddress as Marginfi,
-      groupAdminProvider
+      makeProvider(groupAdmin.wallet)
     );
     groupAdmin.mrgnProgram = groupAdmin.mrgnBankrunProgram;
 
-    const validatorAdminProvider = new CustomBankrunProvider(bankrunContext, validatorAdmin.wallet);
     validatorAdmin.mrgnBankrunProgram = new Program<Marginfi>(
       marginfiIdlWithAddress as Marginfi,
-      validatorAdminProvider
+      makeProvider(validatorAdmin.wallet)
     );
     validatorAdmin.mrgnProgram = validatorAdmin.mrgnBankrunProgram;
 
-    const emodeAdminProvider = new CustomBankrunProvider(bankrunContext, emodeAdmin.wallet);
     emodeAdmin.mrgnBankrunProgram = new Program<Marginfi>(
       marginfiIdlWithAddress as Marginfi,
-      emodeAdminProvider
+      makeProvider(emodeAdmin.wallet)
     );
     emodeAdmin.mrgnProgram = emodeAdmin.mrgnBankrunProgram;
 
-    const riskAdminProvider = new CustomBankrunProvider(bankrunContext, riskAdmin.wallet);
     riskAdmin.mrgnBankrunProgram = new Program<Marginfi>(
       marginfiIdlWithAddress as Marginfi,
-      riskAdminProvider
+      makeProvider(riskAdmin.wallet)
     );
     riskAdmin.mrgnProgram = riskAdmin.mrgnBankrunProgram;
 
