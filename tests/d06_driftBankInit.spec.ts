@@ -38,7 +38,11 @@ import {
 } from "./utils/drift-utils";
 import { CLOSE_ENABLED_FLAG } from "./utils/types";
 import { assert } from "chai";
-import { processBankrunTransaction, safeGetAccountInfo, getBankrunTime } from "./utils/tools";
+import {
+  processBankrunTransaction,
+  safeGetAccountInfo,
+  getBankrunTime,
+} from "./utils/tools";
 import { ProgramTestContext } from "solana-bankrun";
 import {
   makeAddDriftBankIx,

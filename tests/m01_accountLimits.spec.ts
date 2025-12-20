@@ -55,11 +55,7 @@ describe("Limits on number of accounts when using Kamino", () => {
   });
 
   it("Refresh oracles", async () => {
-    await refreshPullOraclesBankrun(
-      oracles,
-      bankrunContext,
-      banksClient
-    );
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
   });
 
   it("(admin) Seeds liquidity in all banks - validates 16 deposits is possible", async () => {

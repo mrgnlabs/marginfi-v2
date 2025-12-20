@@ -1,7 +1,4 @@
-import {
-  BN,
-  Program,
-} from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -126,7 +123,10 @@ describe("Borrow funds", () => {
     );
 
     const bank = bankKeypairUsdc.publicKey;
-    const userUsdcBefore = await getTokenBalance(bankRunProvider, user.usdcAccount);
+    const userUsdcBefore = await getTokenBalance(
+      bankRunProvider,
+      user.usdcAccount
+    );
     const bankBefore = await program.account.bank.fetch(bank);
     if (verbose) {
       console.log("user 0 USDC before: " + userUsdcBefore.toLocaleString());
@@ -167,7 +167,10 @@ describe("Borrow funds", () => {
     const bankAfter = await program.account.bank.fetch(bank);
     const balances = userAcc.lendingAccount.balances;
     assert.equal(bankAfter.borrowingPositionCount, 1);
-    const userUsdcAfter = await getTokenBalance(bankRunProvider, user.usdcAccount);
+    const userUsdcAfter = await getTokenBalance(
+      bankRunProvider,
+      user.usdcAccount
+    );
     if (verbose) {
       console.log("user 0 USDC after: " + userUsdcAfter.toLocaleString());
       console.log(

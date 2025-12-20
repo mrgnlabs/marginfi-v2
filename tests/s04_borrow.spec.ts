@@ -60,8 +60,12 @@ describe("Deposit funds (included staked assets)", () => {
     const balances = userAcc.lendingAccount.balances;
 
     // Find balances by bank key (order may vary due to pubkey sorting)
-    const solBalanceIndex = balances.findIndex((b) => b.bankPk.equals(stakedBankKeypairSol.publicKey));
-    const usdcBalanceIndex = balances.findIndex((b) => b.bankPk.equals(stakedBankKeypairUsdc.publicKey));
+    const solBalanceIndex = balances.findIndex((b) =>
+      b.bankPk.equals(stakedBankKeypairSol.publicKey)
+    );
+    const usdcBalanceIndex = balances.findIndex((b) =>
+      b.bankPk.equals(stakedBankKeypairUsdc.publicKey)
+    );
 
     assert.notEqual(solBalanceIndex, -1, "SOL balance not found");
     assert.notEqual(usdcBalanceIndex, -1, "USDC balance not found");

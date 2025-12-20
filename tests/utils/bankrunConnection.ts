@@ -1,4 +1,10 @@
-import { Connection, PublicKey, Transaction, VersionedTransaction, Commitment } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  VersionedTransaction,
+  Commitment,
+} from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
 import bs58 from "bs58";
 
@@ -31,7 +37,8 @@ export function patchBankrunConnection(
   };
 
   // Also patch getAccountInfoAndContext (used by Anchor's AccountClient.fetch)
-  const originalGetAccountInfoAndContext = connection.getAccountInfoAndContext.bind(connection);
+  const originalGetAccountInfoAndContext =
+    connection.getAccountInfoAndContext.bind(connection);
   conn.getAccountInfoAndContext = async (
     publicKey: PublicKey,
     commitment?: Commitment
@@ -40,7 +47,8 @@ export function patchBankrunConnection(
       return await originalGetAccountInfoAndContext(publicKey, commitment);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.startsWith("Could not find")) return { context: { slot: 0 }, value: null };
+      if (msg.startsWith("Could not find"))
+        return { context: { slot: 0 }, value: null };
       throw e;
     }
   };
@@ -51,7 +59,8 @@ export function patchBankrunConnection(
   };
 
   conn.getLatestBlockhash = async () => {
-    const [blockhash, lastValidBlockHeight] = await banksClient.getLatestBlockhash();
+    const [blockhash, lastValidBlockHeight] =
+      await banksClient.getLatestBlockhash();
     return { blockhash, lastValidBlockHeight: Number(lastValidBlockHeight) };
   };
 

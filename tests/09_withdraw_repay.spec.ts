@@ -43,8 +43,6 @@ describe("Withdraw funds", () => {
     program = bankrunProgram;
   });
 
-  
-
   const withdrawAmountTokenA = 0.1;
   const withdrawAmountTokenA_native = new BN(
     withdrawAmountTokenA * 10 ** ecosystem.tokenADecimals
@@ -273,8 +271,13 @@ describe("Withdraw funds", () => {
     // Make this test independent: ensure emissions accrue even when run standalone.
     await advanceClockAndRefreshOracles(2);
 
-    const userBBefore = await getTokenBalance(bankRunProvider, user.tokenBAccount);
-    const userAccBefore = await program.account.marginfiAccount.fetch(userAccKey);
+    const userBBefore = await getTokenBalance(
+      bankRunProvider,
+      user.tokenBAccount
+    );
+    const userAccBefore = await program.account.marginfiAccount.fetch(
+      userAccKey
+    );
 
     // Only claim emissions here - the actual repayAll happens in the next test
     await user.mrgnProgram.provider.sendAndConfirm(
@@ -287,8 +290,13 @@ describe("Withdraw funds", () => {
       )
     );
 
-    const userBAfter = await getTokenBalance(bankRunProvider, user.tokenBAccount);
-    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
+    const userBAfter = await getTokenBalance(
+      bankRunProvider,
+      user.tokenBAccount
+    );
+    const userAccAfter = await program.account.marginfiAccount.fetch(
+      userAccKey
+    );
 
     // Use blockchain time since we've advanced the clock
     const clock = await banksClient.getClock();

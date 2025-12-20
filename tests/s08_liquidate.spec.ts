@@ -1,5 +1,10 @@
 import { BN } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  Transaction,
+} from "@solana/web3.js";
 import {
   stakedBankKeypairSol,
   bankrunContext,

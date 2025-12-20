@@ -63,7 +63,6 @@ import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { assert } from "chai";
 
 describe("sl08: 16 Banks Stress Test", () => {
-
   const startingSeed = 800;
   const REGULAR_BANKS_COUNT = 15;
   const SOLEND_BANKS_COUNT = 8; // Limited by MAX_INTEGRATION_POSITIONS

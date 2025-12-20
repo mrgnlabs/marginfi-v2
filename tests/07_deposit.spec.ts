@@ -1,9 +1,4 @@
-import {
-  AnchorProvider,
-  BN,
-  Program,
-  Wallet,
-} from "@coral-xyz/anchor";
+import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -153,7 +148,10 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit USDC to bank - happy path", async () => {
     const user = users[1];
-    const userUsdcBefore = await getTokenBalance(bankRunProvider, user.usdcAccount);
+    const userUsdcBefore = await getTokenBalance(
+      bankRunProvider,
+      user.usdcAccount
+    );
     if (verbose) {
       console.log("user 1 USDC before: " + userUsdcBefore.toLocaleString());
     }
@@ -172,7 +170,9 @@ describe("Deposit funds", () => {
       )
     );
 
-    const bankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
+    const bankAfter = await program.account.bank.fetch(
+      bankKeypairUsdc.publicKey
+    );
     assert.equal(bankAfter.lendingPositionCount, 1);
 
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
@@ -187,7 +187,10 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[0].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userUsdcAfter = await getTokenBalance(bankRunProvider, user.usdcAccount);
+    const userUsdcAfter = await getTokenBalance(
+      bankRunProvider,
+      user.usdcAccount
+    );
     if (verbose) {
       console.log("user 1 USDC after: " + userUsdcAfter.toLocaleString());
     }
@@ -297,7 +300,10 @@ describe("Deposit funds", () => {
     bankAfter = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfter.lendingPositionCount, 2);
 
-    const userTokenAAfter = await getTokenBalance(bankRunProvider, user.tokenAAccount);
+    const userTokenAAfter = await getTokenBalance(
+      bankRunProvider,
+      user.tokenAAccount
+    );
     if (verbose) {
       console.log("user 1 Token A after: " + userTokenAAfter.toLocaleString());
     }
@@ -367,7 +373,10 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit SOL to bank - happy path", async () => {
     const user = users[1];
-    const userSolBefore = await getTokenBalance(bankRunProvider, user.wsolAccount);
+    const userSolBefore = await getTokenBalance(
+      bankRunProvider,
+      user.wsolAccount
+    );
     if (verbose) {
       console.log("user 1 SOL before: " + userSolBefore.toLocaleString());
     }
@@ -407,7 +416,10 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userSolAfter = await getTokenBalance(bankRunProvider, user.wsolAccount);
+    const userSolAfter = await getTokenBalance(
+      bankRunProvider,
+      user.wsolAccount
+    );
     if (verbose) {
       console.log("user 1 SOL after: " + userSolAfter.toLocaleString());
     }

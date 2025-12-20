@@ -6,7 +6,12 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import { Mocks } from "../target/types/mocks";
-import { marginfiGroup, users, bankrunProgram, mocksBankrunProgram } from "./rootHooks";
+import {
+  marginfiGroup,
+  users,
+  bankrunProgram,
+  mocksBankrunProgram,
+} from "./rootHooks";
 import {
   assertKeysEqual,
   assertKeyDefault,

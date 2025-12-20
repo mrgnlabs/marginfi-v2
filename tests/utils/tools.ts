@@ -48,14 +48,14 @@ export const processBankrunTransaction = async (
     // TODO throw on error?
     // If we want to dump logs on fail, simulate first
     if (dumpLogOnFail) {
-      const simulationResult = await bankrunContext.banksClient.simulateTransaction(tx);
+      const simulationResult =
+        await bankrunContext.banksClient.simulateTransaction(tx);
       if (simulationResult.result) {
         dumpBankrunLogs(simulationResult);
       }
     }
     return await bankrunContext.banksClient.processTransaction(tx);
   }
-
 };
 
 /**
@@ -225,7 +225,6 @@ export function dumpAccBalances(
 
   for (let b of balances) {
     if (b.active == 0) {
-
       activeBalances.push({
         "Bank PK": "empty",
         // Tag: "-",

@@ -1,9 +1,4 @@
-import {
-  
-  BN,
-  
-  Program,
-} from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { ComputeBudgetProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -44,8 +39,6 @@ describe("Liquidate user", () => {
   before(() => {
     program = bankrunProgram;
   });
-
-  
 
   const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
@@ -431,11 +424,35 @@ describe("Liquidate user", () => {
     // Use blockchain time since clock may have been advanced
     const clock = await banksClient.getClock();
     const blockchainTime = Number(clock.unixTimestamp);
-    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, blockchainTime, 2);
-    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, blockchainTime, 2);
-    assertBNApproximately(liquidatorMarginfiAccountAfter.lastUpdate, blockchainTime, 2);
-    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, blockchainTime, 2);
-    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, blockchainTime, 2);
-    assertBNApproximately(liquidateeMarginfiAccountAfter.lastUpdate, blockchainTime, 2);
+    assertBNApproximately(
+      liquidatorBalancesAfter[0].lastUpdate,
+      blockchainTime,
+      2
+    );
+    assertBNApproximately(
+      liquidatorBalancesAfter[1].lastUpdate,
+      blockchainTime,
+      2
+    );
+    assertBNApproximately(
+      liquidatorMarginfiAccountAfter.lastUpdate,
+      blockchainTime,
+      2
+    );
+    assertBNApproximately(
+      liquidateeBalancesAfter[0].lastUpdate,
+      blockchainTime,
+      2
+    );
+    assertBNApproximately(
+      liquidateeBalancesAfter[1].lastUpdate,
+      blockchainTime,
+      2
+    );
+    assertBNApproximately(
+      liquidateeMarginfiAccountAfter.lastUpdate,
+      blockchainTime,
+      2
+    );
   });
 });

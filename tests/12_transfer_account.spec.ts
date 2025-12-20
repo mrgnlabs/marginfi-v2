@@ -1,7 +1,18 @@
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 import { Program } from "@coral-xyz/anchor";
 import { Marginfi } from "../target/types/marginfi";
-import { bankrunProgram, marginfiGroup, users, globalFeeWallet } from "./rootHooks";
+import {
+  bankrunProgram,
+  marginfiGroup,
+  users,
+  globalFeeWallet,
+} from "./rootHooks";
 import {
   accountInit,
   transferAccountAuthorityIx,
@@ -272,9 +283,10 @@ describe("Transfer account authority", () => {
     ]);
 
     // Verify the authority wallet is now owned by Token Program
-    const authorityAccountInfo = await program.provider.connection.getAccountInfo(
-      authorityKeypair.publicKey
-    );
+    const authorityAccountInfo =
+      await program.provider.connection.getAccountInfo(
+        authorityKeypair.publicKey
+      );
     assertKeysEqual(authorityAccountInfo.owner, TOKEN_PROGRAM_ID);
 
     // Now transfer the marginfi account using the authority whose wallet ownership was transferred to Token Program

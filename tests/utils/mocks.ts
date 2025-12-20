@@ -371,7 +371,10 @@ export const setupTestUserBankrun = async (
 
   let tokenAAccount: PublicKey = PublicKey.default;
   if (options?.tokenAMint) {
-    tokenAAccount = getAssociatedTokenAddressSync(options.tokenAMint, userWallet);
+    tokenAAccount = getAssociatedTokenAddressSync(
+      options.tokenAMint,
+      userWallet
+    );
     tx.add(
       createAssociatedTokenAccountInstruction(
         payer.publicKey,
@@ -384,7 +387,10 @@ export const setupTestUserBankrun = async (
 
   let tokenBAccount: PublicKey = PublicKey.default;
   if (options?.tokenBMint) {
-    tokenBAccount = getAssociatedTokenAddressSync(options.tokenBMint, userWallet);
+    tokenBAccount = getAssociatedTokenAddressSync(
+      options.tokenBMint,
+      userWallet
+    );
     tx.add(
       createAssociatedTokenAccountInstruction(
         payer.publicKey,
@@ -397,7 +403,10 @@ export const setupTestUserBankrun = async (
 
   let alphaAccount: PublicKey = PublicKey.default;
   if (options?.lstAlphaMint) {
-    alphaAccount = getAssociatedTokenAddressSync(options.lstAlphaMint, userWallet);
+    alphaAccount = getAssociatedTokenAddressSync(
+      options.lstAlphaMint,
+      userWallet
+    );
     tx.add(
       createAssociatedTokenAccountInstruction(
         payer.publicKey,

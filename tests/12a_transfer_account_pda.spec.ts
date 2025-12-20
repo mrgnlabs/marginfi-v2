@@ -1,7 +1,12 @@
 import { Keypair, Transaction } from "@solana/web3.js";
 import { Program } from "@coral-xyz/anchor";
 import { Marginfi } from "../target/types/marginfi";
-import { bankrunProgram, marginfiGroup, users, globalFeeWallet } from "./rootHooks";
+import {
+  bankrunProgram,
+  marginfiGroup,
+  users,
+  globalFeeWallet,
+} from "./rootHooks";
 import {
   accountInit,
   transferAccountAuthorityPdaIx,
@@ -77,7 +82,7 @@ describe("Transfer account authority to PDA", () => {
     const feeWalletAfter = await program.provider.connection.getAccountInfo(
       globalFeeWallet
     );
-    
+
     assertKeysEqual(newAcc.authority, newAuthority.publicKey);
     assertKeysEqual(newAcc.migratedFrom, oldAccKeypair.publicKey);
     assertKeyDefault(newAcc.migratedTo);
@@ -132,14 +137,14 @@ describe("Transfer account authority to PDA", () => {
     const oldAcc = await program.account.marginfiAccount.fetch(
       oldAccKeypair2.publicKey
     );
-    
+
     assertKeysEqual(newAcc.authority, newAuthority2.publicKey);
     assertKeysEqual(newAcc.migratedFrom, oldAccKeypair2.publicKey);
     assertKeyDefault(newAcc.migratedTo);
     assertBNEqual(oldAcc.accountFlags, ACCOUNT_DISABLED);
     assertKeysEqual(oldAcc.migratedTo, newAccountPda);
     assert.equal(newAcc.accountIndex, accountIndex);
-    assert.equal(newAcc.thirdPartyIndex, thirdPartyId)
+    assert.equal(newAcc.thirdPartyIndex, thirdPartyId);
     assert.equal(newAcc.bump, bump);
   });
 
@@ -170,12 +175,12 @@ describe("Transfer account authority to PDA", () => {
   it("(user 0) migrate an account with positions to a PDA - happy path", async () => {
     const oldAccKey = users[0].accounts.get(USER_ACCOUNT);
     const oldAccBefore = await program.account.marginfiAccount.fetch(oldAccKey);
-    
+
     const accountIndex = 5; // Use a different index to avoid collision with 06a tests
     const [newAccountPda, bump] = deriveMarginfiAccountPda(
       program.programId,
       marginfiGroup.publicKey,
-      users[0].wallet.publicKey,  // Keep same authority
+      users[0].wallet.publicKey, // Keep same authority
       accountIndex
     );
 
@@ -193,11 +198,11 @@ describe("Transfer account authority to PDA", () => {
 
     const newAcc = await program.account.marginfiAccount.fetch(newAccountPda);
     const oldAcc = await program.account.marginfiAccount.fetch(oldAccKey);
-    
+
     assertKeysEqual(newAcc.authority, users[0].wallet.publicKey);
     assertKeysEqual(newAcc.migratedFrom, oldAccKey);
     assertBNEqual(oldAcc.accountFlags, ACCOUNT_DISABLED);
-    
+
     // Verify balances were transferred correctly
     for (let i = 0; i < newAcc.lendingAccount.balances.length; i++) {
       const balOld = oldAccBefore.lendingAccount.balances[i];
@@ -257,5 +262,4 @@ describe("Transfer account authority to PDA", () => {
       await users[0].mrgnProgram.provider.sendAndConfirm(tx2, []);
     }, "InvalidFeeAta");
   });
-
 });

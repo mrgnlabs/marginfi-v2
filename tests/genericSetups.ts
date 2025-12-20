@@ -361,7 +361,6 @@ export const genericKaminoMultiBankTestSetup = async (
     for (let i = 0; i < numberOfBanks; i++) {
       const seed = startingSeed + i;
 
-
       // Execute addGenericBank sequentially
       await addGenericBank(throwawayGroup, {
         bankMint: ecosystem.lstAlphaMint.publicKey,

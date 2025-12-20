@@ -62,7 +62,6 @@ import { BanksTransactionResultWithMeta } from "solana-bankrun";
 import { assert } from "chai";
 
 describe("sl07: Solend Liquidation", () => {
-
   const startingSeed = 7;
   const USER_ACCOUNT_THROWAWAY = "throwaway_account_sl07";
   const seedAmountLst = new BN(5 * 10 ** ecosystem.lstAlphaDecimals);

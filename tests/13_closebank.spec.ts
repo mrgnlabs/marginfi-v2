@@ -1,9 +1,4 @@
-import {
-  
-  BN,
-  
-  Program,
-} from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -34,7 +29,6 @@ import { dumpAccBalances } from "./utils/tools";
 let program: Program<Marginfi>;
 
 describe("Close bank", () => {
-  
   let bankKey: PublicKey;
   const seed = new BN(987613);
 

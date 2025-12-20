@@ -34,7 +34,7 @@ describe("Withdraw staked asset", () => {
   before(async () => {
     // Refresh oracles to ensure they're up to date
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
-    
+
     [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
       stakedMarginfiGroup.publicKey

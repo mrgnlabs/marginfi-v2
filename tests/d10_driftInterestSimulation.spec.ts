@@ -634,11 +634,7 @@ describe("d10: Drift Interest Simulation", () => {
     ]);
 
     const refreshedClock = await banksClient.getClock();
-    await refreshPullOraclesBankrun(
-      oracles,
-      bankrunContext,
-      banksClient
-    );
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     await refreshDriftOracles(
       oracles,
