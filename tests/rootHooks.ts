@@ -18,14 +18,12 @@ import {
   SystemProgram,
   SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
-  VersionedTransaction,
-  Commitment,
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
-import bs58 from "bs58";
+import { patchBankrunConnection } from "./utils/bankrunConnection";
 
 // ---------------------------------------------------------------------------
 // Kamino farms (liquidity-incentive) program
@@ -440,88 +438,7 @@ export const mochaHooks = {
     banksClient = bankrunContext.banksClient;
 
     // Patch missing connection methods that tests need
-    // BankrunConnectionProxy only has getAccountInfo, getAccountInfoAndContext, getMinimumBalanceForRentExemption
-    const connection = bankRunProvider.connection as Record<string, unknown>;
-
-    // BankrunConnectionProxy throws "Could not find" for unknown accounts.
-    // Real RPC connections return `null` for missing accounts.
-    // Normalize bankrun behavior to match real RPC to avoid test-only try/catch patterns.
-    const originalGetAccountInfo = bankRunProvider.connection.getAccountInfo.bind(
-      bankRunProvider.connection
-    );
-    connection.getAccountInfo = async (
-      publicKey: PublicKey,
-      commitment?: Commitment
-    ) => {
-      try {
-        return await originalGetAccountInfo(publicKey, commitment);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.startsWith("Could not find")) return null;
-        throw e;
-      }
-    };
-
-    // Also patch getAccountInfoAndContext (used by Anchor's AccountClient.fetch)
-    const originalGetAccountInfoAndContext = bankRunProvider.connection.getAccountInfoAndContext.bind(
-      bankRunProvider.connection
-    );
-    connection.getAccountInfoAndContext = async (
-      publicKey: PublicKey,
-      commitment?: Commitment
-    ) => {
-      try {
-        return await originalGetAccountInfoAndContext(publicKey, commitment);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.startsWith("Could not find")) return { context: { slot: 0 }, value: null };
-        throw e;
-      }
-    };
-
-    connection.getBalance = async (publicKey: PublicKey) => {
-      const balance = await banksClient.getBalance(publicKey);
-      return Number(balance);
-    };
-    connection.getLatestBlockhash = async () => {
-      const [blockhash, lastValidBlockHeight] = await banksClient.getLatestBlockhash();
-      return { blockhash, lastValidBlockHeight: Number(lastValidBlockHeight) };
-    };
-    connection.sendRawTransaction = async (rawTransaction: Buffer | Uint8Array) => {
-      const raw = Buffer.isBuffer(rawTransaction)
-        ? rawTransaction
-        : Buffer.from(rawTransaction);
-
-      // Support both legacy and v0 transactions (LUT / Address Lookup Tables)
-      // Versioned txs have the high bit set on the first byte
-      const isVersioned = (raw[0] & 0x80) !== 0;
-      const tx = isVersioned
-        ? VersionedTransaction.deserialize(raw)
-        : Transaction.from(raw);
-
-      const result = await banksClient.tryProcessTransaction(tx);
-      if (result.result) {
-        const logs = result.meta?.logMessages || [];
-        const error = new Error(result.result) as Error & { logs: string[] };
-        error.logs = logs;
-        throw error;
-      }
-
-      // Return real base58-encoded signature for better debug output
-      const signature = isVersioned
-        ? (tx as VersionedTransaction).signatures[0]
-        : (tx as Transaction).signature;
-      return signature ? bs58.encode(signature) : "unsigned-tx";
-    };
-    connection.confirmTransaction = async () => {
-      // Bankrun transactions are confirmed immediately (errors thrown above in sendRawTransaction)
-      return { value: { err: null } };
-    };
-    // Shim for SPL single pool staked tests
-    connection.getStakeMinimumDelegation = async () => {
-      // Minimum stake delegation on mainnet is 1 SOL
-      return { value: 1_000_000_000 };
-    };
+    patchBankrunConnection(bankRunProvider.connection, banksClient);
 
     // Set the global Anchor provider so getProvider() works
     // This is critical for tests that use anchor.getProvider() or program.provider
