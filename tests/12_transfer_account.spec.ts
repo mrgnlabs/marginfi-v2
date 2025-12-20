@@ -238,10 +238,9 @@ describe("Transfer account authority", () => {
     assertKeysEqual(oldAcc.migratedTo, newAccKeypair.publicKey);
   });
 
-  // NOTE: This test is skipped in bankrun because it uses sendRawTransaction and confirmTransaction
-  // which don't work correctly with the bankrun connection proxy. The test validates that signature
-  // verification works after wallet ownership is transferred to Token Program - an edge case that
-  // requires low-level transaction handling not supported by bankrun.
+  // NOTE: This test uses sendRawTransaction and confirmTransaction, which are provided by the
+  // bankrunConnection shim. It validates that signature verification works after wallet ownership
+  // is transferred to Token Program - an edge case that requires low-level transaction handling.
   it("(user 0) transfer account after authority wallet ownership transferred to Token Program", async () => {
     const { TOKEN_PROGRAM_ID } = await import("@solana/spl-token");
     const authorityKeypair = Keypair.generate();

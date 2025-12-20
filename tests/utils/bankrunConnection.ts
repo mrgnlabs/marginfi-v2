@@ -6,7 +6,7 @@ import {
   Commitment,
 } from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
-import bs58 from "bs58";
+import { utils } from "@coral-xyz/anchor";
 
 /**
  * Patches a bankrun connection to add missing methods that tests need.
@@ -88,7 +88,7 @@ export function patchBankrunConnection(
     const signature = isVersioned
       ? (tx as VersionedTransaction).signatures[0]
       : (tx as Transaction).signature;
-    return signature ? bs58.encode(signature) : "unsigned-tx";
+    return signature ? utils.bytes.bs58.encode(signature) : "unsigned-tx";
   };
 
   conn.confirmTransaction = async () => {
