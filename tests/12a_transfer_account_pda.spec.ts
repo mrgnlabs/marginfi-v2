@@ -1,7 +1,7 @@
 import { Keypair, Transaction } from "@solana/web3.js";
-import { Program, workspace } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import { Marginfi } from "../target/types/marginfi";
-import { marginfiGroup, users, globalFeeWallet } from "./rootHooks";
+import { bankrunProgram, marginfiGroup, users, globalFeeWallet } from "./rootHooks";
 import {
   accountInit,
   transferAccountAuthorityPdaIx,
@@ -23,8 +23,12 @@ import {
 import { dumpAccBalances } from "./utils/tools";
 import { deriveMarginfiAccountPda } from "./utils/pdas";
 
+let program: Program<Marginfi>;
+
 describe("Transfer account authority to PDA", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  before(() => {
+    program = bankrunProgram;
+  });
 
   const oldAccKeypair = Keypair.generate();
   const newAuthority = Keypair.generate();

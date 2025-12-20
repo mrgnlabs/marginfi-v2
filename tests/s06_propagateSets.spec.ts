@@ -1,9 +1,7 @@
-import { workspace, Program } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
-  marginfiGroup,
+  stakedMarginfiGroup,
   validators,
   groupAdmin,
   oracles,
@@ -29,19 +27,19 @@ import {
 } from "./utils/types";
 
 describe("Edit and propagate staked settings", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  // Use bankrunProgram from rootHooks (initialized in beforeAll)
 
   let settingsKey: PublicKey;
   let bankKey: PublicKey;
 
   before(async () => {
     [settingsKey] = deriveStakedSettings(
-      program.programId,
-      marginfiGroup.publicKey
+      bankrunProgram.programId,
+      stakedMarginfiGroup.publicKey
     );
     [bankKey] = deriveBankWithSeed(
-      program.programId,
-      marginfiGroup.publicKey,
+      bankrunProgram.programId,
+      stakedMarginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)
     );
@@ -63,7 +61,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: marginfiGroup.publicKey,
+          marginfiGroup: stakedMarginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })
@@ -126,7 +124,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: marginfiGroup.publicKey,
+          marginfiGroup: stakedMarginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })
@@ -176,7 +174,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: marginfiGroup.publicKey,
+          marginfiGroup: stakedMarginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })

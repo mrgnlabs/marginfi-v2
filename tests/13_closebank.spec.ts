@@ -1,15 +1,16 @@
 import {
-  AnchorProvider,
+  
   BN,
-  getProvider,
+  
   Program,
-  workspace,
 } from "@coral-xyz/anchor";
 import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
   bankKeypairUsdc,
+  bankrunProgram,
+  bankRunProvider,
   ecosystem,
   groupAdmin,
   marginfiGroup,
@@ -30,13 +31,15 @@ import { closeBank } from "./utils/group-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { dumpAccBalances } from "./utils/tools";
 
+let program: Program<Marginfi>;
+
 describe("Close bank", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
+  
   let bankKey: PublicKey;
   const seed = new BN(987613);
 
   before(async () => {
+    program = bankrunProgram;
     const config = defaultBankConfig();
     [bankKey] = deriveBankWithSeed(
       program.programId,
@@ -150,7 +153,7 @@ describe("Close bank", () => {
     );
     assert.equal(groupAfter.banks, groupBefore.banks - 1);
 
-    const info = await provider.connection.getAccountInfo(bankKey);
+    const info = await bankRunProvider.connection.getAccountInfo(bankKey);
     assert.isNull(info);
   });
 });

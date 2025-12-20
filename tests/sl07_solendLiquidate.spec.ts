@@ -1,4 +1,4 @@
-import { workspace, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
@@ -20,6 +20,7 @@ import {
   ecosystem,
   globalProgramAdmin,
   bankrunContext,
+  bankrunProgram,
   bankRunProvider,
   users,
   solendAccounts,
@@ -61,7 +62,6 @@ import { BanksTransactionResultWithMeta } from "solana-bankrun";
 import { assert } from "chai";
 
 describe("sl07: Solend Liquidation", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
 
   const startingSeed = 7;
   const USER_ACCOUNT_THROWAWAY = "throwaway_account_sl07";
@@ -94,7 +94,7 @@ describe("sl07: Solend Liquidation", () => {
     throwawayGroup = result.throwawayGroup;
 
     [solendUsdcBank] = deriveBankWithSeed(
-      program.programId,
+      bankrunProgram.programId,
       throwawayGroup.publicKey,
       ecosystem.usdcMint.publicKey,
       new BN(startingSeed + 1)
@@ -136,7 +136,7 @@ describe("sl07: Solend Liquidation", () => {
     const collateralMint = solendAccounts.get(SOLEND_USDC_COLLATERAL_MINT)!;
 
     const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
-      program.programId,
+      bankrunProgram.programId,
       solendUsdcBank
     );
 
@@ -273,7 +273,7 @@ describe("sl07: Solend Liquidation", () => {
 
     const collateralMint = solendAccounts.get(SOLEND_USDC_COLLATERAL_MINT)!;
     const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
-      program.programId,
+      bankrunProgram.programId,
       solendUsdcBank
     );
     const userCollateral = getAssociatedTokenAddressSync(

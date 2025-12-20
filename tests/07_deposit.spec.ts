@@ -1,17 +1,18 @@
 import {
   AnchorProvider,
   BN,
-  getProvider,
   Program,
   Wallet,
-  workspace,
 } from "@coral-xyz/anchor";
-import { AccountMeta, Transaction } from "@solana/web3.js";
+import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
   bankKeypairSol,
   bankKeypairUsdc,
+  bankrunContext,
+  bankrunProgram,
+  bankRunProvider,
   ecosystem,
   groupAdmin,
   marginfiGroup,
@@ -36,11 +37,17 @@ import {
   ORACLE_SETUP_PYTH_PUSH,
   u64MAX_BN,
 } from "./utils/types";
+import { getBankrunTime } from "./utils/tools";
+
+let program: Program<Marginfi>;
+let mintAuthority: PublicKey;
 
 describe("Deposit funds", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
+  before(() => {
+    program = bankrunProgram;
+    // Use bankrun payer as mint authority (same as when mints were created)
+    mintAuthority = bankrunContext.payer.publicKey;
+  });
   const depositAmountA = 2;
   const depositAmountA_native = new BN(
     depositAmountA * 10 ** ecosystem.tokenADecimals
@@ -63,7 +70,7 @@ describe("Deposit funds", () => {
         createMintToInstruction(
           ecosystem.tokenAMint.publicKey,
           users[i].tokenAAccount,
-          wallet.publicKey,
+          mintAuthority,
           100 * 10 ** ecosystem.tokenADecimals
         )
       );
@@ -71,7 +78,7 @@ describe("Deposit funds", () => {
         createMintToInstruction(
           ecosystem.usdcMint.publicKey,
           users[i].usdcAccount,
-          wallet.publicKey,
+          mintAuthority,
           10000 * 10 ** ecosystem.usdcDecimals
         )
       );
@@ -79,12 +86,13 @@ describe("Deposit funds", () => {
         createMintToInstruction(
           ecosystem.wsolMint.publicKey,
           users[i].wsolAccount,
-          wallet.publicKey,
+          mintAuthority,
           10000 * 10 ** ecosystem.wsolDecimals
         )
       );
     }
-    await program.provider.sendAndConfirm(tx);
+    // Use bankRunProvider which has payer as wallet (the mint authority)
+    await bankRunProvider.sendAndConfirm(tx);
   });
 
   it("(user 0) deposit token A to bank - happy path", async () => {
@@ -94,8 +102,8 @@ describe("Deposit funds", () => {
       bankKeypairA.publicKey
     );
     const [userABefore, vaultABefore] = await Promise.all([
-      getTokenBalance(provider, user.tokenAAccount),
-      getTokenBalance(provider, bankLiquidityVault),
+      getTokenBalance(bankRunProvider, user.tokenAAccount),
+      getTokenBalance(bankRunProvider, bankLiquidityVault),
     ]);
     if (verbose) {
       console.log("user 0 A before: " + userABefore.toLocaleString());
@@ -127,13 +135,13 @@ describe("Deposit funds", () => {
     assertI80F48Equal(balances[0].liabilityShares, 0);
     assertI80F48Equal(balances[0].emissionsOutstanding, 0);
 
-    let now = Math.floor(Date.now() / 1000);
+    let now = await getBankrunTime(bankrunContext);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     const [userAAfter, vaultAAfter] = await Promise.all([
-      getTokenBalance(provider, user.tokenAAccount),
-      getTokenBalance(provider, bankLiquidityVault),
+      getTokenBalance(bankRunProvider, user.tokenAAccount),
+      getTokenBalance(bankRunProvider, bankLiquidityVault),
     ]);
     if (verbose) {
       console.log("user 0 A after: " + userAAfter.toLocaleString());
@@ -145,7 +153,7 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit USDC to bank - happy path", async () => {
     const user = users[1];
-    const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
+    const userUsdcBefore = await getTokenBalance(bankRunProvider, user.usdcAccount);
     if (verbose) {
       console.log("user 1 USDC before: " + userUsdcBefore.toLocaleString());
     }
@@ -175,11 +183,11 @@ describe("Deposit funds", () => {
     assertI80F48Equal(balances[0].liabilityShares, 0);
     assertI80F48Equal(balances[0].emissionsOutstanding, 0);
 
-    let now = Math.floor(Date.now() / 1000);
+    let now = await getBankrunTime(bankrunContext);
     assertBNApproximately(balances[0].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
+    const userUsdcAfter = await getTokenBalance(bankRunProvider, user.usdcAccount);
     if (verbose) {
       console.log("user 1 USDC after: " + userUsdcAfter.toLocaleString());
     }
@@ -254,7 +262,7 @@ describe("Deposit funds", () => {
     // And now user user 1 attempts to deposit up to the deposit cap
     const user = users[1];
     const userTokenABefore = await getTokenBalance(
-      provider,
+      bankRunProvider,
       user.tokenAAccount
     );
     if (verbose) {
@@ -289,7 +297,7 @@ describe("Deposit funds", () => {
     bankAfter = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfter.lendingPositionCount, 2);
 
-    const userTokenAAfter = await getTokenBalance(provider, user.tokenAAccount);
+    const userTokenAAfter = await getTokenBalance(bankRunProvider, user.tokenAAccount);
     if (verbose) {
       console.log("user 1 Token A after: " + userTokenAAfter.toLocaleString());
     }
@@ -311,7 +319,7 @@ describe("Deposit funds", () => {
       balance.bankPk.equals(bankKey)
     );
     assertI80F48Approx(balances[depositIndex].assetShares, expected);
-    let now = Math.floor(Date.now() / 1000);
+    let now = await getBankrunTime(bankrunContext);
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
@@ -359,7 +367,7 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit SOL to bank - happy path", async () => {
     const user = users[1];
-    const userSolBefore = await getTokenBalance(provider, user.wsolAccount);
+    const userSolBefore = await getTokenBalance(bankRunProvider, user.wsolAccount);
     if (verbose) {
       console.log("user 1 SOL before: " + userSolBefore.toLocaleString());
     }
@@ -395,11 +403,11 @@ describe("Deposit funds", () => {
     assertI80F48Equal(balances[depositIndex].liabilityShares, 0);
     assertI80F48Equal(balances[depositIndex].emissionsOutstanding, 0);
 
-    let now = Math.floor(Date.now() / 1000);
+    let now = await getBankrunTime(bankrunContext);
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userSolAfter = await getTokenBalance(provider, user.wsolAccount);
+    const userSolAfter = await getTokenBalance(bankRunProvider, user.wsolAccount);
     if (verbose) {
       console.log("user 1 SOL after: " + userSolAfter.toLocaleString());
     }

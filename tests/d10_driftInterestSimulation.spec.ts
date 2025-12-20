@@ -24,7 +24,7 @@ import {
   DRIFT_TOKENA_SPOT_MARKET,
   DRIFT_TOKENA_PULL_ORACLE,
 } from "./rootHooks";
-import { refreshPullOracles } from "./utils/pyth-pull-mocks";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { MockUser } from "./utils/mocks";
 import { processBankrunTransaction } from "./utils/tools";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
@@ -634,13 +634,10 @@ describe("d10: Drift Interest Simulation", () => {
     ]);
 
     const refreshedClock = await banksClient.getClock();
-    await refreshPullOracles(
+    await refreshPullOraclesBankrun(
       oracles,
-      globalProgramAdmin.wallet,
-      new BN(Number(refreshedClock.slot)),
-      Number(refreshedClock.unixTimestamp),
       bankrunContext,
-      false
+      banksClient
     );
 
     await refreshDriftOracles(

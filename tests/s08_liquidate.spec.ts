@@ -1,20 +1,14 @@
-import { BN, Program, workspace } from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
+import { ComputeBudgetProgram, LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import {
-  ComputeBudgetProgram,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  Transaction,
-} from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
-import {
-  bankKeypairSol,
+  stakedBankKeypairSol,
   bankrunContext,
   bankrunProgram,
   bankRunProvider,
   banksClient,
   ecosystem,
   groupAdmin,
-  marginfiGroup,
+  stakedMarginfiGroup,
   oracles,
   users,
   validators,
@@ -53,15 +47,15 @@ import { getStakeAccount } from "./utils/stake-utils";
 import { dumpBankrunLogs } from "./utils/tools";
 
 describe("Liquidate user (including staked assets)", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  // Use bankrunProgram from rootHooks (initialized in beforeAll)
   let settingsKey: PublicKey;
   before(async () => {
     // Refresh oracles to ensure they're up to date
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     [settingsKey] = deriveStakedSettings(
-      program.programId,
-      marginfiGroup.publicKey
+      bankrunProgram.programId,
+      stakedMarginfiGroup.publicKey
     );
   });
 
@@ -103,6 +97,9 @@ describe("Liquidate user (including staked assets)", () => {
    *  SOL diff 190,188,014  - 180,565,347 = 9,622,667 (the actual number in the test can be different, since the Staked price is approximated)
    */
 
+  // TODO: Fix bankrun liquidation with staked collateral - InvalidBankAccount error (0x1778)
+  // The remaining accounts structure for staked collateral liquidation may need adjustment
+  // for bankrun. This is a complex edge case that requires deeper investigation.
   it("(user 1) liquidates user 2 with staked SOL against their SOL position - succeeds", async () => {
     const liquidatee = users[2];
     const liquidator = users[1];
@@ -111,7 +108,7 @@ describe("Liquidate user (including staked assets)", () => {
     const assetBankBefore = await bankrunProgram.account.bank.fetch(
       assetBankKey
     );
-    const liabilityBankKey = bankKeypairSol.publicKey;
+    const liabilityBankKey = stakedBankKeypairSol.publicKey;
     const liabilityBankBefore = await bankrunProgram.account.bank.fetch(
       liabilityBankKey
     );
@@ -143,10 +140,10 @@ describe("Liquidate user (including staked assets)", () => {
       balance.bankPk.equals(validators[0].bank)
     );
     const solBankIndexLiqee = liquidateeBalances.findIndex((balance) =>
-      balance.bankPk.equals(bankKeypairSol.publicKey)
+      balance.bankPk.equals(stakedBankKeypairSol.publicKey)
     );
     const solBankIndexLiq = liquidatorBalances.findIndex((balance) =>
-      balance.bankPk.equals(bankKeypairSol.publicKey)
+      balance.bankPk.equals(stakedBankKeypairSol.publicKey)
     );
 
     const sharesStaked = wrappedI80F48toBigNumber(
@@ -263,31 +260,6 @@ describe("Liquidate user (including staked assets)", () => {
         (shareValueSol * wsolHighPrice)) *
       10 ** oracles.wsolDecimals;
 
-    let liquidatorAccounts = composeRemainingAccounts([
-      [liabilityBankKey, oracles.wsolOracle.publicKey],
-      [
-        assetBankKey,
-        oracles.wsolOracle.publicKey,
-        validators[0].splMint,
-        validators[0].splSolPool,
-      ],
-    ]);
-    let liquidateeAccounts = composeRemainingAccounts([
-      [
-        assetBankKey,
-        oracles.wsolOracle.publicKey,
-        validators[0].splMint,
-        validators[0].splSolPool,
-      ],
-      [
-        validators[1].bank,
-        oracles.wsolOracle.publicKey,
-        validators[1].splMint,
-        validators[1].splSolPool,
-      ],
-      [liabilityBankKey, oracles.wsolOracle.publicKey],
-    ]);
-
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
@@ -300,12 +272,38 @@ describe("Liquidate user (including staked assets)", () => {
           validators[0].splMint,
           validators[0].splSolPool,
           oracles.wsolOracle.publicKey,
-          ...liquidatorAccounts,
-          ...liquidateeAccounts,
+          // liquidator accounts
+          ...composeRemainingAccounts([
+            [liabilityBankKey, oracles.wsolOracle.publicKey],
+            [
+              assetBankKey,
+              oracles.wsolOracle.publicKey,
+              validators[0].splMint,
+              validators[0].splSolPool,
+            ],
+          ]),
+          // liquidatee accounts (user 2 has positions in validators[0], validators[1], and SOL bank)
+          ...composeRemainingAccounts([
+            [
+              assetBankKey,
+              oracles.wsolOracle.publicKey,
+              validators[0].splMint,
+              validators[0].splSolPool,
+            ],
+            [
+              validators[1].bank,
+              oracles.wsolOracle.publicKey,
+              validators[1].splMint,
+              validators[1].splSolPool,
+            ],
+            [liabilityBankKey, oracles.wsolOracle.publicKey],
+          ]),
         ],
         amount: liquidateAmountSol_native,
-        liquidateeAccounts: liquidateeAccounts.length,
-        liquidatorAccounts: liquidatorAccounts.length,
+        // liquidator has 2 banks: liability (2 accounts) + asset (4 accounts for staked) = 6
+        liquidatorAccounts: 6,
+        // liquidatee has 3 banks: asset (4) + validators[1] (4) + liability (2) = 10
+        liquidateeAccounts: 10,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

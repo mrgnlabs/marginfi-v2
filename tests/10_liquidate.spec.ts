@@ -1,15 +1,17 @@
 import {
-  AnchorProvider,
+  
   BN,
-  getProvider,
+  
   Program,
-  workspace,
 } from "@coral-xyz/anchor";
 import { ComputeBudgetProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
   bankKeypairUsdc,
+  banksClient,
+  bankrunProgram,
+  bankRunProvider,
   ecosystem,
   groupAdmin,
   oracles,
@@ -36,9 +38,14 @@ import {
 import { CONF_INTERVAL_MULTIPLE, defaultBankConfigOptRaw } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 
+let program: Program<Marginfi>;
+
 describe("Liquidate user", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
+  before(() => {
+    program = bankrunProgram;
+  });
+
+  
 
   const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
   const liquidateAmountA = 0.2;
@@ -210,7 +217,7 @@ describe("Liquidate user", () => {
     assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
 
     const insuranceVaultBalance = await getTokenBalance(
-      provider,
+      bankRunProvider,
       liabilityBankBefore.insuranceVault
     );
     assert.equal(insuranceVaultBalance, 0);
@@ -349,7 +356,7 @@ describe("Liquidate user", () => {
     assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
 
     const insuranceVaultBalanceAfter = await getTokenBalance(
-      provider,
+      bankRunProvider,
       liabilityBankBefore.insuranceVault
     );
 
@@ -421,12 +428,14 @@ describe("Liquidate user", () => {
       );
     }
 
-    let now = Math.floor(Date.now() / 1000);
-    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, now, 2);
-    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, now, 2);
-    assertBNApproximately(liquidatorMarginfiAccountAfter.lastUpdate, now, 2);
-    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, now, 2);
-    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, now, 2);
-    assertBNApproximately(liquidateeMarginfiAccountAfter.lastUpdate, now, 2);
+    // Use blockchain time since clock may have been advanced
+    const clock = await banksClient.getClock();
+    const blockchainTime = Number(clock.unixTimestamp);
+    assertBNApproximately(liquidatorBalancesAfter[0].lastUpdate, blockchainTime, 2);
+    assertBNApproximately(liquidatorBalancesAfter[1].lastUpdate, blockchainTime, 2);
+    assertBNApproximately(liquidatorMarginfiAccountAfter.lastUpdate, blockchainTime, 2);
+    assertBNApproximately(liquidateeBalancesAfter[0].lastUpdate, blockchainTime, 2);
+    assertBNApproximately(liquidateeBalancesAfter[1].lastUpdate, blockchainTime, 2);
+    assertBNApproximately(liquidateeMarginfiAccountAfter.lastUpdate, blockchainTime, 2);
   });
 });

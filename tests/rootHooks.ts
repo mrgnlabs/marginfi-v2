@@ -1,16 +1,16 @@
-import { workspace, Program, AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
+import { Program, Provider, Wallet, AnchorProvider } from "@coral-xyz/anchor";
 import {
-  createSimpleMint,
   echoEcosystemInfo,
   Ecosystem,
   getGenericEcosystem,
   MockUser as MockUser,
   Oracles,
-  setupTestUser,
-  SetupTestUserOptions,
   Validator,
+  createMintBankrun,
+  setupTestUserBankrun,
+  SetupTestUserBankrunOptions,
 } from "./utils/mocks";
-import { Marginfi } from "../target/types/marginfi";
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -18,9 +18,17 @@ import {
   SystemProgram,
   SYSVAR_STAKE_HISTORY_PUBKEY,
   Transaction,
+  VersionedTransaction,
+  Connection,
+  Signer,
+  ConfirmOptions,
+  Commitment,
   VoteInit,
   VoteProgram,
 } from "@solana/web3.js";
+import { SuccessfulTxSimulationResponse } from "@coral-xyz/anchor/dist/cjs/utils/rpc";
+import fs from "fs";
+import path from "path";
 
 // ---------------------------------------------------------------------------
 // Kamino farms (liquidity-incentive) program
@@ -28,21 +36,16 @@ import {
 export const FARMS_PROGRAM_ID = new PublicKey(
   "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
 );
-import { setupPythOracles } from "./utils/pyth_mocks";
-import { BankrunProvider } from "anchor-bankrun";
-import { BanksClient, ProgramTestContext, startAnchor } from "solana-bankrun";
-import path from "path";
-import {
-  findPoolAddress,
-  findPoolMintAddress,
-  findPoolStakeAddress,
-  findPoolStakeAuthorityAddress,
-  SinglePoolProgram,
-} from "@solana/spl-single-pool-classic";
-import { SINGLE_POOL_PROGRAM_ID } from "./utils/types";
-import { assertKeysEqual } from "./utils/genericTests";
-import { assert } from "chai";
-import { decodeSinglePool } from "./utils/spl-staking-utils";
+
+import { BankrunProvider, startAnchor } from "anchor-bankrun";
+import { BanksClient, ProgramTestContext } from "solana-bankrun";
+import type { AddedAccount, AddedProgram } from "solana-bankrun";
+import { SINGLE_POOL_PROGRAM_ID, KLEND_PROGRAM_ID, DRIFT_PROGRAM_ID } from "./utils/types";
+
+/** Marginfi program ID (from Anchor.toml) */
+const MARGINFI_PROGRAM_ID = new PublicKey("2jGhuVUuy3umdzByFx8sNWUAaf5vaeuDm78RDPEnhrMr");
+/** Mocks program ID (from Anchor.toml) */
+const MOCKS_PROGRAM_ID = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { initGlobalFeeState } from "./utils/group-instructions";
 import { deriveGlobalFeeState } from "./utils/pdas";
@@ -50,6 +53,20 @@ import { KaminoLending } from "./fixtures/kamino_lending";
 import klendIdl from "./fixtures/kamino_lending.json";
 import { Drift } from "./fixtures/drift_v2";
 import driftIdl from "./fixtures/drift_v2.json";
+import { Marginfi } from "../target/types/marginfi";
+import { Mocks } from "../target/types/mocks";
+import marginfiIdl from "../target/idl/marginfi.json";
+import mocksIdl from "../target/idl/mocks.json";
+import { setupPythOraclesBankrun } from "./utils/bankrun-oracles";
+import { processBankrunTransaction } from "./utils/tools";
+
+import {
+  findPoolAddress,
+  findPoolMintAddress,
+  findPoolStakeAddress,
+  findPoolStakeAuthorityAddress,
+  SinglePoolProgram,
+} from "@solana/spl-single-pool-classic";
 
 export const ecosystem: Ecosystem = getGenericEcosystem();
 export let oracles: Oracles = undefined;
@@ -112,6 +129,16 @@ export const bankKeypairA = Keypair.fromSeed(TOKEN_A_SEED);
 const SOL_SEED = Buffer.from("SOL_BANK_SEED_000000000000000000");
 export const bankKeypairSol = Keypair.fromSeed(SOL_SEED);
 
+/** Group used for staked collateral tests (separate from marginfiGroup to avoid collision) */
+const STAKED_GROUP_SEED = Buffer.from("STAKED_GROUP_SEED_00000000000000");
+export const stakedMarginfiGroup = Keypair.fromSeed(STAKED_GROUP_SEED);
+/** Bank for USDC in staked tests */
+const STAKED_USDC_SEED = Buffer.from("STAKED_USDC_BANK_SEED_0000000000");
+export const stakedBankKeypairUsdc = Keypair.fromSeed(STAKED_USDC_SEED);
+/** Bank for SOL in staked tests */
+const STAKED_SOL_SEED = Buffer.from("STAKED_SOL_BANK_SEED_00000000000");
+export const stakedBankKeypairSol = Keypair.fromSeed(STAKED_SOL_SEED);
+
 /** Multibank group created for liquidation test k10 that's recycled for time saving purposes where
  * applicable. */
 export const THROWAWAY_GROUP_SEED_K10 = Buffer.from(
@@ -126,6 +153,7 @@ export const THROWAWAY_GROUP_SEED_D09 = Buffer.from(
 export let bankrunContext: ProgramTestContext;
 export let bankRunProvider: BankrunProvider;
 export let bankrunProgram: Program<Marginfi>;
+export let mocksBankrunProgram: Program<Mocks>;
 export let klendBankrunProgram: Program<KaminoLending>;
 export let driftBankrunProgram: Program<Drift>;
 export let banksClient: BanksClient;
@@ -160,16 +188,6 @@ export const EMODE_INIT_RATE_SOL_TO_LST = 0.9;
 export const EMODE_MAINT_RATE_SOL_TO_LST = 0.95;
 export const EMODE_INIT_RATE_LST_TO_LST = 0.8;
 export const EMODE_MAINT_RATE_LST_TO_LST = 0.85;
-
-/** keys copied into the bankrun instance */
-let copyKeys: PublicKey[] = [
-  PYTH_ORACLE_FEED_SAMPLE,
-  PYTH_ORACLE_SAMPLE,
-  GAPPY3_SAMPLE,
-  GAPPY4_SAMPLE,
-  LEGACY_BANK_SAMPLE,
-  MAINNET_GROUP,
-];
 
 export let kaminoAccounts: Map<string, PublicKey>;
 /** Kamino Market */
@@ -247,20 +265,297 @@ export const A_REWARD_TREASURY_VAULT = "REWARD_TREASURY_VAULT";
 export const A_FARM_VAULTS_AUTHORITY = "FARM_VAULTS_AUTHORITY";
 export const A_TREASURY_VAULTS_AUTHORITY = "TREASURY_VAULTS_AUTHORITY";
 
+// ---------------------------------------------------------------------------
+// Bankrun Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Wallet wrapper that implements the Wallet interface for bankrun.
+ * BankrunContextWrapper doesn't have signTransaction, so we need this.
+ */
+class BankrunWallet implements Wallet {
+  readonly payer: Keypair;
+  readonly publicKey: PublicKey;
+
+  constructor(keypair: Keypair) {
+    this.payer = keypair;
+    this.publicKey = keypair.publicKey;
+  }
+
+  async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+    if (tx instanceof Transaction) {
+      tx.partialSign(this.payer);
+    } else {
+      tx.sign([this.payer]);
+    }
+    return tx;
+  }
+
+  async signAllTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> {
+    return Promise.all(txs.map((tx) => this.signTransaction(tx)));
+  }
+}
+
+/**
+ * Custom BankrunProvider that properly implements Provider with wallet signing.
+ * The standard BankrunProvider's BankrunContextWrapper doesn't have signTransaction.
+ */
+class CustomBankrunProvider implements Provider {
+  readonly context: ProgramTestContext;
+  readonly wallet: BankrunWallet;
+  readonly connection: Connection;
+  readonly publicKey: PublicKey;
+
+  constructor(context: ProgramTestContext, keypair: Keypair) {
+    this.context = context;
+    this.wallet = new BankrunWallet(keypair);
+    this.publicKey = keypair.publicKey;
+    // Use the standard BankrunProvider's connection for compatibility
+    const baseProvider = new BankrunProvider(context);
+    this.connection = baseProvider.connection;
+  }
+
+  async sendAndConfirm(
+    tx: Transaction | VersionedTransaction,
+    signers?: Signer[],
+    opts?: ConfirmOptions
+  ): Promise<string> {
+    if (tx instanceof Transaction) {
+      // Get fresh blockhash
+      const [blockhash] = await this.context.banksClient.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = this.wallet.publicKey;
+
+      // Sign with all provided signers
+      if (signers) {
+        for (const signer of signers) {
+          tx.partialSign(signer);
+        }
+      }
+
+      // Sign with wallet
+      await this.wallet.signTransaction(tx);
+
+      // Process transaction with error handling
+      const res = await this.context.banksClient.tryProcessTransaction(tx);
+      const errMsg = res.result;
+      if (errMsg !== null) {
+        const logs = res.meta?.logMessages || [];
+        const error = new Error(errMsg) as Error & { logs: string[] };
+        error.logs = logs;
+        throw error;
+      }
+
+      // Return a fake signature (bankrun doesn't return real signatures)
+      return tx.signature?.toString() || "bankrun-signature";
+    } else {
+      // VersionedTransaction
+      const [blockhash] = await this.context.banksClient.getLatestBlockhash();
+      if (signers) {
+        tx.sign(signers);
+      }
+      tx.sign([this.wallet.payer]);
+
+      const res = await this.context.banksClient.tryProcessTransaction(tx);
+      const errMsg = res.result;
+      if (errMsg !== null) {
+        const logs = res.meta?.logMessages || [];
+        const error = new Error(errMsg) as Error & { logs: string[] };
+        error.logs = logs;
+        throw error;
+      }
+      return "bankrun-signature";
+    }
+  }
+
+  async sendAll(
+    txWithSigners: { tx: Transaction | VersionedTransaction; signers?: Signer[] }[],
+    opts?: ConfirmOptions
+  ): Promise<string[]> {
+    const signatures: string[] = [];
+    for (const { tx, signers } of txWithSigners) {
+      const sig = await this.sendAndConfirm(tx, signers, opts);
+      signatures.push(sig);
+    }
+    return signatures;
+  }
+
+  async simulate(
+    tx: Transaction | VersionedTransaction,
+    signers?: Signer[],
+    commitment?: Commitment,
+    includeAccounts?: boolean | PublicKey[]
+  ): Promise<SuccessfulTxSimulationResponse> {
+    // Use bankrun's simulation
+    if (tx instanceof Transaction) {
+      tx.recentBlockhash = this.context.lastBlockhash;
+      tx.feePayer = this.wallet.publicKey;
+      if (signers) {
+        for (const signer of signers) {
+          tx.partialSign(signer);
+        }
+      }
+      await this.wallet.signTransaction(tx);
+    }
+    const result = await this.context.banksClient.simulateTransaction(tx);
+    return {
+      logs: result.meta?.logMessages || [],
+      unitsConsumed: Number(result.meta?.computeUnitsConsumed || 0),
+      returnData: null,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Staked collateral helpers (Vote accounts + SPL single pools)
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a vote account for a validator inside bankrun.
+ *
+ * This is only required for the staked-collateral test suite (s01-s10).
+ */
+async function createValidatorBankrun(index: number): Promise<Validator> {
+  const voteAccount = Keypair.generate();
+  const node = Keypair.generate();
+  const authorized = validatorAdmin.wallet.publicKey;
+
+  const rentForVote = await bankRunProvider.connection.getMinimumBalanceForRentExemption(
+    VoteProgram.space
+  );
+
+  const voteInit = new VoteInit(node.publicKey, authorized, authorized, 0);
+  // VoteProgram.initializeAccount returns a TransactionInstruction directly (not a Transaction)
+  const initIx = VoteProgram.initializeAccount({
+    votePubkey: voteAccount.publicKey,
+    nodePubkey: node.publicKey,
+    voteInit,
+  });
+
+  const tx = new Transaction().add(
+    SystemProgram.createAccount({
+      fromPubkey: authorized,
+      newAccountPubkey: voteAccount.publicKey,
+      lamports: rentForVote,
+      space: VoteProgram.space,
+      programId: VoteProgram.programId,
+    }),
+    initIx
+  );
+
+  await processBankrunTransaction(bankrunContext, tx, [validatorAdmin.wallet, voteAccount, node]);
+
+  if (verbose) {
+    console.log(`*init validator ${index}: vote=${voteAccount.publicKey.toBase58()}`);
+  }
+
+  return {
+    node: node.publicKey,
+    authorizedVoter: authorized,
+    authorizedWithdrawer: authorized,
+    voteAccount: voteAccount.publicKey,
+    // Filled by createSplStakePoolBankrun
+    splPool: PublicKey.default,
+    splMint: PublicKey.default,
+    splAuthority: PublicKey.default,
+    splSolPool: PublicKey.default,
+    // Filled by staked tests after permissionless add-bank
+    bank: PublicKey.default,
+  };
+}
+
+/**
+ * Initialize a SPL single pool for a given validator vote account.
+ */
+async function createSplStakePoolBankrun(validator: Validator): Promise<Validator> {
+  // SinglePoolProgram.initialize returns a ready-to-send Transaction.
+  const payer = users[0].wallet;
+  const initTx = await SinglePoolProgram.initialize(
+    bankRunProvider.connection,
+    validator.voteAccount,
+    payer.publicKey,
+    true
+  );
+  await processBankrunTransaction(bankrunContext, initTx, [payer]);
+
+  // Derive pool PDA keys (these return PublicKey directly, not [PublicKey, bump])
+  const poolKey = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, validator.voteAccount);
+  const poolMintKey = await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, poolKey);
+  const poolAuthority = await findPoolStakeAuthorityAddress(SINGLE_POOL_PROGRAM_ID, poolKey);
+  const poolStake = await findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, poolKey);
+
+  if (verbose) {
+    console.log(`*init single-pool: pool=${poolKey.toBase58()} mint=${poolMintKey.toBase58()}`);
+  }
+
+  return {
+    ...validator,
+    splPool: poolKey,
+    splMint: poolMintKey,
+    splAuthority: poolAuthority,
+    splSolPool: poolStake,
+  };
+}
+
+/**
+ * Load a JSON fixture file as an AddedAccount for startAnchor genesis.
+ */
+function loadJsonFixture(filepath: string): AddedAccount {
+  const fullPath = path.resolve(__dirname, "..", filepath);
+  const json = JSON.parse(fs.readFileSync(fullPath, "utf8"));
+  return {
+    address: new PublicKey(json.pubkey),
+    info: {
+      lamports: BigInt(json.account.lamports),
+      owner: new PublicKey(json.account.owner),
+      executable: json.account.executable,
+      rentEpoch: BigInt(json.account.rentEpoch ?? 0),
+      data: Buffer.from(json.account.data[0], json.account.data[1]),
+    },
+  };
+}
+
+/**
+ * Extra programs to load in bankrun (external .so files)
+ */
+const extraPrograms: AddedProgram[] = [
+  { name: "mocks", programId: MOCKS_PROGRAM_ID },
+  { name: "kamino_lending", programId: new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD") },
+  { name: "kamino_farms", programId: new PublicKey("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr") },
+  { name: "spl_single_pool", programId: new PublicKey("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE") },
+  { name: "drift_v2", programId: new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH") },
+  { name: "solend", programId: new PublicKey("So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo") },
+];
+
+/**
+ * JSON fixtures to load as genesis accounts
+ */
+function getGenesisAccounts(): AddedAccount[] {
+  return [
+    loadJsonFixture("tests/fixtures/bonk_bank.json"),
+    loadJsonFixture("tests/fixtures/cloud_bank.json"),
+    loadJsonFixture("tests/fixtures/pyusd_bank.json"),
+    loadJsonFixture("tests/fixtures/localnet_usdc.json"),
+    loadJsonFixture("tests/fixtures/gappy_user3.json"),
+    loadJsonFixture("tests/fixtures/gappy_user4.json"),
+    loadJsonFixture("tests/fixtures/mainnet_group.json"),
+    loadJsonFixture("tests/fixtures/sol_pyth_oracle.json"),
+    loadJsonFixture("tests/fixtures/sol_pyth_price_feed.json"),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Mocha Hooks - Pure Bankrun Setup
+// ---------------------------------------------------------------------------
+
 export const mochaHooks = {
   beforeAll: async () => {
     // If false, you are in the wrong environment to run this, update Node or try polyfill
     console.log("Environment supports crypto: ", !!global.crypto?.subtle);
 
-    console.log("Available workspace programs:", Object.keys(workspace));
-    const mrgnProgram = workspace.Marginfi as Program<Marginfi>;
-    const provider = AnchorProvider.local();
-    const wallet = provider.wallet as Wallet;
     kaminoAccounts = new Map<string, PublicKey>();
     driftAccounts = new Map<string, PublicKey>();
     solendAccounts = new Map<string, PublicKey>();
-
-    copyKeys.push(wallet.publicKey);
 
     if (verbose) {
       console.log("Global Ecosystem Information ");
@@ -273,78 +568,155 @@ export const mochaHooks = {
       console.log("");
     }
 
-    const { ixes: wsolIxes, mint: wsolMint } = await createSimpleMint(
-      provider.publicKey,
-      provider.connection,
-      ecosystem.wsolDecimals,
-      ecosystem.wsolMint
-    );
-    const { ixes: usdcIxes, mint: usdcMint } = await createSimpleMint(
-      provider.publicKey,
-      provider.connection,
-      ecosystem.usdcDecimals,
-      ecosystem.usdcMint
-    );
-    const { ixes: aIxes, mint: aMint } = await createSimpleMint(
-      provider.publicKey,
-      provider.connection,
-      ecosystem.tokenADecimals,
-      ecosystem.tokenAMint
-    );
-    const { ixes: bIxes, mint: bMint } = await createSimpleMint(
-      provider.publicKey,
-      provider.connection,
-      ecosystem.tokenBDecimals,
-      ecosystem.tokenBMint
-    );
-    const { ixes: alphaIXes, mint: alphaMint } = await createSimpleMint(
-      provider.publicKey,
-      provider.connection,
-      ecosystem.lstAlphaDecimals,
-      ecosystem.lstAlphaMint
-    );
-    const initMintsTx1 = new Transaction();
-    initMintsTx1.add(...wsolIxes);
-    initMintsTx1.add(...usdcIxes);
-    initMintsTx1.add(...aIxes);
-    initMintsTx1.add(...bIxes);
-    // Note: too large for one tx.
-    const initMintsTx2 = new Transaction();
-    initMintsTx2.add(...alphaIXes);
-    await provider.sendAndConfirm(initMintsTx1, [
-      wsolMint,
-      usdcMint,
-      aMint,
-      bMint,
-    ]);
-    await provider.sendAndConfirm(initMintsTx2, [alphaMint]);
+    // -------------------------------------------------------------------------
+    // Step 1: Start bankrun FIRST with external programs and fixture accounts
+    // -------------------------------------------------------------------------
+    console.log("Starting bankrun with pure bankrun setup...");
 
-    copyKeys.push(
-      wsolMint.publicKey,
-      usdcMint.publicKey,
-      aMint.publicKey,
-      bMint.publicKey,
-      alphaMint.publicKey
+    const genesisAccounts = getGenesisAccounts();
+
+    bankrunContext = await startAnchor(
+      path.resolve(__dirname, ".."),
+      extraPrograms,
+      genesisAccounts
+    );
+    bankRunProvider = new BankrunProvider(bankrunContext);
+    banksClient = bankrunContext.banksClient;
+
+    // Patch missing connection methods that tests need
+    // BankrunConnectionProxy only has getAccountInfo, getAccountInfoAndContext, getMinimumBalanceForRentExemption
+    const connection = bankRunProvider.connection as Record<string, unknown>;
+
+    // BankrunConnectionProxy throws "Could not find" for unknown accounts.
+    // Real RPC connections return `null` for missing accounts.
+    // Normalize bankrun behavior to match real RPC to avoid test-only try/catch patterns.
+    const originalGetAccountInfo = bankRunProvider.connection.getAccountInfo.bind(
+      bankRunProvider.connection
+    );
+    connection.getAccountInfo = async (
+      publicKey: PublicKey,
+      commitment?: Commitment
+    ) => {
+      try {
+        return await originalGetAccountInfo(publicKey, commitment);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.startsWith("Could not find")) return null;
+        throw e;
+      }
+    };
+
+    // Also patch getAccountInfoAndContext (used by Anchor's AccountClient.fetch)
+    const originalGetAccountInfoAndContext = bankRunProvider.connection.getAccountInfoAndContext.bind(
+      bankRunProvider.connection
+    );
+    connection.getAccountInfoAndContext = async (
+      publicKey: PublicKey,
+      commitment?: Commitment
+    ) => {
+      try {
+        return await originalGetAccountInfoAndContext(publicKey, commitment);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.startsWith("Could not find")) return { context: { slot: 0 }, value: null };
+        throw e;
+      }
+    };
+
+    connection.getBalance = async (publicKey: PublicKey) => {
+      const balance = await banksClient.getBalance(publicKey);
+      return Number(balance);
+    };
+    connection.getLatestBlockhash = async () => {
+      const [blockhash, lastValidBlockHeight] = await banksClient.getLatestBlockhash();
+      return { blockhash, lastValidBlockHeight: Number(lastValidBlockHeight) };
+    };
+    connection.sendRawTransaction = async (rawTransaction: Buffer | Uint8Array) => {
+      const tx = Transaction.from(rawTransaction);
+      // Use tryProcessTransaction to capture errors instead of sendTransaction which may hide them
+      const result = await banksClient.tryProcessTransaction(tx);
+      if (result.result) {
+        // Transaction failed - throw an error with logs
+        const logs = result.meta?.logMessages || [];
+        const error = new Error(result.result) as Error & { logs: string[] };
+        error.logs = logs;
+        throw error;
+      }
+      return tx.signature?.toString() || "bankrun-signature";
+    };
+    connection.confirmTransaction = async () => {
+      // Bankrun transactions are confirmed immediately (errors thrown above in sendRawTransaction)
+      return { value: { err: null } };
+    };
+    // Shim for SPL single pool staked tests
+    connection.getStakeMinimumDelegation = async () => {
+      // Minimum stake delegation on mainnet is 1 SOL
+      return { value: 1_000_000_000 };
+    };
+
+    // Set the global Anchor provider so getProvider() works
+    // This is critical for tests that use anchor.getProvider() or program.provider
+    const anchorProvider = new AnchorProvider(
+      bankRunProvider.connection,
+      new Wallet(bankrunContext.payer),
+      {}
+    );
+    anchor.setProvider(anchorProvider);
+
+    // Create bankrun programs using directly loaded IDLs with explicit program IDs
+    // Set address in IDL since Anchor 0.31 requires it
+    const marginfiIdlWithAddress = { ...marginfiIdl, address: MARGINFI_PROGRAM_ID.toBase58() };
+    const mocksIdlWithAddress = { ...mocksIdl, address: MOCKS_PROGRAM_ID.toBase58() };
+    const klendIdlWithAddress = { ...klendIdl, address: KLEND_PROGRAM_ID.toBase58() };
+    const driftIdlWithAddress = { ...driftIdl, address: DRIFT_PROGRAM_ID.toBase58() };
+
+    bankrunProgram = new Program<Marginfi>(marginfiIdlWithAddress as Marginfi, bankRunProvider);
+    mocksBankrunProgram = new Program<Mocks>(mocksIdlWithAddress as Mocks, bankRunProvider);
+    klendBankrunProgram = new Program<KaminoLending>(
+      klendIdlWithAddress as KaminoLending,
+      bankRunProvider
+    );
+    driftBankrunProgram = new Program<Drift>(
+      driftIdlWithAddress as Drift,
+      bankRunProvider
     );
 
-    let miscSetupTx = new Transaction();
+    const payer = bankrunContext.payer;
 
-    let globalFeeKeypair = Keypair.generate();
+    // -------------------------------------------------------------------------
+    // Step 2: Create mints via bankrun transactions
+    // -------------------------------------------------------------------------
+    console.log("Creating mints in bankrun...");
+
+    await createMintBankrun(bankrunContext, payer, ecosystem.wsolDecimals, ecosystem.wsolMint);
+    await createMintBankrun(bankrunContext, payer, ecosystem.usdcDecimals, ecosystem.usdcMint);
+    await createMintBankrun(bankrunContext, payer, ecosystem.tokenADecimals, ecosystem.tokenAMint);
+    await createMintBankrun(bankrunContext, payer, ecosystem.tokenBDecimals, ecosystem.tokenBMint);
+    await createMintBankrun(bankrunContext, payer, ecosystem.lstAlphaDecimals, ecosystem.lstAlphaMint);
+
+    // -------------------------------------------------------------------------
+    // Step 3: Init global fee state via bankrun transaction
+    // -------------------------------------------------------------------------
+    console.log("Initializing global fee state...");
+
+    const globalFeeKeypair = Keypair.generate();
     globalFeeWallet = globalFeeKeypair.publicKey;
+
+    const miscSetupTx = new Transaction();
+    miscSetupTx.feePayer = payer.publicKey;
     // Send some sol to the global fee wallet for rent
     miscSetupTx.add(
       SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
+        fromPubkey: payer.publicKey,
         toPubkey: globalFeeWallet,
         lamports: 10 * LAMPORTS_PER_SOL,
       })
     );
-
     // Init the global fee state
     miscSetupTx.add(
-      await initGlobalFeeState(mrgnProgram, {
-        payer: provider.publicKey,
-        admin: wallet.payer.publicKey,
+      await initGlobalFeeState(bankrunProgram, {
+        payer: payer.publicKey,
+        admin: payer.publicKey,
         wallet: globalFeeWallet,
         bankInitFlatSolFee: INIT_POOL_ORIGINATION_FEE,
         liquidationFlatSolFee: LIQUIDATION_FLAT_FEE,
@@ -353,17 +725,14 @@ export const mochaHooks = {
         liquidationMaxFee: bigNumberToWrappedI80F48(LIQUIDATION_MAX_FEE),
       })
     );
+    await processBankrunTransaction(bankrunContext, miscSetupTx, [payer], false, true);
 
-    await provider.sendAndConfirm(miscSetupTx);
-    copyKeys.push(
-      globalFeeWallet,
-      deriveGlobalFeeState(mrgnProgram.programId)[0]
-    );
+    // -------------------------------------------------------------------------
+    // Step 4: Create users via bankrun transactions
+    // -------------------------------------------------------------------------
+    console.log("Creating test users in bankrun...");
 
-    const setupUserOptions: SetupTestUserOptions = {
-      marginProgram: mrgnProgram,
-      forceWallet: undefined,
-      // If mints are created, typically create the ATA too, otherwise pass undefined...
+    const setupUserOptions: SetupTestUserBankrunOptions = {
       wsolMint: ecosystem.wsolMint.publicKey,
       tokenAMint: ecosystem.tokenAMint.publicKey,
       tokenBMint: ecosystem.tokenBMint.publicKey,
@@ -371,45 +740,30 @@ export const mochaHooks = {
       lstAlphaMint: ecosystem.lstAlphaMint.publicKey,
     };
 
-    groupAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
-    emodeAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
-    validatorAdmin = await setupTestUser(
-      provider,
-      wallet.payer,
-      setupUserOptions
-    );
-    riskAdmin = await setupTestUser(provider, wallet.payer, setupUserOptions);
-    copyKeys.push(
-      groupAdmin.wsolAccount,
-      groupAdmin.usdcAccount,
-      groupAdmin.tokenAAccount,
-      groupAdmin.tokenBAccount,
-      groupAdmin.lstAlphaAccount,
-      groupAdmin.wallet.publicKey,
-      emodeAdmin.wallet.publicKey,
-      riskAdmin.wallet.publicKey,
-      riskAdmin.lstAlphaAccount
-    );
+    groupAdmin = await setupTestUserBankrun(bankrunContext, payer, setupUserOptions);
+    emodeAdmin = await setupTestUserBankrun(bankrunContext, payer, setupUserOptions);
+    validatorAdmin = await setupTestUserBankrun(bankrunContext, payer, setupUserOptions);
+    riskAdmin = await setupTestUserBankrun(bankrunContext, payer, setupUserOptions);
 
     for (let i = 0; i < numUsers; i++) {
-      const user = await setupTestUser(
-        provider,
-        wallet.payer,
-        setupUserOptions
-      );
-      addUser(user);
+      const user = await setupTestUserBankrun(bankrunContext, payer, setupUserOptions);
+      users.push(user);
     }
 
     // Global admin uses the payer wallet...
-    setupUserOptions.forceWallet = wallet.payer;
-    globalProgramAdmin = await setupTestUser(
-      provider,
-      wallet.payer,
-      setupUserOptions
-    );
+    globalProgramAdmin = await setupTestUserBankrun(bankrunContext, payer, {
+      ...setupUserOptions,
+      forceWallet: payer,
+    });
 
-    oracles = await setupPythOracles(
-      wallet,
+    // -------------------------------------------------------------------------
+    // Step 5: Create oracles via bankrun transactions
+    // -------------------------------------------------------------------------
+    console.log("Creating oracles in bankrun...");
+
+    oracles = await setupPythOraclesBankrun(
+      bankrunContext,
+      banksClient,
       ecosystem.wsolPrice,
       ecosystem.wsolDecimals,
       ecosystem.usdcPrice,
@@ -422,253 +776,68 @@ export const mochaHooks = {
       ecosystem.lstAlphaDecimals,
       verbose
     );
-    copyKeys.push(
-      oracles.wsolOracle.publicKey,
-      oracles.usdcOracle.publicKey,
-      oracles.tokenAOracle.publicKey,
-      oracles.pythPullLst.publicKey,
-      oracles.pythPullLstOracleFeed.publicKey
-    );
 
+    // ---------------------------------------------------------------------
+    // Step 5b: Create validators + SPL single pools (staked collateral tests)
+    // ---------------------------------------------------------------------
+    console.log("Setting up validators and SPL single pools for staked tests...");
     for (let i = 0; i < numValidators; i++) {
-      const validator = await createValidator(
-        provider,
-        validatorAdmin.wallet,
-        validatorAdmin.wallet.publicKey
-      );
-      if (verbose) {
-        console.log("Validator vote acc [" + i + "]: " + validator.voteAccount);
-      }
-      addValidator(validator);
-
-      let { poolKey, poolMintKey, poolAuthority, poolStake } =
-        await createSplStakePool(provider, validator);
-      if (verbose) {
-        console.log(" pool..... " + poolKey);
-        console.log(" mint..... " + poolMintKey);
-        console.log(" auth..... " + poolAuthority);
-        console.log(" stake.... " + poolStake);
-      }
+      const v = await createValidatorBankrun(i);
+      const vWithPool = await createSplStakePoolBankrun(v);
+      validators.push(vWithPool);
     }
 
-    // copyKeys.push(StakeProgram.programId);
-    copyKeys.push(SYSVAR_STAKE_HISTORY_PUBKEY);
+    // -------------------------------------------------------------------------
+    // Step 6: Set up mrgnBankrunProgram for each user
+    // Use CustomBankrunProvider so that provider.sendAndConfirm() works properly
+    // -------------------------------------------------------------------------
+    console.log("Setting up bankrun programs for users...");
 
-    const accountKeys = copyKeys;
-
-    const accounts = await provider.connection.getMultipleAccountsInfo(
-      accountKeys
-    );
-    const addedAccounts = accountKeys.map((address, index) => ({
-      address,
-      info: accounts[index],
-    }));
-
-    bankrunContext = await startAnchor(path.resolve(), [], addedAccounts);
-    bankRunProvider = new BankrunProvider(bankrunContext);
-    bankrunProgram = new Program(mrgnProgram.idl, bankRunProvider);
-    klendBankrunProgram = new Program<KaminoLending>(
-      klendIdl as KaminoLending,
-      bankRunProvider
-    );
-    driftBankrunProgram = new Program<Drift>(
-      driftIdl as Drift,
-      bankRunProvider
-    );
     for (let i = 0; i < numUsers; i++) {
-      const wal = new Wallet(users[i].wallet);
-      const prov = new AnchorProvider(bankRunProvider.connection, wal, {});
-      users[i].mrgnBankrunProgram = new Program(mrgnProgram.idl, prov);
+      const userProvider = new CustomBankrunProvider(bankrunContext, users[i].wallet);
+      users[i].mrgnBankrunProgram = new Program<Marginfi>(marginfiIdlWithAddress as Marginfi, userProvider);
+      // Also set mrgnProgram to point to bankrun program for compatibility
+      users[i].mrgnProgram = users[i].mrgnBankrunProgram;
     }
-    banksClient = bankrunContext.banksClient;
 
-    globalProgramAdmin.mrgnBankrunProgram = new Program(
-      mrgnProgram.idl,
-      new AnchorProvider(
-        bankRunProvider.connection,
-        new Wallet(globalProgramAdmin.wallet),
-        {}
-      )
+    const globalAdminProvider = new CustomBankrunProvider(bankrunContext, globalProgramAdmin.wallet);
+    globalProgramAdmin.mrgnBankrunProgram = new Program<Marginfi>(
+      marginfiIdlWithAddress as Marginfi,
+      globalAdminProvider
     );
+    globalProgramAdmin.mrgnProgram = globalProgramAdmin.mrgnBankrunProgram;
 
-    groupAdmin.mrgnBankrunProgram = new Program(
-      mrgnProgram.idl,
-      new AnchorProvider(
-        bankRunProvider.connection,
-        new Wallet(groupAdmin.wallet),
-        {}
-      )
+    const groupAdminProvider = new CustomBankrunProvider(bankrunContext, groupAdmin.wallet);
+    groupAdmin.mrgnBankrunProgram = new Program<Marginfi>(
+      marginfiIdlWithAddress as Marginfi,
+      groupAdminProvider
     );
+    groupAdmin.mrgnProgram = groupAdmin.mrgnBankrunProgram;
 
-    validatorAdmin.mrgnBankrunProgram = new Program(
-      mrgnProgram.idl,
-      new AnchorProvider(
-        bankRunProvider.connection,
-        new Wallet(validatorAdmin.wallet),
-        {}
-      )
+    const validatorAdminProvider = new CustomBankrunProvider(bankrunContext, validatorAdmin.wallet);
+    validatorAdmin.mrgnBankrunProgram = new Program<Marginfi>(
+      marginfiIdlWithAddress as Marginfi,
+      validatorAdminProvider
     );
+    validatorAdmin.mrgnProgram = validatorAdmin.mrgnBankrunProgram;
 
-    emodeAdmin.mrgnBankrunProgram = new Program(
-      mrgnProgram.idl,
-      new AnchorProvider(
-        bankRunProvider.connection,
-        new Wallet(emodeAdmin.wallet),
-        {}
-      )
+    const emodeAdminProvider = new CustomBankrunProvider(bankrunContext, emodeAdmin.wallet);
+    emodeAdmin.mrgnBankrunProgram = new Program<Marginfi>(
+      marginfiIdlWithAddress as Marginfi,
+      emodeAdminProvider
     );
+    emodeAdmin.mrgnProgram = emodeAdmin.mrgnBankrunProgram;
 
-    riskAdmin.mrgnBankrunProgram = new Program(
-      mrgnProgram.idl,
-      new AnchorProvider(
-        bankRunProvider.connection,
-        new Wallet(riskAdmin.wallet),
-        {}
-      )
+    const riskAdminProvider = new CustomBankrunProvider(bankrunContext, riskAdmin.wallet);
+    riskAdmin.mrgnBankrunProgram = new Program<Marginfi>(
+      marginfiIdlWithAddress as Marginfi,
+      riskAdminProvider
     );
-
-    banksClient = bankrunContext.banksClient;
+    riskAdmin.mrgnProgram = riskAdmin.mrgnBankrunProgram;
 
     if (verbose) {
-      console.log("---End ecosystem setup---");
+      console.log("---End ecosystem setup (pure bankrun)---");
       console.log("");
     }
   },
-};
-
-const addValidator = (validator: Validator) => {
-  validators.push(validator);
-  // copyKeys.push(validator.authorizedVoter);
-  // copyKeys.push(validator.authorizedWithdrawer);
-  // copyKeys.push(validator.node);
-  copyKeys.push(validator.voteAccount);
-};
-
-const addUser = (user: MockUser) => {
-  users.push(user);
-  copyKeys.push(
-    user.tokenAAccount,
-    user.tokenBAccount,
-    user.usdcAccount,
-    user.wallet.publicKey,
-    user.wsolAccount,
-    user.lstAlphaAccount
-  );
-};
-
-/**
- * Create a mock validator with given vote/withdraw authority
- * * Note: Spl Pool fields (splPool, mint, authority, stake) are initialized to pubkey default.
- * @param provider
- * @param authorizedVoter - also pays init fees
- * @param authorizedWithdrawer - also pays init fees
- * @param comission - defaults to 0
- */
-export const createValidator = async (
-  provider: AnchorProvider,
-  authorizedVoter: Keypair,
-  authorizedWithdrawer: PublicKey,
-  commission: number = 0 // Commission rate from 0 to 100
-) => {
-  const voteAccount = Keypair.generate();
-  const node = Keypair.generate();
-
-  const tx = new Transaction().add(
-    // Create the vote account
-    SystemProgram.createAccount({
-      fromPubkey: authorizedVoter.publicKey,
-      newAccountPubkey: voteAccount.publicKey,
-      lamports: await provider.connection.getMinimumBalanceForRentExemption(
-        VoteProgram.space
-      ),
-      space: VoteProgram.space,
-      programId: VoteProgram.programId,
-    }),
-    // Initialize the vote account
-    VoteProgram.initializeAccount({
-      votePubkey: voteAccount.publicKey,
-      nodePubkey: node.publicKey,
-      voteInit: new VoteInit(
-        node.publicKey,
-        authorizedVoter.publicKey,
-        authorizedWithdrawer,
-        commission
-      ),
-    })
-  );
-
-  await provider.sendAndConfirm(tx, [voteAccount, authorizedVoter, node]);
-
-  const validator: Validator = {
-    node: node.publicKey,
-    authorizedVoter: authorizedVoter.publicKey,
-    authorizedWithdrawer: authorizedWithdrawer,
-    voteAccount: voteAccount.publicKey,
-    splPool: PublicKey.default,
-    splMint: PublicKey.default,
-    splAuthority: PublicKey.default,
-    splSolPool: PublicKey.default,
-    bank: PublicKey.default,
-  };
-
-  return validator;
-};
-
-/**
- * Create a single-validator spl stake pool. Copys the pool, mint, authority, and stake accounts to
- * the copyKeys slice to be deployed to bankrun
- * @param provider
- * @param validator - mutated, adds the spl keys (pool, mint, authority, stake)
- */
-export const createSplStakePool = async (
-  provider: AnchorProvider,
-  validator: Validator
-) => {
-  let tx = await SinglePoolProgram.initialize(
-    // @ts-ignore // Doesn't matter
-    provider.connection,
-    validator.voteAccount,
-    users[0].wallet.publicKey,
-    true
-  );
-
-  // @ts-ignore // Doesn't matter
-  await provider.sendAndConfirm(tx, [users[0].wallet]);
-
-  // Note: import the id from @solana/spl-single-pool (the classic version doesn't have it)
-  const poolKey = await findPoolAddress(
-    SINGLE_POOL_PROGRAM_ID,
-    validator.voteAccount
-  );
-  validator.splPool = poolKey;
-  copyKeys.push(poolKey);
-
-  const poolAcc = await provider.connection.getAccountInfo(poolKey);
-  // Rudimentary validation that this account now exists and is owned by the single pool program
-  assertKeysEqual(poolAcc.owner, SINGLE_POOL_PROGRAM_ID);
-  assert.equal(poolAcc.executable, false);
-
-  const pool = decodeSinglePool(poolAcc.data);
-  assertKeysEqual(pool.voteAccountAddress, validator.voteAccount);
-
-  const poolMintKey = await findPoolMintAddress(
-    SINGLE_POOL_PROGRAM_ID,
-    poolKey
-  );
-  validator.splMint = poolMintKey;
-  copyKeys.push(poolMintKey);
-
-  const poolStake = await findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, poolKey);
-  validator.splSolPool = poolStake;
-  copyKeys.push(poolStake);
-
-  const poolAuthority = await findPoolStakeAuthorityAddress(
-    SINGLE_POOL_PROGRAM_ID,
-    poolKey
-  );
-  validator.splAuthority = poolAuthority;
-  // Note: accounts that do not exist (blank PDAs) cannot be pushed to bankrun
-  // copyKeys.push(poolAuthority);
-
-  return { poolKey, poolMintKey, poolAuthority, poolStake };
 };

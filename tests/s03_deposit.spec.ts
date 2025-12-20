@@ -1,21 +1,13 @@
-import {
-  AnchorProvider,
-  BN,
-  getProvider,
-  Program,
-  Wallet,
-  workspace,
-} from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import { Keypair, Transaction } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi";
 import {
-  bankKeypairSol,
-  bankKeypairUsdc,
+  stakedBankKeypairSol,
+  stakedBankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
   banksClient,
   ecosystem,
-  marginfiGroup,
+  stakedMarginfiGroup,
   users,
   validators,
 } from "./rootHooks";
@@ -27,11 +19,10 @@ import { createMintToInstruction } from "@solana/spl-token";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 
 describe("Deposit funds (included staked assets)", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = getProvider() as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
+  // Use bankrunProgram and bankrunContext from rootHooks (initialized in beforeAll)
 
   it("(Fund user 0 and user 1 USDC/WSOL token accounts", async () => {
+    const payer = bankrunContext.payer;
     let tx = new Transaction();
     for (let i = 0; i < users.length; i++) {
       // Note: WSOL is really just an spl token in this implementation, we don't simulate the
@@ -40,7 +31,7 @@ describe("Deposit funds (included staked assets)", () => {
         createMintToInstruction(
           ecosystem.wsolMint.publicKey,
           users[i].wsolAccount,
-          wallet.publicKey,
+          payer.publicKey,
           100 * 10 ** ecosystem.wsolDecimals
         )
       );
@@ -48,13 +39,13 @@ describe("Deposit funds (included staked assets)", () => {
         createMintToInstruction(
           ecosystem.usdcMint.publicKey,
           users[i].usdcAccount,
-          wallet.publicKey,
+          payer.publicKey,
           10000 * 10 ** ecosystem.usdcDecimals
         )
       );
     }
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(wallet.payer);
+    tx.sign(payer);
     await banksClient.processTransaction(tx);
   });
 
@@ -70,8 +61,8 @@ describe("Deposit funds (included staked assets)", () => {
 
       let user1Tx: Transaction = new Transaction();
       user1Tx.add(
-        await accountInit(program, {
-          marginfiGroup: marginfiGroup.publicKey,
+        await accountInit(bankrunProgram, {
+          marginfiGroup: stakedMarginfiGroup.publicKey,
           marginfiAccount: userAccount,
           authority: users[i].wallet.publicKey,
           feePayer: users[i].wallet.publicKey,
@@ -90,7 +81,7 @@ describe("Deposit funds (included staked assets)", () => {
     let tx = new Transaction().add(
       await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairUsdc.publicKey,
+        bank: stakedBankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(10 * 10 ** ecosystem.usdcDecimals),
         depositUpToLimit: false,
@@ -107,7 +98,7 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
-    assertKeysEqual(balances[0].bankPk, bankKeypairUsdc.publicKey);
+    assertKeysEqual(balances[0].bankPk, stakedBankKeypairUsdc.publicKey);
   });
 
   it("(user 0) cannot deposit to staked bank if regular deposits exists - should fail", async () => {
@@ -146,7 +137,7 @@ describe("Deposit funds (included staked assets)", () => {
     let tx = new Transaction().add(
       await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairSol.publicKey,
+        bank: stakedBankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(2 * 10 ** ecosystem.wsolDecimals),
         depositUpToLimit: false,
@@ -163,7 +154,7 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balances = userAcc.lendingAccount.balances;
     assert.equal(balances[0].active, 1);
-    assertKeysEqual(balances[0].bankPk, bankKeypairSol.publicKey);
+    assertKeysEqual(balances[0].bankPk, stakedBankKeypairSol.publicKey);
   });
 
   it("(user 1) deposits to staked bank - should succeed (SOL co-mingle is allowed)", async () => {
@@ -206,7 +197,7 @@ describe("Deposit funds (included staked assets)", () => {
     let tx = new Transaction().add(
       await depositIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairUsdc.publicKey,
+        bank: stakedBankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         amount: new BN(1 * 10 ** ecosystem.usdcDecimals),
         depositUpToLimit: false,

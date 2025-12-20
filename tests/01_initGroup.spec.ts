@@ -1,4 +1,4 @@
-import { BN, Program, workspace } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   editStakedSettings,
@@ -7,6 +7,7 @@ import {
 } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
 import {
+  bankrunProgram,
   globalFeeWallet,
   groupAdmin,
   marginfiGroup,
@@ -30,13 +31,13 @@ import {
 } from "./utils/types";
 
 describe("Init group", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  // Use bankrunProgram from rootHooks (initialized in beforeAll)
 
   it("(admin) Init group - happy path", async () => {
     let tx = new Transaction();
 
     tx.add(
-      await groupInitialize(program, {
+      await groupInitialize(bankrunProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -44,7 +45,7 @@ describe("Init group", () => {
 
     await groupAdmin.mrgnProgram.provider.sendAndConfirm(tx, [marginfiGroup]);
 
-    let group = await program.account.marginfiGroup.fetch(
+    let group = await bankrunProgram.account.marginfiGroup.fetch(
       marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
@@ -98,14 +99,14 @@ describe("Init group", () => {
     );
 
     const [settingsKey] = deriveStakedSettings(
-      program.programId,
+      bankrunProgram.programId,
       marginfiGroup.publicKey
     );
     if (verbose) {
       console.log("*init staked settings: " + settingsKey);
     }
 
-    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
+    let settingsAcc = await bankrunProgram.account.stakedSettings.fetch(settingsKey);
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, oracles.wsolOracle.publicKey);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.8);
@@ -131,7 +132,7 @@ describe("Init group", () => {
     let failed = false;
     try {
       const [settingsKey] = deriveStakedSettings(
-        program.programId,
+        bankrunProgram.programId,
         marginfiGroup.publicKey
       );
 
@@ -166,7 +167,7 @@ describe("Init group", () => {
       },
     };
     const [settingsKey] = deriveStakedSettings(
-      program.programId,
+      bankrunProgram.programId,
       marginfiGroup.publicKey
     );
 
@@ -183,7 +184,7 @@ describe("Init group", () => {
       console.log("*edit staked settings: " + settingsKey);
     }
 
-    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
+    let settingsAcc = await bankrunProgram.account.stakedSettings.fetch(settingsKey);
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, PublicKey.default);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.2);
@@ -205,7 +206,7 @@ describe("Init group", () => {
       riskTier: null,
     };
     const [settingsKey] = deriveStakedSettings(
-      program.programId,
+      bankrunProgram.programId,
       marginfiGroup.publicKey
     );
 
@@ -218,7 +219,7 @@ describe("Init group", () => {
       )
     );
 
-    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
+    let settingsAcc = await bankrunProgram.account.stakedSettings.fetch(settingsKey);
     // No change
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, PublicKey.default);
@@ -245,7 +246,7 @@ describe("Init group", () => {
       },
     };
     const [settingsKey] = deriveStakedSettings(
-      program.programId,
+      bankrunProgram.programId,
       marginfiGroup.publicKey
     );
 

@@ -1,8 +1,8 @@
 import { BN } from "@coral-xyz/anchor";
 import { Transaction } from "@solana/web3.js";
 import {
-  bankKeypairSol,
-  bankKeypairUsdc,
+  stakedBankKeypairSol,
+  stakedBankKeypairUsdc,
   bankrunContext,
   bankrunProgram,
   banksClient,
@@ -36,16 +36,16 @@ describe("Deposit funds (included staked assets)", () => {
     );
     const balancesBefore = userAccBefore.lendingAccount.balances;
     assert.equal(balancesBefore[1].active, 0);
-    assertKeysEqual(balancesBefore[0].bankPk, bankKeypairUsdc.publicKey);
+    assertKeysEqual(balancesBefore[0].bankPk, stakedBankKeypairUsdc.publicKey);
 
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairSol.publicKey,
+        bank: stakedBankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
-          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.01 * 10 ** ecosystem.wsolDecimals),
       })
@@ -58,11 +58,15 @@ describe("Deposit funds (included staked assets)", () => {
       userAccount
     );
     const balances = userAcc.lendingAccount.balances;
-    assert.equal(balances[1].active, 1);
 
-    // Note: the newly added SOL balance is at index 0 because of the sorting by bank pubkey
-    assertKeysEqual(balances[0].bankPk, bankKeypairSol.publicKey);
-    assertKeysEqual(balances[1].bankPk, bankKeypairUsdc.publicKey);
+    // Find balances by bank key (order may vary due to pubkey sorting)
+    const solBalanceIndex = balances.findIndex((b) => b.bankPk.equals(stakedBankKeypairSol.publicKey));
+    const usdcBalanceIndex = balances.findIndex((b) => b.bankPk.equals(stakedBankKeypairUsdc.publicKey));
+
+    assert.notEqual(solBalanceIndex, -1, "SOL balance not found");
+    assert.notEqual(usdcBalanceIndex, -1, "USDC balance not found");
+    assert.equal(balances[solBalanceIndex].active, 1);
+    assert.equal(balances[usdcBalanceIndex].active, 1);
   });
 
   // Note: Borrowing STAKED assets is generally forbidden (their borrow cap is set to 0)
@@ -75,17 +79,17 @@ describe("Deposit funds (included staked assets)", () => {
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairUsdc.publicKey,
+        bank: stakedBankKeypairUsdc.publicKey,
         tokenAccount: user.usdcAccount,
         remaining: composeRemainingAccounts([
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
           [
             validators[0].bank,
             oracles.wsolOracle.publicKey, // Note the Staked bank uses wsol oracle too
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
+          [stakedBankKeypairUsdc.publicKey, oracles.usdcOracle.publicKey],
         ]),
         amount: new BN(0.1 * 10 ** ecosystem.usdcDecimals),
       })

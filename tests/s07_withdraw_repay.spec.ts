@@ -1,7 +1,7 @@
 import { PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
 import {
-  marginfiGroup,
+  stakedMarginfiGroup,
   validators,
   oracles,
   bankrunContext,
@@ -9,7 +9,7 @@ import {
   bankrunProgram,
   users,
   ecosystem,
-  bankKeypairSol,
+  stakedBankKeypairSol,
   bankRunProvider,
 } from "./rootHooks";
 import { deriveBankWithSeed, deriveStakedSettings } from "./utils/pdas";
@@ -37,11 +37,11 @@ describe("Withdraw staked asset", () => {
     
     [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      marginfiGroup.publicKey
+      stakedMarginfiGroup.publicKey
     );
     [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
-      marginfiGroup.publicKey,
+      stakedMarginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)
     );
@@ -68,7 +68,7 @@ describe("Withdraw staked asset", () => {
     let borrowTx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairSol.publicKey,
+        bank: stakedBankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -77,7 +77,7 @@ describe("Withdraw staked asset", () => {
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.5 * 10 ** ecosystem.wsolDecimals),
       })
@@ -108,7 +108,7 @@ describe("Withdraw staked asset", () => {
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
       })
     );
@@ -139,7 +139,7 @@ describe("Withdraw staked asset", () => {
     let tx = new Transaction().add(
       await repayIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairSol.publicKey,
+        bank: stakedBankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
@@ -149,7 +149,7 @@ describe("Withdraw staked asset", () => {
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
       })
     );
@@ -179,12 +179,12 @@ describe("Withdraw staked asset", () => {
     const userAccBefore =
       await user.mrgnBankrunProgram.account.marginfiAccount.fetch(userAccount);
     const bankBefore = await user.mrgnBankrunProgram.account.bank.fetch(
-      bankKeypairSol.publicKey
+      stakedBankKeypairSol.publicKey
     );
 
     // Note: the SOL balance may NOT be the last one in the list, due to sorting, so we have to find its position first
     const solIndex = userAccBefore.lendingAccount.balances.findIndex(
-      (balance) => balance.bankPk.equals(bankKeypairSol.publicKey)
+      (balance) => balance.bankPk.equals(stakedBankKeypairSol.publicKey)
     );
 
     const amtExpected =
@@ -196,7 +196,7 @@ describe("Withdraw staked asset", () => {
     let tx = new Transaction().add(
       await repayIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: bankKeypairSol.publicKey,
+        bank: stakedBankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         amount: new BN(amtNative),
         remaining: composeRemainingAccounts([
@@ -206,7 +206,7 @@ describe("Withdraw staked asset", () => {
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         repayAll: true,
       })
@@ -239,7 +239,7 @@ describe("Withdraw staked asset", () => {
     const userAccBefore =
       await user.mrgnBankrunProgram.account.marginfiAccount.fetch(userAccount);
     const bankBefore = await user.mrgnBankrunProgram.account.bank.fetch(
-      bankKeypairSol.publicKey
+      stakedBankKeypairSol.publicKey
     );
     const amtExpected =
       wrappedI80F48toBigNumber(
@@ -260,7 +260,7 @@ describe("Withdraw staked asset", () => {
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         withdrawAll: true,
       })

@@ -1,4 +1,4 @@
-import { workspace, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
@@ -20,6 +20,7 @@ import {
   ecosystem,
   globalProgramAdmin,
   bankrunContext,
+  bankrunProgram,
   bankRunProvider,
   users,
   solendAccounts,
@@ -58,11 +59,10 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { refreshPullOracles } from "./utils/pyth-pull-mocks";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { assert } from "chai";
 
 describe("sl08: 16 Banks Stress Test", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
 
   const startingSeed = 800;
   const REGULAR_BANKS_COUNT = 15;
@@ -119,7 +119,7 @@ describe("sl08: 16 Banks Stress Test", () => {
       const config = bankConfigs[i];
 
       const [solendBank] = deriveBankWithSeed(
-        program.programId,
+        bankrunProgram.programId,
         throwawayGroup.publicKey,
         config.mint,
         new BN(config.seed)
@@ -154,7 +154,7 @@ describe("sl08: 16 Banks Stress Test", () => {
       const collateralMint = solendAccounts.get(config.collateralMint)!;
 
       const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
-        program.programId,
+        bankrunProgram.programId,
         solendBank
       );
 
@@ -290,14 +290,10 @@ describe("sl08: 16 Banks Stress Test", () => {
   });
 
   it("refresh oracles before operations", async () => {
-    const clock = await bankrunContext.banksClient.getClock();
-    await refreshPullOracles(
+    await refreshPullOraclesBankrun(
       oracles,
-      globalProgramAdmin.wallet,
-      new BN(Number(clock.slot)),
-      Number(clock.unixTimestamp),
       bankrunContext,
-      false
+      bankrunContext.banksClient
     );
   });
 
