@@ -118,7 +118,21 @@ mod tests {
         assert_eq!(get_precision_increase(6).unwrap(), EXP_10[13]); // USDC
         assert_eq!(get_precision_increase(9).unwrap(), EXP_10[10]); // SOL
         assert_eq!(get_precision_increase(8).unwrap(), EXP_10[11]); // BTC
+    }
+
+    #[test]
+    fn precision_increase_boundary_cases() {
+        // Maximum supported decimals (19)
+        assert_eq!(
+            get_precision_increase(DRIFT_PRECISION_EXP).unwrap(),
+            EXP_10[0]
+        );
+
+        assert_eq!(get_precision_increase(0).unwrap(), EXP_10[19]); // 10^19
+
         assert!(get_precision_increase(DRIFT_PRECISION_EXP + 1).is_err());
+        assert!(get_precision_increase(20).is_err());
+        assert!(get_precision_increase(100).is_err());
     }
 
     #[test]
@@ -229,6 +243,36 @@ mod tests {
     }
 
     #[test]
+    fn round_trip_with_near_zero_amounts() {
+        let market = spot_market(6, 12_000_000_000u128);
+
+        let scaled = market.get_scaled_balance_increment(1).unwrap();
+        let withdrawn = market.get_withdraw_token_amount(scaled).unwrap();
+        // With amount=1: increment floors to 833, withdraw = 833 * 1.2 / 10^13 = 0
+        assert!(withdrawn == 0);
+
+        for amount in [1u64, 2, 5, 10, 100] {
+            let scaled = market.get_scaled_balance_increment(amount).unwrap();
+            let withdrawn = market.get_withdraw_token_amount(scaled).unwrap();
+            // Rounding loss should be at most the original amount - 1
+            assert!(withdrawn == amount - 1);
+        }
+    }
+
+    #[test]
+    fn round_trip_with_large_amounts_near_max() {
+        let market = spot_market(6, SPOT_CUMULATIVE_INTEREST_PRECISION);
+
+        let large_amount = largest_safe_amount_for_scaled_increment(&market).saturating_sub(1);
+
+        let scaled = market.get_scaled_balance_increment(large_amount).unwrap();
+        let withdrawn = market.get_withdraw_token_amount(scaled).unwrap();
+
+        assert!(withdrawn <= large_amount);
+        assert!(large_amount - withdrawn <= 1);
+    }
+
+    #[test]
     fn round_trip_with_interest_accrual() {
         let deposit_market = spot_market(6, SPOT_CUMULATIVE_INTEREST_PRECISION);
         let withdraw_market = spot_market(6, 12_000_000_000u128);
@@ -245,6 +289,28 @@ mod tests {
     }
 
     #[test]
+    fn round_trip_with_interest_accrual_edge_cases() {
+        let deposit_market = spot_market(6, SPOT_CUMULATIVE_INTEREST_PRECISION);
+        let withdraw_market = spot_market(6, 15_000_000_000u128); // 1.5x
+
+        let scaled = deposit_market.get_scaled_balance_increment(1).unwrap();
+        let withdrawn = withdraw_market.get_withdraw_token_amount(scaled).unwrap();
+        // 1 token at 1.0x -> scaled = 10^13 / 10^10 = 1000
+        // 1000 at 1.5x -> withdrawn = 1000 * 1.5 * 10^10 / 10^13 = 1
+        assert_eq!(withdrawn, 1);
+
+        let large_amount = 1_000_000_000_000u64; // 1M tokens (with 6 decimals)
+        let scaled = deposit_market
+            .get_scaled_balance_increment(large_amount)
+            .unwrap();
+        let withdrawn = withdraw_market.get_withdraw_token_amount(scaled).unwrap();
+
+        let expected_withdrawn = 1_500_000_000_000u64;
+        assert_eq!(withdrawn, expected_withdrawn);
+        assert_eq!(withdrawn, large_amount * 3 / 2); // 1.5x = 3/2
+    }
+
+    #[test]
     fn immediate_withdraw_decrement_exceeds_increment_by_one() {
         let market = spot_market(6, SPOT_CUMULATIVE_INTEREST_PRECISION);
         let amount = 100_000_000u64;
@@ -253,6 +319,35 @@ mod tests {
         let decrement = market.get_scaled_balance_decrement(amount).unwrap();
 
         assert_eq!(decrement, increment + 1);
+    }
+
+    #[test]
+    fn decrement_returns_zero_only_for_zero_amount() {
+        let market = spot_market(6, SPOT_CUMULATIVE_INTEREST_PRECISION);
+
+        assert_eq!(market.get_scaled_balance_decrement(0).unwrap(), 0);
+        assert_eq!(market.get_scaled_balance_increment(0).unwrap(), 0);
+
+        assert!(market.get_scaled_balance_decrement(1).unwrap() > 0);
+        assert!(market.get_scaled_balance_increment(1).unwrap() > 0);
+    }
+
+    #[test]
+    fn decrement_exceeds_increment_for_various_amounts() {
+        let market = spot_market(6, 12_000_000_000u128); // 1.2x interest
+
+        for amount in [1u64, 10, 100, 1_000, 10_000, 100_000, 1_000_000] {
+            let increment = market.get_scaled_balance_increment(amount).unwrap();
+            let decrement = market.get_scaled_balance_decrement(amount).unwrap();
+
+            assert!(
+                decrement >= increment + 1,
+                "amount={}: decrement={} should be >= increment={} + 1",
+                amount,
+                decrement,
+                increment
+            );
+        }
     }
 
     #[test]
@@ -470,5 +565,6 @@ mod tests {
         assert_eq!(market.adjust_i64(1).unwrap(), 1); // 1 * 1.2 = 1.2, floors to 1
         assert_eq!(market.adjust_i64(4).unwrap(), 4); // 4 * 1.2 = 4.8, floors to 4
         assert_eq!(market.get_scaled_balance_increment(1).unwrap(), 833); // 833.33... floors
+        assert!(market.get_scaled_balance_decrement(1).unwrap() >= 834); //  rounds up
     }
 }
