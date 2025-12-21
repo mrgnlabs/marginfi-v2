@@ -110,9 +110,6 @@ describe("Liquidate user (including staked assets)", () => {
    *  SOL diff 190,188,014  - 180,565,347 = 9,622,667 (the actual number in the test can be different, since the Staked price is approximated)
    */
 
-  // TODO: Fix bankrun liquidation with staked collateral - InvalidBankAccount error (0x1778)
-  // The remaining accounts structure for staked collateral liquidation may need adjustment
-  // for bankrun. This is a complex edge case that requires deeper investigation.
   it("(user 1) liquidates user 2 with staked SOL against their SOL position - succeeds", async () => {
     const liquidatee = users[2];
     const liquidator = users[1];

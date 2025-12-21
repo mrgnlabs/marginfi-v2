@@ -63,6 +63,12 @@ import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { assert } from "chai";
 
 describe("sl08: 16 Banks Stress Test", () => {
+  let program: Program<Marginfi>;
+
+  before(() => {
+    program = bankrunProgram;
+  });
+
   const startingSeed = 800;
   const REGULAR_BANKS_COUNT = 15;
   const SOLEND_BANKS_COUNT = 8; // Limited by MAX_INTEGRATION_POSITIONS
@@ -118,7 +124,7 @@ describe("sl08: 16 Banks Stress Test", () => {
       const config = bankConfigs[i];
 
       const [solendBank] = deriveBankWithSeed(
-        bankrunProgram.programId,
+        program.programId,
         throwawayGroup.publicKey,
         config.mint,
         new BN(config.seed)
@@ -153,7 +159,7 @@ describe("sl08: 16 Banks Stress Test", () => {
       const collateralMint = solendAccounts.get(config.collateralMint)!;
 
       const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
-        bankrunProgram.programId,
+        program.programId,
         solendBank
       );
 

@@ -4,7 +4,7 @@ import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
   bankKeypairUsdc,
-  banksClient,
+  bankrunContext,
   bankrunProgram,
   groupAdmin,
   oracles,
@@ -28,7 +28,7 @@ import {
   ORACLE_CONF_INTERVAL,
 } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
-import { bytesToF64 } from "./utils/tools";
+import { bytesToF64, getBankrunTime } from "./utils/tools";
 import { assertBNEqual } from "./utils/genericTests";
 
 let program: Program<Marginfi>;
@@ -58,9 +58,7 @@ describe("Health pulse", () => {
 
     const accAfter = await program.account.marginfiAccount.fetch(acc);
     const cacheAfter = accAfter.healthCache;
-    // Use blockchain time since clock may have been advanced
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
 
@@ -82,7 +80,7 @@ describe("Health pulse", () => {
       }
     }
 
-    assert.approximately(cacheAfter.timestamp.toNumber(), blockchainTime, 3);
+    assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
     // Note: still healthy, and the engine has technically resolved, but the oracle flag is not set!
     // This is not a valid entry for risk purposes but you might use this if you are trying to
     // determine what the price would be if the oracle was in a particular state.
@@ -118,9 +116,7 @@ describe("Health pulse", () => {
     const accAfter = await program.account.marginfiAccount.fetch(acc);
     assertBNEqual(accBefore.lastUpdate, accAfter.lastUpdate);
     const cA = accAfter.healthCache;
-    // Use blockchain time since clock may have been advanced
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
 
     const assetValue = wrappedI80F48toBigNumber(cA.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cA.liabilityValue);
@@ -152,7 +148,7 @@ describe("Health pulse", () => {
       }
     }
 
-    assert.approximately(cA.timestamp.toNumber(), blockchainTime, 3);
+    assert.approximately(cA.timestamp.toNumber(), now, 3);
     assert.equal(
       cA.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
@@ -187,9 +183,7 @@ describe("Health pulse", () => {
 
     const accAfter = await program.account.marginfiAccount.fetch(acc);
     const cacheAfter = accAfter.healthCache;
-    // Use blockchain time since clock may have been advanced
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
 
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
@@ -250,7 +244,7 @@ describe("Health pulse", () => {
       }
     }
 
-    assert.approximately(cacheAfter.timestamp.toNumber(), blockchainTime, 3);
+    assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
     // Note: cache is unhealthy (no HEALTH_CACHE_HEALTHY flag set) but price info is still
     // populated, and the risk engine and oracle report no failures.
     assert.equal(
@@ -311,9 +305,7 @@ describe("Health pulse", () => {
 
     const accAfter = await program.account.marginfiAccount.fetch(acc);
     const cacheAfter = accAfter.healthCache;
-    // Use blockchain time since clock may have been advanced
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
 
     const assetValue = wrappedI80F48toBigNumber(cacheAfter.assetValue);
     const liabValue = wrappedI80F48toBigNumber(cacheAfter.liabilityValue);
@@ -374,7 +366,7 @@ describe("Health pulse", () => {
       }
     }
 
-    assert.approximately(cacheAfter.timestamp.toNumber(), blockchainTime, 3);
+    assert.approximately(cacheAfter.timestamp.toNumber(), now, 3);
     assert.equal(
       cacheAfter.flags,
       HEALTH_CACHE_HEALTHY + HEALTH_CACHE_ENGINE_OK + HEALTH_CACHE_ORACLE_OK
