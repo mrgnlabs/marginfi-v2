@@ -28,7 +28,6 @@ import { USER_ACCOUNT } from "./utils/mocks";
 import { dumpAccBalances } from "./utils/tools";
 
 let program: Program<Marginfi>;
-
 let provider: BankrunProvider;
 
 describe("Close bank", () => {

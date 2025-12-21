@@ -80,7 +80,7 @@ describe("Init group and add banks with asset category flags", () => {
     tx.sign(groupAdmin.wallet, marginfiGroup);
     await banksClient.processTransaction(tx);
 
-    let group = await program.account.marginfiGroup.fetch(
+    let group = await bankrunProgram.account.marginfiGroup.fetch(
       marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);

@@ -37,7 +37,6 @@ import { getBankrunTime } from "./utils/tools";
 
 let program: Program<Marginfi>;
 let mintAuthority: PublicKey;
-
 let provider: BankrunProvider;
 
 describe("Deposit funds", () => {

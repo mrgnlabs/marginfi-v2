@@ -1,16 +1,8 @@
-import {
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-} from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { Oracles } from "./mocks";
-import {
-  ORACLE_CONF_INTERVAL,
-  DRIFT_ORACLE_RECEIVER_PROGRAM_ID,
-} from "./types";
+import { ORACLE_CONF_INTERVAL, DRIFT_ORACLE_RECEIVER_PROGRAM_ID } from "./types";
 import { processBankrunTransaction } from "./tools";
 
 /** Default Pyth receiver program ID (mocks program) */
@@ -43,10 +35,7 @@ export async function createBankrunPythFeedAccount(
     })
   );
 
-  await processBankrunTransaction(bankrunContext, tx, [
-    bankrunContext.payer,
-    feedKeypair,
-  ]);
+  await processBankrunTransaction(bankrunContext, tx, [bankrunContext.payer, feedKeypair]);
 
   return feedKeypair;
 }
@@ -76,10 +65,7 @@ export async function createBankrunPythOracleAccount(
     })
   );
 
-  await processBankrunTransaction(bankrunContext, tx, [
-    bankrunContext.payer,
-    oracleKeypair,
-  ]);
+  await processBankrunTransaction(bankrunContext, tx, [bankrunContext.payer, oracleKeypair]);
 
   return oracleKeypair;
 }
@@ -105,9 +91,7 @@ export async function setPythPullOraclePrice(
   price: number,
   decimals: number,
   confidence: number,
-  owner: PublicKey = new PublicKey(
-    "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"
-  )
+  owner: PublicKey = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ")
 ) {
   // Get current clock for slot and timestamp
   const clock = await banksClient.getClock();
@@ -173,10 +157,8 @@ export async function setPythPullOraclePrice(
   const existing = await banksClient.getAccount(oracleAccount);
 
   if (!existing) {
-    console.log(
-      "Account does not exist, not creating because this causes bankrun issues"
-    );
-    return;
+    console.log("Account does not exist, not creating because this causes bankrun issues")
+    return
   } else {
     // Update existing account with new data
     bankrunContext.setAccount(oracleAccount, {
@@ -202,9 +184,7 @@ export async function refreshPullOraclesBankrun(
   oracles: Oracles,
   bankrunContext: ProgramTestContext,
   banksClient: BanksClient,
-  owner: PublicKey = new PublicKey(
-    "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"
-  )
+  owner: PublicKey = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ")
 ) {
   // Update each oracle sequentially to avoid any race conditions
   await setPythPullOraclePrice(

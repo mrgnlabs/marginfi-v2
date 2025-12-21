@@ -34,9 +34,7 @@ import { createMintToInstruction } from "@solana/spl-token";
 import { deriveEmissionsAuth, deriveEmissionsTokenAccount } from "./utils/pdas";
 
 let program: Program<Marginfi>;
-
 let mintAuthority: PublicKey;
-
 let provider: BankrunProvider;
 
 describe("Lending pool set up emissions", () => {

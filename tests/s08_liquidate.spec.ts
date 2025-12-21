@@ -270,6 +270,31 @@ describe("Liquidate user (including staked assets)", () => {
         (shareValueSol * wsolHighPrice)) *
       10 ** oracles.wsolDecimals;
 
+    let liquidatorAccounts = composeRemainingAccounts([
+      [liabilityBankKey, oracles.wsolOracle.publicKey],
+      [
+        assetBankKey,
+        oracles.wsolOracle.publicKey,
+        validators[0].splMint,
+        validators[0].splSolPool,
+      ],
+    ]);
+    let liquidateeAccounts = composeRemainingAccounts([
+      [
+        assetBankKey,
+        oracles.wsolOracle.publicKey,
+        validators[0].splMint,
+        validators[0].splSolPool,
+      ],
+      [
+        validators[1].bank,
+        oracles.wsolOracle.publicKey,
+        validators[1].splMint,
+        validators[1].splSolPool,
+      ],
+      [liabilityBankKey, oracles.wsolOracle.publicKey],
+    ]);
+
     let tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
@@ -282,38 +307,12 @@ describe("Liquidate user (including staked assets)", () => {
           validators[0].splMint,
           validators[0].splSolPool,
           oracles.wsolOracle.publicKey,
-          // liquidator accounts
-          ...composeRemainingAccounts([
-            [liabilityBankKey, oracles.wsolOracle.publicKey],
-            [
-              assetBankKey,
-              oracles.wsolOracle.publicKey,
-              validators[0].splMint,
-              validators[0].splSolPool,
-            ],
-          ]),
-          // liquidatee accounts (user 2 has positions in validators[0], validators[1], and SOL bank)
-          ...composeRemainingAccounts([
-            [
-              assetBankKey,
-              oracles.wsolOracle.publicKey,
-              validators[0].splMint,
-              validators[0].splSolPool,
-            ],
-            [
-              validators[1].bank,
-              oracles.wsolOracle.publicKey,
-              validators[1].splMint,
-              validators[1].splSolPool,
-            ],
-            [liabilityBankKey, oracles.wsolOracle.publicKey],
-          ]),
+          ...liquidatorAccounts,
+          ...liquidateeAccounts,
         ],
         amount: liquidateAmountSol_native,
-        // liquidator has 2 banks: liability (2 accounts) + asset (4 accounts for staked) = 6
-        liquidatorAccounts: 6,
-        // liquidatee has 3 banks: asset (4) + validators[1] (4) + liability (2) = 10
-        liquidateeAccounts: 10,
+        liquidateeAccounts: liquidateeAccounts.length,
+        liquidatorAccounts: liquidatorAccounts.length,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);

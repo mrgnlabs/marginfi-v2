@@ -1,10 +1,4 @@
-import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-} from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { Program } from "@coral-xyz/anchor";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -238,9 +232,6 @@ describe("Transfer account authority", () => {
     assertKeysEqual(oldAcc.migratedTo, newAccKeypair.publicKey);
   });
 
-  // NOTE: This test uses sendRawTransaction and confirmTransaction, which are provided by the
-  // bankrunConnection shim. It validates that signature verification works after wallet ownership
-  // is transferred to Token Program - an edge case that requires low-level transaction handling.
   it("(user 0) transfer account after authority wallet ownership transferred to Token Program", async () => {
     const { TOKEN_PROGRAM_ID } = await import("@solana/spl-token");
     const authorityKeypair = Keypair.generate();
@@ -282,10 +273,9 @@ describe("Transfer account authority", () => {
     ]);
 
     // Verify the authority wallet is now owned by Token Program
-    const authorityAccountInfo =
-      await program.provider.connection.getAccountInfo(
-        authorityKeypair.publicKey
-      );
+    const authorityAccountInfo = await program.provider.connection.getAccountInfo(
+      authorityKeypair.publicKey
+    );
     assertKeysEqual(authorityAccountInfo.owner, TOKEN_PROGRAM_ID);
 
     // Now transfer the marginfi account using the authority whose wallet ownership was transferred to Token Program

@@ -36,7 +36,6 @@ import { configureBank } from "./utils/group-instructions";
 import { getBankrunTime } from "./utils/tools";
 
 let program: Program<Marginfi>;
-
 let provider: BankrunProvider;
 
 describe("Liquidate user", () => {

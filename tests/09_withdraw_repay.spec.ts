@@ -38,7 +38,6 @@ import { u64MAX_BN } from "./utils/types";
 import { getBankrunTime } from "./utils/tools";
 
 let program: Program<Marginfi>;
-
 let provider: BankrunProvider;
 
 describe("Withdraw funds", () => {
@@ -500,7 +499,9 @@ describe("Withdraw funds", () => {
     );
 
     const bankAfter = await program.account.bank.fetch(bank);
-    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
+    const userAccAfter = await program.account.marginfiAccount.fetch(
+      userAccKey
+    );
     const balancesAfter = userAccAfter.lendingAccount.balances;
     assert.equal(bankAfter.lendingPositionCount, 0);
 
