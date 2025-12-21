@@ -171,9 +171,7 @@ describe("Deposit funds", () => {
       )
     );
 
-    const bankAfter = await program.account.bank.fetch(
-      bankKeypairUsdc.publicKey
-    );
+    const bankAfter = await program.account.bank.fetch(bankKeypairUsdc.publicKey);
     assert.equal(bankAfter.lendingPositionCount, 1);
 
     const userAcc = await program.account.marginfiAccount.fetch(user1Account);
@@ -188,9 +186,7 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[0].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userUsdcAfter = await getTokenBalance(provider,
-      user.usdcAccount
-    );
+    const userUsdcAfter = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
       console.log("user 1 USDC after: " + userUsdcAfter.toLocaleString());
     }
@@ -264,7 +260,8 @@ describe("Deposit funds", () => {
 
     // And now user user 1 attempts to deposit up to the deposit cap
     const user = users[1];
-    const userTokenABefore = await getTokenBalance(provider,
+    const userTokenABefore = await getTokenBalance(
+      provider,
       user.tokenAAccount
     );
     if (verbose) {
@@ -299,9 +296,7 @@ describe("Deposit funds", () => {
     bankAfter = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfter.lendingPositionCount, 2);
 
-    const userTokenAAfter = await getTokenBalance(provider,
-      user.tokenAAccount
-    );
+    const userTokenAAfter = await getTokenBalance(provider, user.tokenAAccount);
     if (verbose) {
       console.log("user 1 Token A after: " + userTokenAAfter.toLocaleString());
     }
@@ -371,9 +366,7 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit SOL to bank - happy path", async () => {
     const user = users[1];
-    const userSolBefore = await getTokenBalance(provider,
-      user.wsolAccount
-    );
+    const userSolBefore = await getTokenBalance(provider, user.wsolAccount);
     if (verbose) {
       console.log("user 1 SOL before: " + userSolBefore.toLocaleString());
     }
@@ -413,9 +406,7 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userSolAfter = await getTokenBalance(provider,
-      user.wsolAccount
-    );
+    const userSolAfter = await getTokenBalance(provider, user.wsolAccount);
     if (verbose) {
       console.log("user 1 SOL after: " + userSolAfter.toLocaleString());
     }

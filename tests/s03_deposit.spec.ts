@@ -72,7 +72,7 @@ describe("Deposit funds (included staked assets)", () => {
 
       let user1Tx: Transaction = new Transaction();
       user1Tx.add(
-        await accountInit(bankrunProgram, {
+        await accountInit(program, {
           marginfiGroup: marginfiGroup.publicKey,
           marginfiAccount: userAccount,
           authority: users[i].wallet.publicKey,

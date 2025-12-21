@@ -275,12 +275,8 @@ describe("Withdraw funds", () => {
     // Make this test independent: ensure emissions accrue even when run standalone.
     await advanceClockAndRefreshOracles(2);
 
-    const userBBefore = await getTokenBalance(provider,
-      user.tokenBAccount
-    );
-    const userAccBefore = await program.account.marginfiAccount.fetch(
-      userAccKey
-    );
+    const userBBefore = await getTokenBalance(provider, user.tokenBAccount);
+    const userAccBefore = await program.account.marginfiAccount.fetch(userAccKey);
 
     // Only claim emissions here - the actual repayAll happens in the next test
     await user.mrgnProgram.provider.sendAndConfirm(
@@ -293,18 +289,12 @@ describe("Withdraw funds", () => {
       )
     );
 
-    const userBAfter = await getTokenBalance(provider,
-      user.tokenBAccount
-    );
-    const userAccAfter = await program.account.marginfiAccount.fetch(
-      userAccKey
-    );
+    const userBAfter = await getTokenBalance(provider, user.tokenBAccount);
+    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
 
-    // Use blockchain time since we've advanced the clock
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
     assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
-    assertBNApproximately(userAccAfter.lastUpdate, blockchainTime, 2);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
 
     const diff = userBAfter - userBBefore;
     if (verbose) {
@@ -366,11 +356,9 @@ describe("Withdraw funds", () => {
       getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
 
-    // Use blockchain time since we've advanced the clock
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
     assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
-    assertBNApproximately(userAccAfter.lastUpdate, blockchainTime, 2);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
 
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
@@ -454,11 +442,9 @@ describe("Withdraw funds", () => {
     ]);
     const balancesAfter = userAccAfter.lendingAccount.balances;
 
-    // Use blockchain time since we've advanced the clock
-    const clock = await banksClient.getClock();
-    const blockchainTime = Number(clock.unixTimestamp);
+    let now = await getBankrunTime(bankrunContext);
     assert(userAccBefore.lastUpdate != userAccAfter.lastUpdate);
-    assertBNApproximately(userAccAfter.lastUpdate, blockchainTime, 2);
+    assertBNApproximately(userAccAfter.lastUpdate, now, 2);
 
     const withdrawExpected = actualDeposited;
     if (verbose) {
@@ -514,9 +500,7 @@ describe("Withdraw funds", () => {
     );
 
     const bankAfter = await program.account.bank.fetch(bank);
-    const userAccAfter = await program.account.marginfiAccount.fetch(
-      userAccKey
-    );
+    const userAccAfter = await program.account.marginfiAccount.fetch(userAccKey);
     const balancesAfter = userAccAfter.lendingAccount.balances;
     assert.equal(bankAfter.lendingPositionCount, 0);
 

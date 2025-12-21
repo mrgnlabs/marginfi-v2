@@ -30,6 +30,7 @@ import {
   assertKeysEqual,
 } from "./utils/genericTests";
 import {
+  aprToU32,
   ASSET_TAG_DEFAULT,
   ASSET_TAG_SOL,
   ASSET_TAG_STAKED,
@@ -109,7 +110,7 @@ describe("Init group and add banks with asset category flags", () => {
     await banksClient.processTransaction(tx);
 
     const [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey
     );
     if (verbose) {
@@ -245,7 +246,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
     const [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey
     );
     const goodStakePool = validators[0].splPool;
@@ -326,7 +327,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(attacker) Add bank (validator 0) with good accounts but bad metadata - should fail", async () => {
     const [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey
     );
 
@@ -431,7 +432,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)
@@ -457,7 +458,7 @@ describe("Init group and add banks with asset category flags", () => {
     }
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
     const [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey
     );
     const settingsAcc = await bankrunProgram.account.stakedSettings.fetch(
@@ -469,7 +470,7 @@ describe("Init group and add banks with asset category flags", () => {
     // Standard fields
     const config = bank.config;
     const interest = config.interestRateConfig;
-    const id = bankrunProgram.programId;
+    const id = program.programId;
 
     assertKeysEqual(bank.mint, validators[0].splMint);
     // Note: stake accounts use SOL decimals
@@ -515,7 +516,6 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Approx(config.liabilityWeightMaint, 1.25);
     assertBNEqual(config.depositLimit, settingsAcc.depositLimit);
 
-    // Note: These deprecated fields are set to 0 for staked banks using the new 7-point curve
     assertI80F48Equal(interest.optimalUtilizationRate, 0);
     assertI80F48Equal(interest.plateauInterestRate, 0);
     assertI80F48Equal(interest.maxInterestRate, 0);
@@ -524,7 +524,6 @@ describe("Init group and add banks with asset category flags", () => {
     assertI80F48Approx(interest.insuranceIrFee, 0.1);
     assertI80F48Approx(interest.protocolFixedFeeApr, 0.01);
     assertI80F48Equal(interest.protocolIrFee, 0);
-
     assertI80F48Equal(interest.protocolOriginationFee, 0);
 
     assert.equal(interest.zeroUtilRate, 0);
@@ -533,6 +532,9 @@ describe("Init group and add banks with asset category flags", () => {
 
     const expPoints = makeRatePoints([], []);
     expPoints[0] = { util: 12345, rate: 123456 };
+    // const expUtilU32 = utilToU32(expPoints[0].util);
+    // const expAprU32 = aprToU32(expPoints[0].rate);
+    // console.log("exp: "+ expUtilU32);
     assert.equal(interest.points[0].util, expPoints[0].util);
     assert.equal(interest.points[0].rate, expPoints[0].rate);
     // Rest is padding
@@ -571,7 +573,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(permissionless) Add staked collateral bank (validator 1) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey,
       validators[1].splMint,
       new BN(0)

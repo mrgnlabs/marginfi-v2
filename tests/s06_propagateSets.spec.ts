@@ -39,11 +39,11 @@ describe("Edit and propagate staked settings", () => {
     program = bankrunProgram;
     marginfiGroup = stakedMarginfiGroup;
     [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey
     );
     [bankKey] = deriveBankWithSeed(
-      bankrunProgram.programId,
+      program.programId,
       marginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)

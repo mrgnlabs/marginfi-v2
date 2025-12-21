@@ -110,9 +110,7 @@ describe("Init group", () => {
       console.log("*init staked settings: " + settingsKey);
     }
 
-    let settingsAcc = await program.account.stakedSettings.fetch(
-      settingsKey
-    );
+    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, oracles.wsolOracle.publicKey);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.8);
@@ -190,9 +188,7 @@ describe("Init group", () => {
       console.log("*edit staked settings: " + settingsKey);
     }
 
-    let settingsAcc = await program.account.stakedSettings.fetch(
-      settingsKey
-    );
+    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, PublicKey.default);
     assertI80F48Approx(settingsAcc.assetWeightInit, 0.2);
@@ -227,9 +223,7 @@ describe("Init group", () => {
       )
     );
 
-    let settingsAcc = await program.account.stakedSettings.fetch(
-      settingsKey
-    );
+    let settingsAcc = await program.account.stakedSettings.fetch(settingsKey);
     // No change
     assertKeysEqual(settingsAcc.key, settingsKey);
     assertKeysEqual(settingsAcc.oracle, PublicKey.default);
