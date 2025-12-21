@@ -1,5 +1,7 @@
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
+import { Program } from "@coral-xyz/anchor";
+import { Marginfi } from "../target/types/marginfi";
 import {
   stakedMarginfiGroup,
   validators,
@@ -26,20 +28,23 @@ import {
   StakedSettingsEdit,
 } from "./utils/types";
 
-describe("Edit and propagate staked settings", () => {
-  // Use bankrunProgram from rootHooks (initialized in beforeAll)
+let program: Program<Marginfi>;
+let marginfiGroup: Keypair;
 
+describe("Edit and propagate staked settings", () => {
   let settingsKey: PublicKey;
   let bankKey: PublicKey;
 
   before(async () => {
+    program = bankrunProgram;
+    marginfiGroup = stakedMarginfiGroup;
     [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      marginfiGroup.publicKey
     );
     [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey,
+      marginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)
     );
@@ -61,7 +66,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: stakedMarginfiGroup.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })
@@ -124,7 +129,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: stakedMarginfiGroup.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })
@@ -174,7 +179,7 @@ describe("Edit and propagate staked settings", () => {
       await bankrunProgram.methods
         .editStakedSettings(settings)
         .accountsPartial({
-          marginfiGroup: stakedMarginfiGroup.publicKey,
+          marginfiGroup: marginfiGroup.publicKey,
           admin: groupAdmin.wallet.publicKey,
           stakedSettings: settingsKey,
         })

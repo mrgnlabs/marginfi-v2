@@ -1,6 +1,8 @@
-import { BN } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { Marginfi } from "../target/types/marginfi";
 import {
   ComputeBudgetProgram,
+  Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   Transaction,
@@ -51,16 +53,22 @@ import { deriveStakedSettings } from "./utils/pdas";
 import { getStakeAccount } from "./utils/stake-utils";
 import { dumpBankrunLogs } from "./utils/tools";
 
+let program: Program<Marginfi>;
+let marginfiGroup: Keypair;
+let bankKeypairSol: Keypair;
+
 describe("Liquidate user (including staked assets)", () => {
-  // Use bankrunProgram from rootHooks (initialized in beforeAll)
   let settingsKey: PublicKey;
   before(async () => {
+    program = bankrunProgram;
+    marginfiGroup = stakedMarginfiGroup;
+    bankKeypairSol = stakedBankKeypairSol;
     // Refresh oracles to ensure they're up to date
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     [settingsKey] = deriveStakedSettings(
-      bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      program.programId,
+      marginfiGroup.publicKey
     );
   });
 
@@ -113,7 +121,7 @@ describe("Liquidate user (including staked assets)", () => {
     const assetBankBefore = await bankrunProgram.account.bank.fetch(
       assetBankKey
     );
-    const liabilityBankKey = stakedBankKeypairSol.publicKey;
+    const liabilityBankKey = bankKeypairSol.publicKey;
     const liabilityBankBefore = await bankrunProgram.account.bank.fetch(
       liabilityBankKey
     );
@@ -145,10 +153,10 @@ describe("Liquidate user (including staked assets)", () => {
       balance.bankPk.equals(validators[0].bank)
     );
     const solBankIndexLiqee = liquidateeBalances.findIndex((balance) =>
-      balance.bankPk.equals(stakedBankKeypairSol.publicKey)
+      balance.bankPk.equals(bankKeypairSol.publicKey)
     );
     const solBankIndexLiq = liquidatorBalances.findIndex((balance) =>
-      balance.bankPk.equals(stakedBankKeypairSol.publicKey)
+      balance.bankPk.equals(bankKeypairSol.publicKey)
     );
 
     const sharesStaked = wrappedI80F48toBigNumber(

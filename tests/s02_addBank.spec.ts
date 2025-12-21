@@ -1,4 +1,5 @@
-import { BN } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { Marginfi } from "../target/types/marginfi";
 import { AccountMeta, Keypair, Transaction } from "@solana/web3.js";
 import {
   addBank,
@@ -52,28 +53,38 @@ import {
 } from "./utils/pdas";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
+let program: Program<Marginfi>;
+let marginfiGroup: Keypair;
+let bankKeypairSol: Keypair;
+let bankKeypairUsdc: Keypair;
+
 describe("Init group and add banks with asset category flags", () => {
-  // Use bankrunProgram from rootHooks (initialized in beforeAll)
+  before(() => {
+    program = bankrunProgram;
+    marginfiGroup = stakedMarginfiGroup;
+    bankKeypairSol = stakedBankKeypairSol;
+    bankKeypairUsdc = stakedBankKeypairUsdc;
+  });
 
   it("(admin) Init group - happy path", async () => {
     let tx = new Transaction();
 
     tx.add(
       await groupInitialize(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         admin: groupAdmin.wallet.publicKey,
       })
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, stakedMarginfiGroup);
+    tx.sign(groupAdmin.wallet, marginfiGroup);
     await banksClient.processTransaction(tx);
 
-    let group = await bankrunProgram.account.marginfiGroup.fetch(
-      stakedMarginfiGroup.publicKey
+    let group = await program.account.marginfiGroup.fetch(
+      marginfiGroup.publicKey
     );
     assertKeysEqual(group.admin, groupAdmin.wallet.publicKey);
     if (verbose) {
-      console.log("*init group: " + stakedMarginfiGroup.publicKey);
+      console.log("*init group: " + marginfiGroup.publicKey);
       console.log(" group admin: " + group.admin);
     }
   });
@@ -88,7 +99,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     tx.add(
       await initStakedSettings(groupAdmin.mrgnProgram, {
-        group: stakedMarginfiGroup.publicKey,
+        group: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         settings: settings,
       })
@@ -99,7 +110,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     const [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      marginfiGroup.publicKey
     );
     if (verbose) {
       console.log("*init staked settings: " + settingsKey);
@@ -120,7 +131,7 @@ describe("Init group and add banks with asset category flags", () => {
 
   it("(admin) Add bank (USDC) - is neither SOL nor staked LST", async () => {
     let setConfig = defaultBankConfig();
-    const bankKey = stakedBankKeypairUsdc.publicKey;
+    const bankKey = bankKeypairUsdc.publicKey;
     const oracle = oracles.usdcOracle.publicKey;
     const oracleMeta: AccountMeta = {
       pubkey: oracle,
@@ -133,7 +144,7 @@ describe("Init group and add banks with asset category flags", () => {
         oracles.usdcOracle.publicKey
       )
       .accountsPartial({
-        group: stakedMarginfiGroup.publicKey,
+        group: marginfiGroup.publicKey,
         bank: bankKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -143,7 +154,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
     tx.add(
       await addBank(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
         bank: bankKey,
@@ -152,7 +163,7 @@ describe("Init group and add banks with asset category flags", () => {
       config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, stakedBankKeypairUsdc);
+    tx.sign(groupAdmin.wallet, bankKeypairUsdc);
     await banksClient.processTransaction(tx);
 
     if (verbose) {
@@ -166,7 +177,7 @@ describe("Init group and add banks with asset category flags", () => {
   it("(admin) Add bank (SOL) - is tagged as SOL", async () => {
     let setConfig = defaultBankConfig();
     setConfig.assetTag = ASSET_TAG_SOL;
-    let bankKey = stakedBankKeypairSol.publicKey;
+    let bankKey = bankKeypairSol.publicKey;
     const oracle = oracles.wsolOracle.publicKey;
     const oracleMeta: AccountMeta = {
       pubkey: oracle,
@@ -179,7 +190,7 @@ describe("Init group and add banks with asset category flags", () => {
         oracles.wsolOracle.publicKey
       )
       .accountsPartial({
-        group: stakedMarginfiGroup.publicKey,
+        group: marginfiGroup.publicKey,
         bank: bankKey,
         admin: groupAdmin.wallet.publicKey,
       })
@@ -189,7 +200,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
     tx.add(
       await addBank(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.wsolMint.publicKey,
         bank: bankKey,
@@ -198,7 +209,7 @@ describe("Init group and add banks with asset category flags", () => {
       config_ix
     );
     tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    tx.sign(groupAdmin.wallet, stakedBankKeypairSol);
+    tx.sign(groupAdmin.wallet, bankKeypairSol);
     await banksClient.processTransaction(tx);
 
     if (verbose) {
@@ -218,7 +229,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
     tx.add(
       await addBank(groupAdmin.mrgnProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: validators[0].splMint,
         bank: bankKeypair.publicKey,
@@ -235,7 +246,7 @@ describe("Init group and add banks with asset category flags", () => {
   it("(attacker) Add bank (validator 0) with bad accounts + bad metadata - should fail", async () => {
     const [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      marginfiGroup.publicKey
     );
     const goodStakePool = validators[0].splPool;
     const goodLstMint = validators[0].splMint;
@@ -316,7 +327,7 @@ describe("Init group and add banks with asset category flags", () => {
   it("(attacker) Add bank (validator 0) with good accounts but bad metadata - should fail", async () => {
     const [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      marginfiGroup.publicKey
     );
 
     const goodStakePool = validators[0].splPool;
@@ -421,7 +432,7 @@ describe("Init group and add banks with asset category flags", () => {
   it("(permissionless) Add staked collateral bank (validator 0) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey,
+      marginfiGroup.publicKey,
       validators[0].splMint,
       new BN(0)
     );
@@ -430,7 +441,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
     tx.add(
       await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,
         stakePool: validators[0].splPool,
@@ -447,7 +458,7 @@ describe("Init group and add banks with asset category flags", () => {
     const bank = await bankrunProgram.account.bank.fetch(validators[0].bank);
     const [settingsKey] = deriveStakedSettings(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey
+      marginfiGroup.publicKey
     );
     const settingsAcc = await bankrunProgram.account.stakedSettings.fetch(
       settingsKey
@@ -463,7 +474,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertKeysEqual(bank.mint, validators[0].splMint);
     // Note: stake accounts use SOL decimals
     assert.equal(bank.mintDecimals, ecosystem.wsolDecimals);
-    assertKeysEqual(bank.group, stakedMarginfiGroup.publicKey);
+    assertKeysEqual(bank.group, marginfiGroup.publicKey);
 
     // Keys and bumps...
     const [_liqAuth, liqAuthBump] = deriveLiquidityVaultAuthority(id, bankKey);
@@ -561,7 +572,7 @@ describe("Init group and add banks with asset category flags", () => {
   it("(permissionless) Add staked collateral bank (validator 1) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
       bankrunProgram.programId,
-      stakedMarginfiGroup.publicKey,
+      marginfiGroup.publicKey,
       validators[1].splMint,
       new BN(0)
     );
@@ -570,7 +581,7 @@ describe("Init group and add banks with asset category flags", () => {
     let tx = new Transaction();
     tx.add(
       await addBankPermissionless(groupAdmin.mrgnBankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         pythOracle: oracles.wsolOracle.publicKey,
         stakePool: validators[1].splPool,

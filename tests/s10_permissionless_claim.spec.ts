@@ -32,7 +32,13 @@ import {
 import { createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
 import { deriveFeeVault } from "./utils/pdas";
 
+let bankKeypairSol: Keypair;
+
 describe("Set up permissionless fee claiming", () => {
+  before(() => {
+    bankKeypairSol = stakedBankKeypairSol;
+  });
+
   /// Some wallet the admin wants to use to claim. This could also be their own wallet, user can
   /// pick arbitrarily.
   const externalWallet: Keypair = Keypair.generate();
@@ -46,7 +52,7 @@ describe("Set up permissionless fee claiming", () => {
 
     let tx = new Transaction().add(
       await updateBankFeesDestinationAccount(user.mrgnBankrunProgram, {
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         destination: user.wsolAccount, // sneaky sneaky
       })
     );
@@ -64,7 +70,7 @@ describe("Set up permissionless fee claiming", () => {
     const admin = groupAdmin;
 
     let bankBefore = await bankrunProgram.account.bank.fetch(
-      stakedBankKeypairSol.publicKey
+      bankKeypairSol.publicKey
     );
     assertKeyDefault(bankBefore.feesDestinationAccount);
 
@@ -76,7 +82,7 @@ describe("Set up permissionless fee claiming", () => {
         ecosystem.wsolMint.publicKey
       ),
       await updateBankFeesDestinationAccount(admin.mrgnBankrunProgram, {
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         destination: wsolAta,
       })
     );
@@ -86,7 +92,7 @@ describe("Set up permissionless fee claiming", () => {
     await banksClient.processTransaction(tx);
 
     let bankAfter = await bankrunProgram.account.bank.fetch(
-      stakedBankKeypairSol.publicKey
+      bankKeypairSol.publicKey
     );
     assertKeysEqual(bankAfter.feesDestinationAccount, wsolAta);
   });
@@ -107,11 +113,11 @@ describe("Set up permissionless fee claiming", () => {
         ecosystem.wsolMint.publicKey
       ),
       await collectBankFees(user.mrgnBankrunProgram, {
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         feeAta: globalFeeAta,
       }),
       await withdrawFeesPermissionless(user.mrgnBankrunProgram, {
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         amount: u64MAX_BN, // withdraw all...
       })
     );
@@ -127,7 +133,7 @@ describe("Set up permissionless fee claiming", () => {
 
     const [feeVault] = deriveFeeVault(
       bankrunProgram.programId,
-      stakedBankKeypairSol.publicKey
+      bankKeypairSol.publicKey
     );
     let feeVaultBalance = await getTokenBalance(bankRunProvider, feeVault);
     // The fee vault should be empty now.

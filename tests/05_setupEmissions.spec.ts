@@ -1,4 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   groupConfigure,
@@ -36,8 +37,11 @@ let program: Program<Marginfi>;
 
 let mintAuthority: PublicKey;
 
+let provider: BankrunProvider;
+
 describe("Lending pool set up emissions", () => {
   before(() => {
+    provider = bankRunProvider;
     program = bankrunProgram;
     mintAuthority = bankrunContext.payer.publicKey;
   });
@@ -78,13 +82,13 @@ describe("Lending pool set up emissions", () => {
         BigInt(100_000_000) * BigInt(10 ** ecosystem.tokenBDecimals)
       )
     );
-    await bankRunProvider.sendAndConfirm(tx);
+    await provider.sendAndConfirm(tx);
   });
 
   it("(user 1) Set up to token B emissions on (USDC) bank - happy path", async () => {
     const emissionsAdmin = users[1];
     const adminBBefore = await getTokenBalance(
-      bankRunProvider,
+      provider,
       emissionsAdmin.tokenBAccount
     );
     const [emissionsAccKey] = deriveEmissionsTokenAccount(
@@ -120,8 +124,8 @@ describe("Lending pool set up emissions", () => {
 
     const [bank, adminBAfter, emissionsAccAfter] = await Promise.all([
       program.account.bank.fetch(bankKeypairUsdc.publicKey),
-      getTokenBalance(bankRunProvider, emissionsAdmin.tokenBAccount),
-      getTokenBalance(bankRunProvider, emissionsAccKey),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAccKey),
     ]);
 
     assertKeysEqual(bank.emissionsMint, ecosystem.tokenBMint.publicKey);
@@ -143,8 +147,8 @@ describe("Lending pool set up emissions", () => {
       ecosystem.tokenBMint.publicKey
     );
     const [adminBBefore, emissionsAccBefore] = await Promise.all([
-      getTokenBalance(bankRunProvider, emissionsAdmin.tokenBAccount),
-      getTokenBalance(bankRunProvider, emissionsAccKey),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAccKey),
     ]);
 
     await emissionsAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -162,8 +166,8 @@ describe("Lending pool set up emissions", () => {
 
     const [bank, adminBAfter, emissionsAccAfter] = await Promise.all([
       program.account.bank.fetch(bankKeypairUsdc.publicKey),
-      getTokenBalance(bankRunProvider, emissionsAdmin.tokenBAccount),
-      getTokenBalance(bankRunProvider, emissionsAccKey),
+      getTokenBalance(provider, emissionsAdmin.tokenBAccount),
+      getTokenBalance(provider, emissionsAccKey),
     ]);
 
     assertKeysEqual(bank.emissionsMint, ecosystem.tokenBMint.publicKey);

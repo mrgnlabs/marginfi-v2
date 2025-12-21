@@ -1,4 +1,5 @@
-import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -37,8 +38,11 @@ import { getBankrunTime } from "./utils/tools";
 let program: Program<Marginfi>;
 let mintAuthority: PublicKey;
 
+let provider: BankrunProvider;
+
 describe("Deposit funds", () => {
   before(() => {
+    provider = bankRunProvider;
     program = bankrunProgram;
     // Use bankrun payer as mint authority (same as when mints were created)
     mintAuthority = bankrunContext.payer.publicKey;
@@ -86,8 +90,8 @@ describe("Deposit funds", () => {
         )
       );
     }
-    // Use bankRunProvider which has payer as wallet (the mint authority)
-    await bankRunProvider.sendAndConfirm(tx);
+    // Use provider which has payer as wallet (the mint authority)
+    await provider.sendAndConfirm(tx);
   });
 
   it("(user 0) deposit token A to bank - happy path", async () => {
@@ -97,8 +101,8 @@ describe("Deposit funds", () => {
       bankKeypairA.publicKey
     );
     const [userABefore, vaultABefore] = await Promise.all([
-      getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getTokenBalance(bankRunProvider, bankLiquidityVault),
+      getTokenBalance(provider, user.tokenAAccount),
+      getTokenBalance(provider, bankLiquidityVault),
     ]);
     if (verbose) {
       console.log("user 0 A before: " + userABefore.toLocaleString());
@@ -135,8 +139,8 @@ describe("Deposit funds", () => {
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
     const [userAAfter, vaultAAfter] = await Promise.all([
-      getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getTokenBalance(bankRunProvider, bankLiquidityVault),
+      getTokenBalance(provider, user.tokenAAccount),
+      getTokenBalance(provider, bankLiquidityVault),
     ]);
     if (verbose) {
       console.log("user 0 A after: " + userAAfter.toLocaleString());
@@ -148,10 +152,7 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit USDC to bank - happy path", async () => {
     const user = users[1];
-    const userUsdcBefore = await getTokenBalance(
-      bankRunProvider,
-      user.usdcAccount
-    );
+    const userUsdcBefore = await getTokenBalance(provider, user.usdcAccount);
     if (verbose) {
       console.log("user 1 USDC before: " + userUsdcBefore.toLocaleString());
     }
@@ -187,8 +188,7 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[0].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userUsdcAfter = await getTokenBalance(
-      bankRunProvider,
+    const userUsdcAfter = await getTokenBalance(provider,
       user.usdcAccount
     );
     if (verbose) {
@@ -264,8 +264,7 @@ describe("Deposit funds", () => {
 
     // And now user user 1 attempts to deposit up to the deposit cap
     const user = users[1];
-    const userTokenABefore = await getTokenBalance(
-      bankRunProvider,
+    const userTokenABefore = await getTokenBalance(provider,
       user.tokenAAccount
     );
     if (verbose) {
@@ -300,8 +299,7 @@ describe("Deposit funds", () => {
     bankAfter = await program.account.bank.fetch(bankKey);
     assert.equal(bankAfter.lendingPositionCount, 2);
 
-    const userTokenAAfter = await getTokenBalance(
-      bankRunProvider,
+    const userTokenAAfter = await getTokenBalance(provider,
       user.tokenAAccount
     );
     if (verbose) {
@@ -373,8 +371,7 @@ describe("Deposit funds", () => {
 
   it("(user 1) deposit SOL to bank - happy path", async () => {
     const user = users[1];
-    const userSolBefore = await getTokenBalance(
-      bankRunProvider,
+    const userSolBefore = await getTokenBalance(provider,
       user.wsolAccount
     );
     if (verbose) {
@@ -416,8 +413,7 @@ describe("Deposit funds", () => {
     assertBNApproximately(balances[depositIndex].lastUpdate, now, 2);
     assertBNApproximately(userAcc.lastUpdate, now, 2);
 
-    const userSolAfter = await getTokenBalance(
-      bankRunProvider,
+    const userSolAfter = await getTokenBalance(provider,
       user.wsolAccount
     );
     if (verbose) {

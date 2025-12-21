@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { LAMPORTS_PER_SOL, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction } from "@solana/web3.js";
 import {
   stakedBankKeypairSol,
   bankrunContext,
@@ -22,8 +22,12 @@ import { getBankrunBlockhash } from "./utils/spl-staking-utils";
 import { dumpBankrunLogs } from "./utils/tools";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
+let bankKeypairSol: Keypair;
+
 describe("Borrow power grows as v0 Staked SOL gains value from appreciation", () => {
-  // Use bankrunContext.payer from rootHooks (initialized in beforeAll)
+  before(() => {
+    bankKeypairSol = stakedBankKeypairSol;
+  });
 
   // User 2 has a validator 0 staked depost [0] position - net value = 1 LST token Users 0/1/2
   // deposited 10 SOL each, so a total of 30 is staked with validator 0 (minus the 1 SOL staked to
@@ -43,7 +47,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -52,7 +56,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(1.1 * 10 ** ecosystem.wsolDecimals),
       })
@@ -95,7 +99,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -104,7 +108,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[1].splMint, // Bad mint
             validators[0].splSolPool,
           ],
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.1 * 10 ** ecosystem.wsolDecimals),
       })
@@ -123,7 +127,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -132,7 +136,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[0].splMint,
             validators[1].splSolPool,
           ], // Bad pool
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.2 * 10 ** ecosystem.wsolDecimals),
       })
@@ -152,7 +156,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -161,7 +165,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         // Note: We use a different (slightly higher) amount, so Bankrun treats this as a different
         // tx. Using the exact same values as above can cause the test to fail on faster machines
@@ -198,7 +202,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
       }),
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -207,7 +211,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[0].splMint,
             validators[0].splSolPool,
           ],
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(1.113 * 10 ** ecosystem.wsolDecimals),
       })
@@ -224,7 +228,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
 
     // Note: the newly added balance may NOT be the last one in the list, due to sorting, so we have to find its position first
     const borrowIndex = balances.findIndex((balance) =>
-      balance.bankPk.equals(stakedBankKeypairSol.publicKey)
+      balance.bankPk.equals(bankKeypairSol.publicKey)
     );
     assert.notEqual(borrowIndex, -1);
   });
@@ -256,7 +260,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
     let tx = new Transaction().add(
       await borrowIx(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
-        bank: stakedBankKeypairSol.publicKey,
+        bank: bankKeypairSol.publicKey,
         tokenAccount: user.wsolAccount,
         remaining: composeRemainingAccounts([
           [
@@ -271,7 +275,7 @@ describe("Borrow power grows as v0 Staked SOL gains value from appreciation", ()
             validators[1].splMint,
             validators[1].splSolPool,
           ],
-          [stakedBankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
+          [bankKeypairSol.publicKey, oracles.wsolOracle.publicKey],
         ]),
         amount: new BN(0.00001 * 10 ** ecosystem.wsolDecimals),
       })

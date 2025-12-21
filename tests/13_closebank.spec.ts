@@ -1,4 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -28,11 +29,14 @@ import { dumpAccBalances } from "./utils/tools";
 
 let program: Program<Marginfi>;
 
+let provider: BankrunProvider;
+
 describe("Close bank", () => {
   let bankKey: PublicKey;
   const seed = new BN(987613);
 
   before(async () => {
+    provider = bankRunProvider;
     program = bankrunProgram;
     const config = defaultBankConfig();
     [bankKey] = deriveBankWithSeed(
@@ -147,7 +151,7 @@ describe("Close bank", () => {
     );
     assert.equal(groupAfter.banks, groupBefore.banks - 1);
 
-    const info = await bankRunProvider.connection.getAccountInfo(bankKey);
+    const info = await provider.connection.getAccountInfo(bankKey);
     assert.isNull(info);
   });
 });

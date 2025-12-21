@@ -1,4 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -38,8 +39,11 @@ import { getBankrunTime } from "./utils/tools";
 
 let program: Program<Marginfi>;
 
+let provider: BankrunProvider;
+
 describe("Withdraw funds", () => {
   before(() => {
+    provider = bankRunProvider;
     program = bankrunProgram;
   });
 
@@ -84,8 +88,8 @@ describe("Withdraw funds", () => {
     const [userAccBefore, userTokenABefore, vaultTokenABefore] =
       await Promise.all([
         program.account.marginfiAccount.fetch(userAccKey),
-        getTokenBalance(bankRunProvider, user.tokenAAccount),
-        getTokenBalance(bankRunProvider, bankBefore.liquidityVault),
+        getTokenBalance(provider, user.tokenAAccount),
+        getTokenBalance(provider, bankBefore.liquidityVault),
       ]);
     const balancesBefore = userAccBefore.lendingAccount.balances;
 
@@ -108,8 +112,8 @@ describe("Withdraw funds", () => {
     const [userAccAfter, userTokenAAfter, vaultTokenAAfter] = await Promise.all(
       [
         program.account.marginfiAccount.fetch(userAccKey),
-        getTokenBalance(bankRunProvider, user.tokenAAccount),
-        getTokenBalance(bankRunProvider, bankAfter.liquidityVault),
+        getTokenBalance(provider, user.tokenAAccount),
+        getTokenBalance(provider, bankAfter.liquidityVault),
       ]
     );
     let now = await getBankrunTime(bankrunContext);
@@ -162,8 +166,8 @@ describe("Withdraw funds", () => {
     const bankBefore = await program.account.bank.fetch(bank);
     const [userAccBefore, userUsdcBefore, vaultUsdcBefore] = await Promise.all([
       program.account.marginfiAccount.fetch(userAccKey),
-      getTokenBalance(bankRunProvider, user.usdcAccount),
-      getTokenBalance(bankRunProvider, bankBefore.liquidityVault),
+      getTokenBalance(provider, user.usdcAccount),
+      getTokenBalance(provider, bankBefore.liquidityVault),
     ]);
     const balancesBefore = userAccBefore.lendingAccount.balances;
 
@@ -185,8 +189,8 @@ describe("Withdraw funds", () => {
     const bankAfter = await program.account.bank.fetch(bank);
     const [userAccAfter, userUsdcAfter, vaultUsdcAfter] = await Promise.all([
       program.account.marginfiAccount.fetch(userAccKey),
-      getTokenBalance(bankRunProvider, user.usdcAccount),
-      getTokenBalance(bankRunProvider, bankAfter.liquidityVault),
+      getTokenBalance(provider, user.usdcAccount),
+      getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
     let now = await getBankrunTime(bankrunContext);
     assertBNApproximately(userAccAfter.lastUpdate, now, 2);
@@ -271,8 +275,7 @@ describe("Withdraw funds", () => {
     // Make this test independent: ensure emissions accrue even when run standalone.
     await advanceClockAndRefreshOracles(2);
 
-    const userBBefore = await getTokenBalance(
-      bankRunProvider,
+    const userBBefore = await getTokenBalance(provider,
       user.tokenBAccount
     );
     const userAccBefore = await program.account.marginfiAccount.fetch(
@@ -290,8 +293,7 @@ describe("Withdraw funds", () => {
       )
     );
 
-    const userBAfter = await getTokenBalance(
-      bankRunProvider,
+    const userBAfter = await getTokenBalance(provider,
       user.tokenBAccount
     );
     const userAccAfter = await program.account.marginfiAccount.fetch(
@@ -327,8 +329,8 @@ describe("Withdraw funds", () => {
     const bankBefore = await program.account.bank.fetch(bank);
     const [userAccBefore, userUsdcBefore, vaultUsdcBefore] = await Promise.all([
       program.account.marginfiAccount.fetch(userAccKey),
-      getTokenBalance(bankRunProvider, user.usdcAccount),
-      getTokenBalance(bankRunProvider, bankBefore.liquidityVault),
+      getTokenBalance(provider, user.usdcAccount),
+      getTokenBalance(provider, bankBefore.liquidityVault),
     ]);
     const balancesBefore = userAccBefore.lendingAccount.balances;
 
@@ -360,8 +362,8 @@ describe("Withdraw funds", () => {
     const bankAfter = await program.account.bank.fetch(bank);
     const [userAccAfter, userUsdcAfter, vaultUsdcAfter] = await Promise.all([
       program.account.marginfiAccount.fetch(userAccKey),
-      getTokenBalance(bankRunProvider, user.usdcAccount),
-      getTokenBalance(bankRunProvider, bankAfter.liquidityVault),
+      getTokenBalance(provider, user.usdcAccount),
+      getTokenBalance(provider, bankAfter.liquidityVault),
     ]);
 
     // Use blockchain time since we've advanced the clock
@@ -416,8 +418,8 @@ describe("Withdraw funds", () => {
     const [userAccBefore, userTokenABefore, vaultUsdcBefore] =
       await Promise.all([
         program.account.marginfiAccount.fetch(userAccKey),
-        getTokenBalance(bankRunProvider, user.tokenAAccount),
-        getTokenBalance(bankRunProvider, bankBefore.liquidityVault),
+        getTokenBalance(provider, user.tokenAAccount),
+        getTokenBalance(provider, bankBefore.liquidityVault),
       ]);
     const balancesBefore = userAccBefore.lendingAccount.balances;
 
@@ -447,8 +449,8 @@ describe("Withdraw funds", () => {
 
     const [userAccAfter, vaultUsdcAfter, userTokenAAfter] = await Promise.all([
       program.account.marginfiAccount.fetch(userAccKey),
-      getTokenBalance(bankRunProvider, bankAfter.liquidityVault),
-      getTokenBalance(bankRunProvider, user.tokenAAccount),
+      getTokenBalance(provider, bankAfter.liquidityVault),
+      getTokenBalance(provider, user.tokenAAccount),
     ]);
     const balancesAfter = userAccAfter.lendingAccount.balances;
 

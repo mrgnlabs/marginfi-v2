@@ -56,8 +56,12 @@ import { getEpochAndSlot } from "./utils/stake-utils";
 import { createMintToInstruction } from "@solana/spl-token";
 import { Clock } from "solana-bankrun";
 
+let marginfiGroup: Keypair;
+
 describe("Set up emissions on staked collateral assets", () => {
-  // Use bankrunContext.payer from rootHooks (initialized in beforeAll)
+  before(() => {
+    marginfiGroup = stakedMarginfiGroup;
+  });
 
   const emissionRate = new BN(500_000 * 10 ** ecosystem.tokenBDecimals);
   const totalEmissions = new BN(1_000_000 * 10 ** ecosystem.tokenBDecimals);
@@ -96,7 +100,7 @@ describe("Set up emissions on staked collateral assets", () => {
       // enough in 0.1.4 and later.
       await groupConfigure(groupAdmin.mrgnProgram, {
         newEmissionsAdmin: groupAdmin.wallet.publicKey,
-        marginfiGroup: stakedMarginfiGroup.publicKey,
+        marginfiGroup: marginfiGroup.publicKey,
       }),
       await setupEmissions(groupAdmin.mrgnBankrunProgram, {
         bank: validators[0].bank,

@@ -1,4 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { ComputeBudgetProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
@@ -35,8 +36,11 @@ import { configureBank } from "./utils/group-instructions";
 
 let program: Program<Marginfi>;
 
+let provider: BankrunProvider;
+
 describe("Liquidate user", () => {
   before(() => {
+    provider = bankRunProvider;
     program = bankrunProgram;
   });
 
@@ -209,8 +213,7 @@ describe("Liquidate user", () => {
     const liabilitySharesBefore = liquidateeBalances[0].liabilityShares;
     assertI80F48Equal(liquidatorBalances[1].assetShares, 0);
 
-    const insuranceVaultBalance = await getTokenBalance(
-      bankRunProvider,
+    const insuranceVaultBalance = await getTokenBalance(provider,
       liabilityBankBefore.insuranceVault
     );
     assert.equal(insuranceVaultBalance, 0);
@@ -348,8 +351,7 @@ describe("Liquidate user", () => {
     );
     assertI80F48Equal(liquidatorBalancesAfter[0].liabilityShares, 0);
 
-    const insuranceVaultBalanceAfter = await getTokenBalance(
-      bankRunProvider,
+    const insuranceVaultBalanceAfter = await getTokenBalance(provider,
       liabilityBankBefore.insuranceVault
     );
 
