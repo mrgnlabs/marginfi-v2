@@ -1,6 +1,10 @@
-use crate::{constants::EXP_10_I80F48, math_error, SolendMocksError};
+use crate::{math_error, SolendMocksError};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
+use marginfi_type_crate::types::price::{
+    collateral_to_liquidity_from_scaled, convert_decimals as shared_convert_decimals,
+    liquidity_to_collateral_from_scaled, scale_supplies,
+};
 
 // Account versions (Solend uses versions instead of discriminators)
 pub const PROGRAM_VERSION: u8 = 1;
@@ -85,71 +89,30 @@ impl SolendMinimalReserve {
     /// Returns (total_liquidity, total_collateral) both as I80F48
     /// scaled down by 10^liquidity_mint_decimals
     pub fn scaled_supplies(&self) -> Result<(I80F48, I80F48)> {
-        let decimals: I80F48 = EXP_10_I80F48[self.liquidity_mint_decimals as usize];
-
-        // Calculate total liquidity (available + borrowed - fees)
-        let total_liq_raw = self.calculate_total_liquidity()?;
-        let total_liq = total_liq_raw
-            .checked_div(decimals)
-            .ok_or_else(math_error!())?;
-
-        // Collateral uses same decimals as liquidity
-        let total_col = I80F48::from_num(self.collateral_mint_total_supply)
-            .checked_div(decimals)
-            .ok_or_else(math_error!())?;
-
+        let total_liq_raw: I80F48 = self.calculate_total_liquidity()?;
+        let (total_liq, total_col) = scale_supplies(
+            total_liq_raw,
+            self.collateral_mint_total_supply,
+            self.liquidity_mint_decimals,
+        )
+        .ok_or_else(math_error!())?;
         Ok((total_liq, total_col))
     }
 
     /// Convert collateral tokens to liquidity tokens
     /// Both use the same decimals (liquidity_mint_decimals)
     pub fn collateral_to_liquidity(&self, collateral: u64) -> Result<u64> {
-        // Handle edge case where no collateral exists
-        if self.collateral_mint_total_supply == 0 {
-            return Ok(0);
-        }
-
         let (total_liq, total_col) = self.scaled_supplies()?;
 
-        // Additional safety check for zero collateral after scaling
-        if total_col == I80F48::ZERO {
-            return Ok(0);
-        }
-
-        let liquidity: I80F48 = I80F48::from_num(collateral)
-            .checked_mul(total_liq)
-            .ok_or_else(math_error!())?
-            .checked_div(total_col)
-            .ok_or_else(math_error!())?;
-
-        liquidity
-            .checked_to_num::<u64>()
+        collateral_to_liquidity_from_scaled(collateral, total_liq, total_col)
             .ok_or(SolendMocksError::MathError.into())
     }
 
     /// Convert liquidity tokens to collateral tokens
     pub fn liquidity_to_collateral(&self, liquidity: u64) -> Result<u64> {
-        // Handle edge case where no collateral exists
-        if self.collateral_mint_total_supply == 0 {
-            return Ok(liquidity); // 1:1 exchange rate
-        }
-
         let (total_liq, total_col) = self.scaled_supplies()?;
 
-        // Additional safety check for zero collateral after scaling
-        if total_liq == I80F48::ZERO {
-            return Ok(0);
-        }
-
-        // collateral = liquidity * (total_collateral / total_liquidity)
-        let collateral = I80F48::from_num(liquidity)
-            .checked_mul(total_col)
-            .ok_or_else(math_error!())?
-            .checked_div(total_liq)
-            .ok_or_else(math_error!())?;
-
-        collateral
-            .checked_to_num::<u64>()
+        liquidity_to_collateral_from_scaled(liquidity, total_liq, total_col)
             .ok_or(SolendMocksError::MathError.into())
     }
 
@@ -177,50 +140,6 @@ impl SolendMinimalReserve {
         // Solend uses INITIAL_COLLATERAL_RATE = 1
         I80F48::from_num(1)
     }
-}
-
-// TODO: factor out these conversion functions into type-crate and use in Kamino and Solend
-
-/// Safe conversion from i128 to I80F48
-#[inline]
-fn i80_from_i128_checked(x: i128) -> Option<I80F48> {
-    const FRAC_BITS: u32 = 48;
-    const SHIFTED_MAX_I128: i128 = i128::MAX >> FRAC_BITS;
-    const SHIFTED_MIN_I128: i128 = i128::MIN >> FRAC_BITS;
-
-    if !(SHIFTED_MIN_I128..=SHIFTED_MAX_I128).contains(&x) {
-        return None;
-    }
-    // Safe: (x << 48) cannot overflow by the guard above
-    Some(I80F48::from_bits(x << FRAC_BITS))
-}
-
-/// Wrapper for i128 values (used by Switchboard Pull oracles)
-#[inline]
-pub fn adjust_i128(raw: i128, liq_to_col_ratio: I80F48) -> Result<i128> {
-    let raw_fx = i80_from_i128_checked(raw).ok_or_else(math_error!())?;
-    let adj_fx = raw_fx
-        .checked_mul(liq_to_col_ratio)
-        .ok_or_else(math_error!())?;
-    Ok(adj_fx.checked_to_num::<i128>().ok_or_else(math_error!())?)
-}
-
-/// Wrapper for i64 values (used by Pyth Pull oracle prices)
-#[inline]
-pub fn adjust_i64(raw: i64, liq_to_col_ratio: I80F48) -> Result<i64> {
-    let adj = I80F48::from_num(raw)
-        .checked_mul(liq_to_col_ratio)
-        .ok_or_else(math_error!())?;
-    Ok(adj.checked_to_num::<i64>().ok_or_else(math_error!())?)
-}
-
-/// Wrapper for u64 values (used by Pyth Pull oracle confidence intervals)
-#[inline]
-pub fn adjust_u64(raw: u64, liq_to_col_ratio: I80F48) -> Result<u64> {
-    let adj = I80F48::from_num(raw)
-        .checked_mul(liq_to_col_ratio)
-        .ok_or_else(math_error!())?;
-    Ok(adj.checked_to_num::<u64>().ok_or_else(math_error!())?)
 }
 
 /// Convert a Solend WAD-scaled `u128` (value × 10¹⁸) to `I80F48`.
@@ -259,31 +178,7 @@ pub fn decimal_to_i80f48(bits_le: [u8; 16]) -> Result<I80F48> {
 
 /// Convert between different decimal representations
 pub fn convert_decimals(n: I80F48, from_dec: u8, to_dec: u8) -> Result<I80F48> {
-    // no change, escape
-    if from_dec == to_dec {
-        return Ok(n);
-    }
-
-    // compute how many decimals to shift by
-    let diff = (to_dec as i32) - (from_dec as i32);
-    let abs = diff.unsigned_abs() as usize;
-
-    // The largest amount we support in EXP_10_I80F48
-    if abs > 23 {
-        panic!("decimal conversion not supported for difference > 23");
-    }
-
-    let scale = EXP_10_I80F48[abs];
-
-    // if diff > 0, we need more decimals → multiply
-    // if diff < 0, we need fewer decimals → divide
-    let out = if diff > 0 {
-        n.checked_mul(scale).ok_or_else(math_error!())?
-    } else {
-        n.checked_div(scale).ok_or_else(math_error!())?
-    };
-
-    Ok(out)
+    Ok(shared_convert_decimals(n, from_dec, to_dec).ok_or_else(math_error!())?)
 }
 
 /// Validate a Solend obligation
@@ -489,16 +384,18 @@ pub struct CollateralExchangeRate(pub I80F48);
 impl CollateralExchangeRate {
     /// Create from reserve state
     pub fn from_reserve(reserve: &SolendMinimalReserve) -> Result<Self> {
-        let total_liquidity = reserve.calculate_total_liquidity()?;
+        let total_liquidity: I80F48 = reserve.calculate_total_liquidity()?;
 
         if reserve.collateral_mint_total_supply == 0 || total_liquidity == I80F48::ZERO {
             // Use initial rate when no supply
             Ok(CollateralExchangeRate(reserve.initial_exchange_rate()))
         } else {
-            let mint_supply = I80F48::from_num(reserve.collateral_mint_total_supply);
+            let mint_supply: I80F48 = I80F48::from_num(reserve.collateral_mint_total_supply);
 
             // Safe to do the unchecked version here since we explicitly check for zeros above
-            let rate = mint_supply / total_liquidity;
+            let rate: I80F48 = mint_supply
+                .checked_div(total_liquidity)
+                .ok_or_else(math_error!())?;
 
             Ok(CollateralExchangeRate(rate))
         }
@@ -506,9 +403,8 @@ impl CollateralExchangeRate {
 
     /// Convert collateral to liquidity using this rate
     pub fn collateral_to_liquidity(&self, collateral_amount: u64) -> Result<u64> {
-        let collateral = I80F48::from_num(collateral_amount);
-        // Safe to do the unchecked version here since we explicitly check for zeros above
-        let liquidity = collateral / self.0;
+        let collateral: I80F48 = I80F48::from_num(collateral_amount);
+        let liquidity: I80F48 = collateral.checked_div(self.0).ok_or_else(math_error!())?;
 
         liquidity
             .checked_to_num::<u64>()
@@ -517,8 +413,8 @@ impl CollateralExchangeRate {
 
     /// Convert liquidity to collateral using this rate
     pub fn liquidity_to_collateral(&self, liquidity_amount: u64) -> Result<u64> {
-        let liquidity = I80F48::from_num(liquidity_amount);
-        let collateral = liquidity.checked_mul(self.0).ok_or_else(math_error!())?;
+        let liquidity: I80F48 = I80F48::from_num(liquidity_amount);
+        let collateral: I80F48 = liquidity.checked_mul(self.0).ok_or_else(math_error!())?;
 
         collateral
             .checked_to_num::<u64>()
