@@ -5,6 +5,7 @@ use marginfi_type_crate::types::price::{
     collateral_to_liquidity_from_scaled, convert_decimals as shared_convert_decimals,
     liquidity_to_collateral_from_scaled, scale_supplies,
 };
+use marginfi_type_crate::constants::EXP_10_I80F48;
 
 // Account versions (Solend uses versions instead of discriminators)
 pub const PROGRAM_VERSION: u8 = 1;
@@ -22,9 +23,6 @@ pub const RESERVE_LEN: usize = 619;
 // Obligation size constant for manual validation (Solend's official size)
 pub const OBLIGATION_LEN: usize = 1300;
 pub const LENDING_MARKET_LEN: usize = 290;
-
-// assert_struct_size!(MinimalReserve, RESERVE_LEN);
-// assert_struct_align!(MinimalReserve, 1);
 
 // EXPERIMENTAL: Using Anchor's zero_copy with manual 1-byte discriminator
 // This treats Solend's version byte as an Anchor discriminator

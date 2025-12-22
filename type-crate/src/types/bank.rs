@@ -136,7 +136,7 @@ pub struct Bank {
     /// Solend banks only, otherwise Pubkey default
     pub solend_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 5], // 8 * 2 * 5 = 80B (reduced from 15 to account for 5 more Pubkeys = 160 bytes)
+    pub _padding_1: [[u64; 2]; 5], // 8 * 2 * 5 = 80B
 }
 
 impl Bank {
