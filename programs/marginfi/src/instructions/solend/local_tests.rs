@@ -244,9 +244,9 @@ mod tests {
         let reserve = simple_reserve(6, 1_000_000, 1_000_000);
         assert_eq!(reserve.collateral_to_liquidity(0).unwrap(), 0);
 
-        // Zero liquidity -> error
+        // Zero liquidity -> returns 0
         let reserve = simple_reserve(6, 0, 1_000_000);
-        assert!(reserve.collateral_to_liquidity(100).is_err());
+        assert_eq!(reserve.collateral_to_liquidity(100).unwrap(), 0);
     }
 
     #[test]
@@ -273,8 +273,12 @@ mod tests {
 
     #[test]
     fn liquidity_to_collateral_zero_collateral_supply() {
-        // Zero collateral supply -> error
+        // Zero collateral supply -> returns 0
         let reserve = simple_reserve(6, 1_000_000, 0);
+        assert_eq!(reserve.liquidity_to_collateral(100).unwrap(), 0);
+
+        // Zero liquidity supply -> error
+        let reserve = simple_reserve(6, 0, 1_000_000);
         assert!(reserve.liquidity_to_collateral(100).is_err());
     }
 
