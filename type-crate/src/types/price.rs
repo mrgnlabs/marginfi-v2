@@ -49,7 +49,7 @@ pub fn collateral_to_liquidity_from_scaled(
     total_col: I80F48,
 ) -> Option<u64> {
     if total_col == I80F48::ZERO {
-        return Some(0);
+        return None;
     }
 
     I80F48::from_num(collateral)
@@ -67,7 +67,7 @@ pub fn liquidity_to_collateral_from_scaled(
     total_col: I80F48,
 ) -> Option<u64> {
     if total_liq == I80F48::ZERO {
-        return Some(0);
+        return None;
     }
 
     I80F48::from_num(liquidity)

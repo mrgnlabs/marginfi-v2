@@ -236,17 +236,17 @@ mod tests {
 
     #[test]
     fn collateral_to_liquidity_edge_cases() {
-        // Zero collateral supply -> returns 0
+        // Zero collateral supply -> error
         let reserve = simple_reserve(6, 1_000_000, 0);
-        assert_eq!(reserve.collateral_to_liquidity(100).unwrap(), 0);
+        assert!(reserve.collateral_to_liquidity(100).is_err());
 
         // Zero input -> returns 0
         let reserve = simple_reserve(6, 1_000_000, 1_000_000);
         assert_eq!(reserve.collateral_to_liquidity(0).unwrap(), 0);
 
-        // Zero liquidity -> returns 0
+        // Zero liquidity -> error
         let reserve = simple_reserve(6, 0, 1_000_000);
-        assert_eq!(reserve.collateral_to_liquidity(100).unwrap(), 0);
+        assert!(reserve.collateral_to_liquidity(100).is_err());
     }
 
     #[test]
@@ -273,9 +273,9 @@ mod tests {
 
     #[test]
     fn liquidity_to_collateral_zero_collateral_supply() {
-        // Zero collateral supply -> returns raw amount (initial deposit)
+        // Zero collateral supply -> error
         let reserve = simple_reserve(6, 1_000_000, 0);
-        assert_eq!(reserve.liquidity_to_collateral(100).unwrap(), 100);
+        assert!(reserve.liquidity_to_collateral(100).is_err());
     }
 
     #[test]
