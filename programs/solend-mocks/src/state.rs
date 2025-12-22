@@ -5,7 +5,6 @@ use marginfi_type_crate::types::price::{
     collateral_to_liquidity_from_scaled, convert_decimals as shared_convert_decimals,
     liquidity_to_collateral_from_scaled, scale_supplies,
 };
-use marginfi_type_crate::constants::EXP_10_I80F48;
 
 // Account versions (Solend uses versions instead of discriminators)
 pub const PROGRAM_VERSION: u8 = 1;

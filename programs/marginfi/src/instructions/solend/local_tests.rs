@@ -2,6 +2,10 @@
 mod tests {
     use bytemuck::Zeroable;
     use fixed::types::I80F48;
+    use marginfi_type_crate::types::price::{
+        adjust_i128 as shared_adjust_i128, adjust_i64 as shared_adjust_i64,
+        adjust_u64 as shared_adjust_u64, liq_to_col_ratio as shared_liq_to_col_ratio,
+    };
     use solend_mocks::state::{
         convert_decimals, decimal_to_i80f48, CollateralExchangeRate, SolendMinimalReserve,
     };
@@ -14,8 +18,7 @@ mod tests {
 
     /// Compute the liquidity/collateral ratio in I80F48 bit representation
     fn ratio_bits(reserve: &SolendMinimalReserve) -> i128 {
-        let total_liq = reserve.calculate_total_liquidity().unwrap();
-        let total_col = I80F48::from_num(reserve.collateral_mint_total_supply);
+        let (total_liq, total_col) = reserve.scaled_supplies().unwrap();
 
         if total_col == I80F48::ZERO {
             return N; // 1:1 ratio
@@ -24,6 +27,11 @@ mod tests {
         let liq_bits = total_liq.to_bits();
         let col_bits = total_col.to_bits();
         (liq_bits * N) / col_bits
+    }
+
+    fn liq_col_ratio(reserve: &SolendMinimalReserve) -> Option<I80F48> {
+        let (total_liq, total_col) = reserve.scaled_supplies().unwrap();
+        shared_liq_to_col_ratio(total_liq, total_col)
     }
 
     /// Find the largest u64 raw value that won't overflow when adjusted
@@ -316,11 +324,19 @@ mod tests {
     fn adjust_oracle_price() {
         // 1:1 ratio
         let reserve = simple_reserve(6, 1_000_000, 1_000_000);
-        assert_eq!(reserve.adjust_i64(1_000_000i64).unwrap(), 1_000_000i64);
+        let ratio = liq_col_ratio(&reserve).unwrap();
+        assert_eq!(
+            shared_adjust_i64(1_000_000i64, ratio).unwrap(),
+            1_000_000i64
+        );
 
         // 2:1 ratio
         let reserve = simple_reserve(6, 2_000_000, 1_000_000);
-        assert_eq!(reserve.adjust_i64(1_000_000i64).unwrap(), 2_000_000i64);
+        let ratio = liq_col_ratio(&reserve).unwrap();
+        assert_eq!(
+            shared_adjust_i64(1_000_000i64, ratio).unwrap(),
+            2_000_000i64
+        );
     }
 
     #[test]
@@ -329,7 +345,8 @@ mod tests {
         let reserve = solend_reserve(6, 1_000_000, 200_000 * WAD, 0, 1_000_000);
         let price = 1_000_000i64;
 
-        let adjusted = reserve.adjust_i64(price).unwrap();
+        let ratio = liq_col_ratio(&reserve).unwrap();
+        let adjusted = shared_adjust_i64(price, ratio).unwrap();
         let total_liq_bits = i80f48_bits_from_ratio(1_200_000, 1_000_000);
         let total_col_bits = i80f48_bits_from_ratio(1_000_000, 1_000_000);
         let raw_bits = (price as i128) << I80F48_FRAC_BITS;
@@ -345,7 +362,7 @@ mod tests {
         let reserve = simple_reserve(6, 1_500_000, 1_000_000); // 1.5x rate
         let price: i128 = 1_000_000_000_000_000_000;
         assert_eq!(
-            reserve.adjust_i128(price).unwrap(),
+            shared_adjust_i128(price, liq_col_ratio(&reserve).unwrap()).unwrap(),
             1_500_000_000_000_000_000i128
         );
     }
@@ -353,7 +370,13 @@ mod tests {
     #[test]
     fn adjust_oracle_zero_collateral_returns_raw() {
         let reserve = simple_reserve(6, 1_000_000, 0);
-        assert_eq!(reserve.adjust_i64(1_000_000i64).unwrap(), 1_000_000i64);
+        let ratio = liq_col_ratio(&reserve);
+        let price = 1_000_000i64;
+        let adjusted = match ratio {
+            Some(r) => shared_adjust_i64(price, r).unwrap(),
+            None => price,
+        };
+        assert_eq!(adjusted, price);
     }
 
     #[test]
@@ -401,17 +424,18 @@ mod tests {
     fn adjust_u64_overflow_at_exact_boundary() {
         // ~200:1 ratio to trigger overflow
         let reserve = simple_reserve(6, 200_000_000, 1_000_000);
+        let ratio = liq_col_ratio(&reserve).unwrap();
 
         let safe = largest_safe_raw_for_u64_exact(&reserve);
         assert!(
-            reserve.adjust_u64(safe).is_ok(),
+            shared_adjust_u64(safe, ratio).is_some(),
             "safe value {} should succeed",
             safe
         );
 
         let ovf = overflow_raw_for_u64_exact(&reserve);
         assert!(
-            reserve.adjust_u64(ovf).is_err(),
+            shared_adjust_u64(ovf, ratio).is_none(),
             "overflow value {} should fail",
             ovf
         );
@@ -422,17 +446,18 @@ mod tests {
     #[test]
     fn adjust_i64_overflow_at_exact_boundary() {
         let reserve = simple_reserve(6, 200_000_000, 1_000_000);
+        let ratio = liq_col_ratio(&reserve).unwrap();
 
         let safe = largest_safe_raw_for_i64_exact(&reserve);
         assert!(
-            reserve.adjust_i64(safe).is_ok(),
+            shared_adjust_i64(safe, ratio).is_some(),
             "safe value {} should succeed",
             safe
         );
 
         let ovf = overflow_raw_for_i64_exact(&reserve);
         assert!(
-            reserve.adjust_i64(ovf).is_err(),
+            shared_adjust_i64(ovf, ratio).is_none(),
             "overflow value {} should fail",
             ovf
         );
@@ -443,20 +468,23 @@ mod tests {
     #[test]
     fn adjust_i128_overflow_detection() {
         let reserve = simple_reserve(6, 1_000_000, 1_000_000);
+        let ratio = liq_col_ratio(&reserve).unwrap();
         let max_raw = I80F48::MAX.checked_to_num::<i128>().unwrap();
-        assert!(reserve.adjust_i128(max_raw).is_ok());
+        assert!(shared_adjust_i128(max_raw, ratio).is_some());
 
         // High ratio reserve: large values overflow during multiply
         let reserve_200x = simple_reserve(6, 200_000_000, 1_000_000);
+        let ratio = liq_col_ratio(&reserve_200x).unwrap();
         let max_before_overflow = I80F48::MAX.checked_div(I80F48::from_num(200)).unwrap();
         let raw_over = max_before_overflow
             .checked_to_num::<i128>()
             .unwrap()
             .checked_add(1)
             .unwrap();
-        assert!(reserve_200x.adjust_i128(raw_over).is_err());
+        assert!(shared_adjust_i128(raw_over, ratio).is_none());
 
         // Normal Switchboard values should work
-        assert!(reserve.adjust_i128(1_000_000_000_000_000_000i128).is_ok());
+        let ratio = liq_col_ratio(&reserve).unwrap();
+        assert!(shared_adjust_i128(1_000_000_000_000_000_000i128, ratio).is_some());
     }
 }

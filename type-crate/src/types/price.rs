@@ -76,6 +76,26 @@ pub fn liquidity_to_collateral_from_scaled(
         .checked_to_num::<u64>()
 }
 
+/// Compute liquidity-to-collateral ratio; returns None if total_col is zero.
+#[inline]
+pub fn liq_to_col_ratio(total_liq: I80F48, total_col: I80F48) -> Option<I80F48> {
+    if total_col == I80F48::ZERO {
+        None
+    } else {
+        total_liq.checked_div(total_col)
+    }
+}
+
+/// Compute collateral-to-liquidity ratio; returns None if total_liq is zero.
+#[inline]
+pub fn col_to_liq_ratio(total_liq: I80F48, total_col: I80F48) -> Option<I80F48> {
+    if total_liq == I80F48::ZERO {
+        None
+    } else {
+        total_col.checked_div(total_liq)
+    }
+}
+
 /// Scale raw total_liq and total_col by 10^decimals. Returns None on overflow or bad index.
 #[inline]
 pub fn scale_supplies(
@@ -83,9 +103,9 @@ pub fn scale_supplies(
     total_col_raw: u64,
     decimals: u8,
 ) -> Option<(I80F48, I80F48)> {
-    let scale = *EXP_10_I80F48.get(decimals as usize)?;
-    let total_liq = total_liq_raw.checked_div(scale)?;
-    let total_col = I80F48::from_num(total_col_raw).checked_div(scale)?;
+    let scale: I80F48 = *EXP_10_I80F48.get(decimals as usize)?;
+    let total_liq: I80F48 = total_liq_raw.checked_div(scale)?;
+    let total_col: I80F48 = I80F48::from_num(total_col_raw).checked_div(scale)?;
     Some((total_liq, total_col))
 }
 
@@ -103,9 +123,9 @@ pub fn convert_decimals(n: I80F48, from_dec: u8, to_dec: u8) -> Option<I80F48> {
         return None;
     }
 
-    let scale = EXP_10_I80F48[abs];
+    let scale: I80F48 = EXP_10_I80F48[abs];
 
-    let out = if diff > 0 {
+    let out: I80F48 = if diff > 0 {
         n.checked_mul(scale)?
     } else {
         n.checked_div(scale)?
