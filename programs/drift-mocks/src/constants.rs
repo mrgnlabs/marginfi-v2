@@ -49,9 +49,19 @@ pub const EXP_10: [u128; MAX_EXP_10] = [
     10_000_000_000_000_000_000, // 10^19
 ];
 
+/// Calculates precision increase factor for converting between token decimals and Drift's internal precision.
+///
+/// # Important
+/// Drift cannot support tokens with more than 19 decimals (DRIFT_PRECISION_EXP).
+/// This is because Drift uses 10^(19 - decimals) for precision calculations, and tokens
+/// with > 19 decimals would require a negative exponent (< 1.0 multiplier), which is
+/// not supported in the u128 integer math.
+///
+/// # Errors
+/// Returns `DriftMocksError::MathError` if `token_decimals > DRIFT_PRECISION_EXP` (19).
 pub fn get_precision_increase(token_decimals: u32) -> Result<u128> {
-    let exponent = DRIFT_PRECISION_EXP
-        .checked_sub(token_decimals)
-        .ok_or(DriftMocksError::MathError)?;
-    Ok(EXP_10[exponent as usize])
+    if token_decimals > DRIFT_PRECISION_EXP {
+        return Err(DriftMocksError::MathError.into());
+    }
+    Ok(EXP_10[(DRIFT_PRECISION_EXP - token_decimals) as usize])
 }

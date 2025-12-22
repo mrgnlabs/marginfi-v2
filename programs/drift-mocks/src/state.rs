@@ -126,10 +126,15 @@ pub struct MinimalUserStats {
 
 // Implementation methods for MinimalSpotMarket
 impl MinimalSpotMarket {
-    pub fn get_scaled_balance_decrement(&self, amount: u64) -> Result<u64> {
-        // See `get_spot_balance` function on drift program
+    /// Core scaled balance calculation used by both increment and decrement.
+    /// See `get_spot_balance` function on Drift program.
+    /// https://github.com/drift-labs/protocol-v2/blob/master/programs/drift/src/math/spot_balance.rs#L16
+    ///
+    /// # Parameters
+    /// * `amount` - Token amount in native mint precision
+    /// * `round_up` - If true, rounds up by 1 (used for withdrawals/decrements to prevent dust)
+    fn get_scaled_balance(&self, amount: u64, round_up: bool) -> Result<u64> {
         let precision_increase = get_precision_increase(self.decimals)?;
-
         let cumulative_interest = self.cumulative_deposit_interest;
 
         let mut balance: u64 = (amount as u128)
@@ -139,8 +144,8 @@ impl MinimalSpotMarket {
             .ok_or_else(math_error!())?
             .try_into()?;
 
-        // Drift rounds up withdrawals
-        if balance != 0 {
+        // Drift rounds up withdrawals to prevent dust accumulation
+        if round_up && balance != 0 {
             balance = balance
                 .checked_add(1)
                 .ok_or(error!(DriftMocksError::MathError))?;
@@ -149,23 +154,14 @@ impl MinimalSpotMarket {
         Ok(balance)
     }
 
-    /// Calculate how much scaled balance is expected to increase on deposit
-    /// See `get_spot_balance` function on drift program
-    /// https://github.com/drift-labs/protocol-v2/blob/master/programs/drift/src/math/spot_balance.rs#L16
+    /// Calculate scaled balance decrement for withdrawals (rounds up).
+    pub fn get_scaled_balance_decrement(&self, amount: u64) -> Result<u64> {
+        self.get_scaled_balance(amount, true)
+    }
+
+    /// Calculate scaled balance increment for deposits (floors).
     pub fn get_scaled_balance_increment(&self, amount: u64) -> Result<u64> {
-        let precision_increase = get_precision_increase(self.decimals)?;
-
-        let cumulative_interest = self.cumulative_deposit_interest;
-
-        // No rounding up for deposits
-        let balance: u64 = (amount as u128)
-            .checked_mul(precision_increase)
-            .ok_or_else(math_error!())?
-            .checked_div(cumulative_interest)
-            .ok_or_else(math_error!())?
-            .try_into()?;
-
-        Ok(balance)
+        self.get_scaled_balance(amount, false)
     }
 
     /// Convert scaled balance back to token amount for withdrawals
