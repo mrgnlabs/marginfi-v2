@@ -281,7 +281,7 @@ unsafe impl std::alloc::GlobalAlloc for BumpAllocator {
 static ALLOCATOR: BumpAllocator = BumpAllocator;
 
 /// Returns the current heap position for creating a checkpoint.
-#[cfg(target_os = "solana")]
+#[cfg(all(target_os = "solana", feature = "custom-heap"))]
 #[inline]
 pub fn heap_pos() -> usize {
     unsafe {
@@ -297,7 +297,7 @@ pub fn heap_pos() -> usize {
 }
 
 /// Restores the heap position to a previously saved checkpoint.
-#[cfg(target_os = "solana")]
+#[cfg(all(target_os = "solana", feature = "custom-heap"))]
 #[inline]
 pub fn heap_restore(pos: usize) {
     unsafe {
@@ -306,12 +306,12 @@ pub fn heap_restore(pos: usize) {
     }
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(all(target_os = "solana", feature = "custom-heap")))]
 #[inline]
 pub fn heap_pos() -> usize {
     0
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(all(target_os = "solana", feature = "custom-heap")))]
 #[inline]
 pub fn heap_restore(_pos: usize) {}

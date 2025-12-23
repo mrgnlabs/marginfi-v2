@@ -43,9 +43,8 @@ import {
   composeRemainingAccounts,
 } from "./utils/user-instructions";
 import { configBankEmode } from "./utils/group-instructions";
-import { logHealthCache } from "./utils/tools";
+import { bytesToF64, logHealthCache } from "./utils/tools";
 import { assert } from "chai";
-import { bytesToF64 } from "./utils/tools";
 
 // Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
@@ -603,6 +602,7 @@ describe("Emode liquidation", () => {
     remaining: Array<PublicKey>
   ) => {
     const tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 250_000 }),
       await healthPulse(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         remaining,

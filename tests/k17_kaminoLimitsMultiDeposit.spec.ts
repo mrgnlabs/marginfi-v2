@@ -91,7 +91,6 @@ import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 
 
-const MAX_KAMINO_DEPOSITS = 16;
 const NUM_KAMINO_BANKS_FOR_TESTING = 17;
 const NUM_REGULAR_TOKEN_A_BANKS = 7;
 const USER_ACCOUNT = "user_account_k17";
