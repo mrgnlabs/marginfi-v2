@@ -24,7 +24,10 @@ use anchor_spl::{
 };
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED},
+    constants::{
+        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
+        ASSET_TAG_STAKED,
+    },
     types::{Bank, BankOperationalState, MarginfiAccount, WrappedI80F48},
 };
 
@@ -222,6 +225,10 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
                 ASSET_TAG_STAKED => has_staked_asset = true,
                 // Kamino isn't strictly a default asset but it's close enough
                 ASSET_TAG_KAMINO => has_default_asset = true,
+                // Drift assets behave like default assets
+                ASSET_TAG_DRIFT => has_default_asset = true,
+                // Solend assets behave like default assets
+                ASSET_TAG_SOLEND => has_default_asset = true,
                 _ => panic!("unsupported asset tag"),
             }
         }
@@ -420,7 +427,26 @@ pub fn is_marginfi_asset_tag(asset_tag: u8) -> bool {
     )
 }
 
-/// Helper function for constraint validation - checks if asset tag is valid for Kamino operations  
+/// Helper function for constraint validation - checks if asset tag is valid for Kamino operations
 pub fn is_kamino_asset_tag(asset_tag: u8) -> bool {
     asset_tag == ASSET_TAG_KAMINO
+}
+
+/// Helper function for constraint validation - checks if asset tag is valid for Drift operations
+pub fn is_drift_asset_tag(asset_tag: u8) -> bool {
+    asset_tag == ASSET_TAG_DRIFT
+}
+
+/// Helper function for constraint validation - checks if asset tag is valid for Solend operations
+pub fn is_solend_asset_tag(asset_tag: u8) -> bool {
+    asset_tag == ASSET_TAG_SOLEND
+}
+
+/// Helper function - checks if asset tag is an integration type (Kamino, Drift, or Solend)
+/// These integrations share a position limit due to their 3-account-per-position overhead
+pub fn is_integration_asset_tag(asset_tag: u8) -> bool {
+    matches!(
+        asset_tag,
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND
+    )
 }
