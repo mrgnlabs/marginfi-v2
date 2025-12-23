@@ -11,10 +11,11 @@ use crate::{
             MarginfiAccountImpl,
         },
         marginfi_group::MarginfiGroupImpl,
+        price::OraclePriceWithConfidence,
     },
     utils::{
-        self, fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_bank_state,
-        InstructionKind,
+        self, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
+        is_marginfi_asset_tag, validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
@@ -60,6 +61,7 @@ pub fn lending_account_withdraw<'info>(
 
     let withdraw_all = withdraw_all.unwrap_or(false);
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
+
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -68,7 +70,6 @@ pub fn lending_account_withdraw<'info>(
     {
         let mut group = marginfi_group_loader.load_mut()?;
         let mut bank = bank_loader.load_mut()?;
-
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
 
         let maybe_bank_mint =
@@ -76,7 +77,7 @@ pub fn lending_account_withdraw<'info>(
 
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
-            let price = fetch_asset_price_for_bank(
+            let price = fetch_asset_price_for_bank_low_bias(
                 &bank_loader.key(),
                 &bank,
                 &clock,
@@ -166,7 +167,6 @@ pub fn lending_account_withdraw<'info>(
             ),
             ctx.remaining_accounts,
         )?;
-
         bank.update_bank_cache(&group)?;
 
         emit!(LendingAccountWithdrawEvent {
@@ -188,19 +188,38 @@ pub fn lending_account_withdraw<'info>(
 
     marginfi_account.lending_account.sort_balances();
 
+    // To update the bank's price cache
+    let maybe_price: Option<OraclePriceWithConfidence>;
+    let bank_pk = bank_loader.key();
+
     // Note: during receivership, we skip all health checks until the end of the transaction.
     if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
         // Check account health, if below threshold fail transaction
         // Assuming `ctx.remaining_accounts` holds only oracle accounts
+        // Uses heap-efficient health check to support accounts with up to 16 positions
         check_account_init_health(
             &marginfi_account,
             ctx.remaining_accounts,
             &mut Some(&mut health_cache),
         )?;
         health_cache.program_version = PROGRAM_VERSION;
+
+        // Fetch unbiased price for cache update
+        let bank = bank_loader.load()?;
+        maybe_price =
+            fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();
+
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
+    } else {
+        // Note: the caller can simply omit risk accounts since the risk check is ignored here, in
+        // that case the cache doesn't update and this does nothing.
+        let bank = bank_loader.load()?;
+        maybe_price =
+            fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();
     }
+
+    bank_loader.load_mut()?.update_cache_price(maybe_price)?;
 
     Ok(())
 }

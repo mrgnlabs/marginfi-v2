@@ -9,8 +9,8 @@ use crate::state::marginfi_account::{
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::utils::{
-    fetch_asset_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
-    validate_bank_asset_tags, validate_bank_state, InstructionKind,
+    fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank, is_marginfi_asset_tag,
+    validate_asset_tags, validate_bank_asset_tags, validate_bank_state, InstructionKind,
 };
 use crate::{bank_signer, state::marginfi_account::BankAccountWrapper};
 use crate::{check, debug, prelude::*, utils};
@@ -164,24 +164,46 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
+    let asset_bank_key = ctx.accounts.asset_bank.key();
+    let liab_bank_key = ctx.accounts.liab_bank.key();
+
     let (pre_liquidation_health, _, _) = check_pre_liquidation_condition_and_get_account_health(
         &liquidatee_marginfi_account,
         liquidatee_remaining_accounts,
-        Some(&ctx.accounts.liab_bank.key()),
+        Some(&liab_bank_key),
         &mut None,
         false,
     )?;
+
+    let asset_bank = ctx.accounts.asset_bank.load()?;
+    let asset_price_unbiased = fetch_unbiased_price_for_bank(
+        &asset_bank_key,
+        &asset_bank,
+        &clock,
+        liquidatee_remaining_accounts,
+    )
+    .ok();
+    drop(asset_bank);
+
+    let liab_bank = ctx.accounts.liab_bank.load()?;
+    let liab_price_unbiased = fetch_unbiased_price_for_bank(
+        &liab_bank_key,
+        &liab_bank,
+        &clock,
+        liquidatee_remaining_accounts,
+    )
+    .ok();
+    drop(liab_bank);
 
     // ##Accounting changes##
 
     let (pre_balances, post_balances) = {
         let asset_amount: I80F48 = I80F48::from_num(asset_amount);
 
-        let asset_bank_key = ctx.accounts.asset_bank.key();
         let mut asset_bank = ctx.accounts.asset_bank.load_mut()?;
         let asset_bank_remaining_accounts_len = get_remaining_accounts_per_bank(&asset_bank)? - 1;
 
-        let asset_price: I80F48 = fetch_asset_price_for_bank(
+        let asset_price: I80F48 = fetch_asset_price_for_bank_low_bias(
             &asset_bank_key,
             &asset_bank,
             &clock,
@@ -247,7 +269,7 @@ pub fn lending_account_liquidate<'info>(
         // Liquidator pays off liability (by gaining the liability on their books)
         let (liquidator_liability_pre_balance, liquidator_liability_post_balance) = {
             let mut bank_account = BankAccountWrapper::find_or_create(
-                &ctx.accounts.liab_bank.key(),
+                &liab_bank_key,
                 &mut liab_bank,
                 &mut liquidator_marginfi_account.lending_account,
             )?;
@@ -382,8 +404,10 @@ pub fn lending_account_liquidate<'info>(
                 .into();
 
         asset_bank.update_bank_cache(group)?;
+        asset_bank.update_cache_price(asset_price_unbiased)?;
 
         liab_bank.update_bank_cache(group)?;
+        liab_bank.update_cache_price(liab_price_unbiased)?;
 
         (
             LiquidationBalances {

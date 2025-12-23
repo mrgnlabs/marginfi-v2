@@ -3,7 +3,10 @@ use crate::{
     state::{
         bank::BankVaultType,
         marginfi_account::get_remaining_accounts_per_bank,
-        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+        price::{
+            OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter,
+            PriceBias,
+        },
     },
     MarginfiError, MarginfiResult,
 };
@@ -330,29 +333,18 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
     as_f64
 }
 
-/// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
-/// any risk check. Errors if the bank is not found.
+/// Fetch a low-biased price for a given bank from a properly structured remaining accounts slice as
+/// passed to any risk check.
 ///
-/// * Errors if bank/oracles don't appear in the slice in the correct order
-pub fn fetch_asset_price_for_bank<'info>(
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+/// * If a RiskEngine available, consider `get_unbiased_price_for_bank` instead
+pub fn fetch_asset_price_for_bank_low_bias<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
     clock: &Clock,
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<I80F48> {
-    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
-    let bank_idx = remaining_accounts
-        .iter()
-        .position(|ai| ai.key == bank_key)
-        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
-
-    let start = bank_idx + 1;
-    let end = start + accs_needed;
-    require!(
-        end <= remaining_accounts.len(),
-        MarginfiError::WrongNumberOfOracleAccounts
-    );
-    let oracle_ais = &remaining_accounts[start..end];
+    let oracle_ais = oracle_accounts_for_bank(bank_key, bank, remaining_accounts)?;
     let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
     let price = pf.get_price_of_type(
         OraclePriceType::RealTime,
@@ -361,6 +353,49 @@ pub fn fetch_asset_price_for_bank<'info>(
     )?;
 
     Ok(price)
+}
+
+/// Fetch an unbiased oracle price (no safety bias) for a given bank.
+///
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+pub fn fetch_unbiased_price_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<OraclePriceWithConfidence> {
+    let oracle_ais = oracle_accounts_for_bank(bank_key, bank, remaining_accounts)?;
+    let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
+    let price = pf.get_price_and_confidence_of_type(
+        OraclePriceType::RealTime,
+        bank.config.oracle_max_confidence,
+    )?;
+
+    Ok(price)
+}
+
+/// Locate a bank's oracle information from a properly formatted slice of remaining accounts.
+fn oracle_accounts_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<&'info [AccountInfo<'info>]> {
+    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
+
+    let bank_idx = remaining_accounts
+        .iter()
+        .position(|ai| ai.key == bank_key)
+        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+    let start = bank_idx + 1;
+    let end = start + accs_needed;
+
+    require!(
+        end <= remaining_accounts.len(),
+        MarginfiError::WrongNumberOfOracleAccounts
+    );
+
+    Ok(&remaining_accounts[start..end])
 }
 
 #[macro_export]

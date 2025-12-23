@@ -1,4 +1,6 @@
-use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use super::price::{
+    OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter, PriceBias,
+};
 use crate::{
     allocator::{heap_pos, heap_restore},
     check, check_eq, debug, math_error,
@@ -603,6 +605,28 @@ impl<'info> RiskEngine<'_, 'info> {
         }
 
         Ok((total_assets, total_liabilities))
+    }
+
+    pub fn get_unbiased_price_for_bank(
+        &self,
+        bank_pk: &Pubkey,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let bank_account = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|b| b.balance.bank_pk == *bank_pk)
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+        let bank = bank_account.bank.load()?;
+        let (price_feed_res, _) = bank_account.try_get_price_feed();
+        let price_feed = price_feed_res?;
+
+        let price = price_feed.get_price_and_confidence_of_type(
+            OraclePriceType::RealTime,
+            bank.config.oracle_max_confidence,
+        )?;
+
+        Ok(price)
     }
 
     /// Errors if risk account's liabilities exceed their assets.

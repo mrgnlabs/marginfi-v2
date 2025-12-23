@@ -111,7 +111,6 @@ pub fn lending_account_deposit<'info>(
     )?;
 
     bank.update_bank_cache(group)?;
-
     emit!(LendingAccountDepositEvent {
         header: AccountEventHeader {
             signer: Some(signer.key()),
