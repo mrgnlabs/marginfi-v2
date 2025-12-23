@@ -7,9 +7,7 @@ use crate::{
     prelude::MarginfiError,
     state::{
         bank::{BankImpl, BankVaultType},
-        marginfi_account::{
-            check_account_bankrupt_with_heap_reuse, BankAccountWrapper, MarginfiAccountImpl,
-        },
+        marginfi_account::{check_account_bankrupt, BankAccountWrapper, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{self, is_marginfi_asset_tag, validate_bank_state, InstructionKind},
@@ -71,7 +69,7 @@ pub fn lending_pool_handle_bankruptcy<'info>(
     health_cache.timestamp = clock.unix_timestamp;
     health_cache.program_version = PROGRAM_VERSION;
     // Use heap-efficient bankruptcy check to support accounts with up to 16 positions
-    check_account_bankrupt_with_heap_reuse(
+    check_account_bankrupt(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),

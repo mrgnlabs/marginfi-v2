@@ -1,10 +1,10 @@
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, check_account_init_health_with_heap_reuse,
-    check_post_liquidation_condition_and_get_account_health_with_heap_reuse,
-    check_pre_liquidation_with_heap_reuse, get_remaining_accounts_per_bank, LendingAccountImpl,
-    MarginfiAccountImpl,
+    calc_amount, calc_value, check_account_init_health,
+    check_post_liquidation_condition_and_get_account_health,
+    check_pre_liquidation_condition_and_get_account_health, get_remaining_accounts_per_bank,
+    LendingAccountImpl, MarginfiAccountImpl,
 };
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
@@ -164,7 +164,7 @@ pub fn lending_account_liquidate<'info>(
 
     liquidatee_marginfi_account.lending_account.sort_balances();
 
-    let (pre_liquidation_health, _, _) = check_pre_liquidation_with_heap_reuse(
+    let (pre_liquidation_health, _, _) = check_pre_liquidation_condition_and_get_account_health(
         &liquidatee_marginfi_account,
         liquidatee_remaining_accounts,
         Some(&ctx.accounts.liab_bank.key()),
@@ -410,20 +410,19 @@ pub fn lending_account_liquidate<'info>(
         &ctx.remaining_accounts[liquidator_accounts_starting_pos..liquidatee_accounts_starting_pos];
 
     // Verify liquidatee liquidation post health using heap-efficient parity checks
-    let post_liquidation_health =
-        check_post_liquidation_condition_and_get_account_health_with_heap_reuse(
-            &liquidatee_marginfi_account,
-            liquidatee_remaining_accounts,
-            &ctx.accounts.liab_bank.key(),
-            pre_liquidation_health,
-        )?;
+    let post_liquidation_health = check_post_liquidation_condition_and_get_account_health(
+        &liquidatee_marginfi_account,
+        liquidatee_remaining_accounts,
+        &ctx.accounts.liab_bank.key(),
+        pre_liquidation_health,
+    )?;
 
     // TODO consider if health cache update here is worth blowing the extra CU
 
     liquidator_marginfi_account.lending_account.sort_balances();
 
     // Verify liquidator account health using heap-efficient version (includes isolated-tier check)
-    check_account_init_health_with_heap_reuse(
+    check_account_init_health(
         &liquidator_marginfi_account,
         liquidator_remaining_accounts,
         &mut None,

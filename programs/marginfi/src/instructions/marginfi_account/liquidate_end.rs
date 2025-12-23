@@ -5,7 +5,7 @@ use crate::{
     ix_utils::{get_discrim_hash, validate_not_cpi_by_stack_height, Hashable},
     prelude::*,
     state::marginfi_account::{
-        check_pre_liquidation_with_heap_reuse, get_health_components_with_heap_reuse,
+        check_pre_liquidation_condition_and_get_account_health, get_health_components,
         MarginfiAccountImpl, RiskRequirementType,
     },
 };
@@ -125,14 +125,15 @@ pub fn end_receivership<'info>(
 
     let mut post_hc = HealthCache::zeroed();
 
-    let (post_health, _post_assets, _post_liabs) = check_pre_liquidation_with_heap_reuse(
-        marginfi_account,
-        remaining_ais,
-        None,
-        &mut Some(&mut post_hc),
-        ignore_healthy,
-    )?;
-    let (post_assets_equity, post_liabilities_equity) = get_health_components_with_heap_reuse(
+    let (post_health, _post_assets, _post_liabs) =
+        check_pre_liquidation_condition_and_get_account_health(
+            marginfi_account,
+            remaining_ais,
+            None,
+            &mut Some(&mut post_hc),
+            ignore_healthy,
+        )?;
+    let (post_assets_equity, post_liabilities_equity) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Equity,

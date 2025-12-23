@@ -7,7 +7,8 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{
-            calc_value, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            calc_value, check_account_init_health, BankAccountWrapper, LendingAccountImpl,
+            MarginfiAccountImpl,
         },
         marginfi_group::MarginfiGroupImpl,
     },
@@ -191,12 +192,11 @@ pub fn kamino_withdraw<'info>(
         if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
             // Check account health, if below threshold fail transaction
             // Assuming `ctx.remaining_accounts` holds only oracle accounts
-            let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            check_account_init_health(
                 &marginfi_account,
                 ctx.remaining_accounts,
                 &mut Some(&mut health_cache),
-            );
-            risk_result?;
+            )?;
             health_cache.program_version = PROGRAM_VERSION;
 
             health_cache.set_engine_ok(true);

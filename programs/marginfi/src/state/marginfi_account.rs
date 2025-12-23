@@ -916,7 +916,7 @@ impl<'a, 'info> Iterator for EmodeConfigIterator<'a, 'info> {
 /// ## Returns
 ///
 /// (total_assets, total_liabilities) weighted according to requirement_type
-pub fn get_health_components_with_heap_reuse<'info>(
+pub fn get_health_components<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
     requirement_type: RiskRequirementType,
@@ -1064,7 +1064,7 @@ pub fn get_health_components_with_heap_reuse<'info>(
 /// with up to 16 positions.
 ///
 /// Returns (account_health, assets, liabilities) if the account is liquidatable.
-pub fn check_pre_liquidation_with_heap_reuse<'info>(
+pub fn check_pre_liquidation_condition_and_get_account_health<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
     liability_bank_pk: Option<&Pubkey>,
@@ -1096,7 +1096,7 @@ pub fn check_pre_liquidation_with_heap_reuse<'info>(
     }
 
     // Get health components using heap reuse
-    let (assets, liabs) = get_health_components_with_heap_reuse(
+    let (assets, liabs) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Maintenance,
@@ -1127,12 +1127,12 @@ pub fn check_pre_liquidation_with_heap_reuse<'info>(
 ///
 /// This is equivalent to `RiskEngine::check_account_bankrupt` but uses heap reuse
 /// to process positions one at a time.
-pub fn check_account_bankrupt_with_heap_reuse<'info>(
+pub fn check_account_bankrupt<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
     health_cache: &mut Option<&mut HealthCache>,
 ) -> MarginfiResult {
-    let (equity_assets, equity_liabs) = get_health_components_with_heap_reuse(
+    let (equity_assets, equity_liabs) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Equity,
@@ -1151,7 +1151,7 @@ pub fn check_account_bankrupt_with_heap_reuse<'info>(
 }
 
 /// Check the isolated-risk-tier constraint without constructing a full `RiskEngine`.
-fn check_account_risk_tiers_with_heap_reuse<'info>(
+fn check_account_risk_tiers<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
 ) -> MarginfiResult {
@@ -1200,7 +1200,7 @@ fn check_account_risk_tiers_with_heap_reuse<'info>(
 /// - Skips risk checks when the account is in a flashloan
 /// - Enforces isolated-tier constraint
 /// - Errors if initial health is negative
-pub fn check_account_init_health_with_heap_reuse<'info>(
+pub fn check_account_init_health<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
     health_cache: &mut Option<&mut HealthCache>,
@@ -1210,7 +1210,7 @@ pub fn check_account_init_health_with_heap_reuse<'info>(
         return Ok(());
     }
 
-    let (assets, liabs) = get_health_components_with_heap_reuse(
+    let (assets, liabs) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Initial,
@@ -1226,7 +1226,7 @@ pub fn check_account_init_health_with_heap_reuse<'info>(
         return err!(MarginfiError::RiskEngineInitRejected);
     }
 
-    check_account_risk_tiers_with_heap_reuse(marginfi_account, remaining_ais)
+    check_account_risk_tiers(marginfi_account, remaining_ais)
 }
 
 /// Post-liquidation invariant using the heap-reuse health calculator.
@@ -1235,7 +1235,7 @@ pub fn check_account_init_health_with_heap_reuse<'info>(
 /// - Liability bank must still have outstanding liabilities and no assets
 /// - Post-maintenance health must remain <= 0
 /// - Post-maintenance health must improve relative to pre-liquidation health
-pub fn check_post_liquidation_condition_and_get_account_health_with_heap_reuse<'info>(
+pub fn check_post_liquidation_condition_and_get_account_health<'info>(
     marginfi_account: &MarginfiAccount,
     remaining_ais: &'info [AccountInfo<'info>],
     bank_pk: &Pubkey,
@@ -1263,7 +1263,7 @@ pub fn check_post_liquidation_condition_and_get_account_health_with_heap_reuse<'
         MarginfiError::TooSeverePayoff
     );
 
-    let (assets, liabs) = get_health_components_with_heap_reuse(
+    let (assets, liabs) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Maintenance,

@@ -8,7 +8,7 @@ use crate::{
     },
     prelude::*,
     state::marginfi_account::{
-        check_pre_liquidation_with_heap_reuse, get_health_components_with_heap_reuse,
+        check_pre_liquidation_condition_and_get_account_health, get_health_components,
         MarginfiAccountImpl, RiskRequirementType,
     },
 };
@@ -91,7 +91,7 @@ pub fn start_receivership<'info>(
     // liquidation/deleverage strategy.
     let mut health_cache = HealthCache::zeroed();
 
-    let (_pre_health, assets, liabs) = check_pre_liquidation_with_heap_reuse(
+    let (_pre_health, assets, liabs) = check_pre_liquidation_condition_and_get_account_health(
         marginfi_account,
         remaining_ais,
         None,
@@ -100,7 +100,7 @@ pub fn start_receivership<'info>(
     )?;
 
     // Use heap-efficient equity calculation
-    let (assets_equity, liabs_equity) = get_health_components_with_heap_reuse(
+    let (assets_equity, liabs_equity) = get_health_components(
         marginfi_account,
         remaining_ais,
         RiskRequirementType::Equity,
