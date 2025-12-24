@@ -1,9 +1,4 @@
-import {
-  getProvider,
-  AnchorProvider,
-  Wallet,
-  Program,
-} from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import { createMintToInstruction } from "@solana/spl-token";
 import {
   PublicKey,
@@ -128,8 +123,8 @@ export const genericMultiBankTestSetup = async (
 
   // 3) fund users + admin
   {
-    const provider = getProvider() as AnchorProvider;
-    const wallet = provider.wallet as Wallet;
+    // Use bankrun payer as mint authority (it created the mints in rootHooks.ts)
+    const payer = bankrunContext.payer;
 
     for (const u of users) {
       const tx = new Transaction();
@@ -137,12 +132,12 @@ export const genericMultiBankTestSetup = async (
         createMintToInstruction(
           ecosystem.lstAlphaMint.publicKey,
           u.lstAlphaAccount,
-          wallet.publicKey,
+          payer.publicKey,
           10_000 * 10 ** ecosystem.lstAlphaDecimals
         )
       );
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(wallet.payer);
+      tx.sign(payer);
       await banksClient.processTransaction(tx);
     }
 
@@ -151,12 +146,12 @@ export const genericMultiBankTestSetup = async (
       createMintToInstruction(
         ecosystem.lstAlphaMint.publicKey,
         groupAdmin.lstAlphaAccount,
-        wallet.publicKey,
+        payer.publicKey,
         10_000 * 10 ** ecosystem.lstAlphaDecimals
       )
     );
     txAdmin.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    txAdmin.sign(wallet.payer);
+    txAdmin.sign(payer);
     await banksClient.processTransaction(txAdmin);
   }
 
@@ -366,7 +361,6 @@ export const genericKaminoMultiBankTestSetup = async (
     for (let i = 0; i < numberOfBanks; i++) {
       const seed = startingSeed + i;
 
-
       // Execute addGenericBank sequentially
       await addGenericBank(throwawayGroup, {
         bankMint: ecosystem.lstAlphaMint.publicKey,
@@ -392,8 +386,8 @@ export const genericKaminoMultiBankTestSetup = async (
 
   // 3) fund users + admin
   {
-    const provider = getProvider() as AnchorProvider;
-    const wallet = provider.wallet as Wallet;
+    // Use bankrun payer as mint authority (it created the mints in rootHooks.ts)
+    const payer = bankrunContext.payer;
 
     for (const u of users) {
       const tx = new Transaction();
@@ -401,12 +395,12 @@ export const genericKaminoMultiBankTestSetup = async (
         createMintToInstruction(
           ecosystem.lstAlphaMint.publicKey,
           u.lstAlphaAccount,
-          wallet.publicKey,
+          payer.publicKey,
           10_000 * 10 ** ecosystem.lstAlphaDecimals
         )
       );
       tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-      tx.sign(wallet.payer);
+      tx.sign(payer);
       await banksClient.processTransaction(tx);
     }
 
@@ -415,12 +409,12 @@ export const genericKaminoMultiBankTestSetup = async (
       createMintToInstruction(
         ecosystem.lstAlphaMint.publicKey,
         groupAdmin.lstAlphaAccount,
-        wallet.publicKey,
+        payer.publicKey,
         10_000 * 10 ** ecosystem.lstAlphaDecimals
       )
     );
     txAdmin.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    txAdmin.sign(wallet.payer);
+    txAdmin.sign(payer);
     await banksClient.processTransaction(txAdmin);
   }
 

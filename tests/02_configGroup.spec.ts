@@ -1,12 +1,16 @@
-import { Program, workspace } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { groupConfigure } from "./utils/group-instructions";
 import { Marginfi } from "../target/types/marginfi";
-import { groupAdmin, marginfiGroup } from "./rootHooks";
+import { bankrunProgram, groupAdmin, marginfiGroup } from "./rootHooks";
 import { assertKeysEqual } from "./utils/genericTests";
 
+let program: Program<Marginfi>;
+
 describe("Config group", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  before(() => {
+    program = bankrunProgram;
+  });
 
   it("(admin) Config group - no change", async () => {
     await groupAdmin.mrgnProgram.provider.sendAndConfirm!(

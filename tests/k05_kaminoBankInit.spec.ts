@@ -40,7 +40,7 @@ import {
   simpleRefreshReserve,
 } from "./utils/kamino-utils";
 import { assert } from "chai";
-import { processBankrunTransaction, safeGetAccountInfo } from "./utils/tools";
+import { processBankrunTransaction, safeGetAccountInfo, getBankrunTime } from "./utils/tools";
 import { lendingMarketAuthPda } from "@kamino-finance/klend-sdk";
 import { createAssociatedTokenAccountInstruction } from "@mrgnlabs/mrgn-common";
 import { createMintToInstruction, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -83,7 +83,7 @@ describe("k05: Init Kamino banks", () => {
     let defaultConfig = defaultKaminoBankConfig(
       oracles.usdcOracle.publicKey
     );
-    const now = Date.now() / 1000;
+    const now = await getBankrunTime(ctx);
 
     const [bankKey] = deriveBankWithSeed(
       mrgnID,
