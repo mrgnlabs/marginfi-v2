@@ -40,7 +40,7 @@ import {
   bigNumberToWrappedI80F48,
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
-import { blankBankConfigOptRaw } from "./utils/types";
+import { blankBankConfigOptRaw, CONF_INTERVAL_MULTIPLE } from "./utils/types";
 import { configureBank } from "./utils/group-instructions";
 import {
   defaultDriftBankConfig,
@@ -64,6 +64,8 @@ import { deriveBankWithSeed } from "./utils/pdas";
 import { ProgramTestContext } from "solana-bankrun";
 import { assertBNEqual } from "./utils/genericTests";
 
+const confidenceInterval = 0.01 * CONF_INTERVAL_MULTIPLE;
+
 const startingSeed: number = 10;
 const USER_ACCOUNT_THROWAWAY_D = "throwaway_account_d";
 let ctx: ProgramTestContext;
@@ -76,6 +78,7 @@ let mrgnID: PublicKey;
 const seedAmountLst = new BN(50 * 10 ** ecosystem.lstAlphaDecimals);
 const depositAmountTokenA = new BN(100 * 10 ** ecosystem.tokenADecimals);
 const borrowAmountLst = new BN(1 * 10 ** ecosystem.lstAlphaDecimals);
+const depositAmountLst = new BN(1 * 10 ** ecosystem.lstAlphaDecimals);
 
 describe("d09: Drift Liquidation", () => {
   before(async () => {
@@ -170,6 +173,7 @@ describe("d09: Drift Liquidation", () => {
   });
 
   it("(user 0) Deposits Token A into Drift, borrows LST from bank [0]", async () => {
+
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY_D);
     const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
@@ -265,6 +269,11 @@ describe("d09: Drift Liquidation", () => {
   });
 
   it("(admin) Increases LST bank liability ratio to make user 0 just unhealthy", async () => {
+    // weird thing to debug with a slop machine
+    // const to = bigNumberToWrappedI80F48(995317139.49974820595);
+    // const to = bigNumberToWrappedI80F48(995317139);
+    // const back = new BN(wrappedI80F48toBigNumber(to).toString());
+
     let config = blankBankConfigOptRaw();
     config.liabilityWeightInit = bigNumberToWrappedI80F48(6.0); // 600%
     config.liabilityWeightMaint = bigNumberToWrappedI80F48(5.5); // 550%
@@ -324,7 +333,6 @@ describe("d09: Drift Liquidation", () => {
     const liquidator = users[1];
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_THROWAWAY_D);
     const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
-    const depositAmount = new BN(1 * 10 ** ecosystem.lstAlphaDecimals);
 
     const spotMarket = await getSpotMarketAccount(
       driftBankrunProgram,
@@ -335,7 +343,7 @@ describe("d09: Drift Liquidation", () => {
         marginfiAccount: liquidatorAccount,
         bank: regularLstBank,
         tokenAccount: liquidator.lstAlphaAccount,
-        amount: depositAmount,
+        amount: depositAmountLst,
         depositUpToLimit: false,
       })
     );
@@ -398,7 +406,6 @@ describe("d09: Drift Liquidation", () => {
                 driftSpotMarket,
               ],
             ]),
-
             ...composeRemainingAccounts([
               [regularLstBank, oracles.pythPullLst.publicKey],
               [
@@ -419,7 +426,7 @@ describe("d09: Drift Liquidation", () => {
         liquidateTx,
         [liquidator.wallet],
         true,
-        false
+        true
       )) as BanksTransactionResultWithMeta;
       if (result.result && result.meta && result.meta.logMessages) {
         const hasTooSevereError = result.meta.logMessages.some(
@@ -524,23 +531,26 @@ describe("d09: Drift Liquidation", () => {
       totalLiquidated.mul(TOKEN_A_SCALING_FACTOR)
     );
 
-    const totalLiquidatedLst = totalLiquidated
-      .mul(new BN(ecosystem.tokenAPrice))
-      .div(new BN(ecosystem.lstAlphaPrice));
-    const liquidateeReceived = totalLiquidatedLst.mul(new BN(0.95));
-    const liquidatorPaid = totalLiquidatedLst.mul(new BN(0.975));
+    const tokenALowPrice = ecosystem.tokenAPrice * (1 - confidenceInterval);
+    const lstHighPrice = ecosystem.lstAlphaPrice * (1 + confidenceInterval);
+    const totalLiquidatedLst = totalLiquidated.toNumber()
+       * tokenALowPrice
+       / lstHighPrice * 10 ** (ecosystem.lstAlphaDecimals - ecosystem.tokenADecimals);
+
+    const liquidateeReceived = new BN(totalLiquidatedLst * 0.95);
+    const liquidatorPaid = new BN(totalLiquidatedLst * 0.975);
 
     await assertBankBalance(
       liquidateeAccount,
       regularLstBank,
-      borrowAmountLst.sub(liquidateeReceived),
+      borrowAmountLst.sub(liquidateeReceived).toNumber(),
       true // liability
     );
 
     await assertBankBalance(
       liquidatorAccount,
       regularLstBank,
-      seedAmountLst.sub(liquidatorPaid)
+      depositAmountLst.sub(liquidatorPaid).toNumber()
     );
 
     if (verbose) {

@@ -643,6 +643,7 @@ import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { Marginfi } from "../../target/types/marginfi";
 import { assert } from "chai";
 import { assertBNEqual } from "./genericTests";
+import BigNumber from "bignumber.js";
 
 // Constants for Drift
 export const DRIFT_SCALED_BALANCE_PRECISION = new BN(1_000_000_000); // 10^9
@@ -1146,7 +1147,7 @@ export const getDriftUser = async (
 export async function assertBankBalance(
   marginfiAccount: PublicKey,
   bankPubkey: PublicKey,
-  expectedBalance: BN | null,
+  expectedBalance: BN | number | null,
   isLiability: boolean = false
 ) {
   const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
@@ -1164,15 +1165,16 @@ export async function assertBankBalance(
 
   assert(balance);
 
+  let shares: BigNumber;
   if (isLiability) {
-    const liabilitySharesBN = new BN(
-      wrappedI80F48toBigNumber(balance.liabilityShares).toString()
-    );
-    assertBNEqual(liabilitySharesBN, expectedBalance);
+    shares = wrappedI80F48toBigNumber(balance.liabilityShares);
   } else {
-    const assetSharesBN = new BN(
-      wrappedI80F48toBigNumber(balance.assetShares).toString()
-    );
-    assertBNEqual(assetSharesBN, expectedBalance);
+    shares = wrappedI80F48toBigNumber(balance.assetShares);
+  }
+
+  if (typeof expectedBalance === "number") {
+    assert.approximately(shares.toNumber(), expectedBalance, 1);
+  } else {
+    assert.equal(shares.toString(), expectedBalance.toString()); // temporary change due to "." bug
   }
 }
