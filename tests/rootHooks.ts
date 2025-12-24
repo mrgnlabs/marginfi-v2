@@ -181,22 +181,22 @@ export const TOKEN_A_RESERVE = "token_a_reserve";
 /** mrgn USDC bank trading on `USDC_RESERVE` (the reserve for ecosystem.usdcMint) */
 export const KAMINO_USDC_BANK = "kamino_usdc_bank";
 /** mrgn Token A bank trading on `TOKEN_A_RESERVE` (the reserve for ecosystem.tokenAMint) */
-export const KAMINO_TOKENA_BANK = "kamino_tokenA_bank";
+export const KAMINO_TOKEN_A_BANK = "kamino_tokenA_bank";
 
 // TODO: This should really be an object with defined fields not a dict
 export let driftAccounts: Map<string, PublicKey>;
 /** Drift USDC Spot Market */
 export const DRIFT_USDC_SPOT_MARKET = "drift_usdc_spot_market";
 /** Drift Token A Spot Market */
-export const DRIFT_TOKENA_SPOT_MARKET = "drift_tokenA_spot_market";
+export const DRIFT_TOKEN_A_SPOT_MARKET = "drift_tokenA_spot_market";
 /** mrgn USDC bank trading on `DRIFT_USDC_SPOT_MARKET` */
 export const DRIFT_USDC_BANK = "drift_usdc_bank";
-/** mrgn Token A bank trading on `DRIFT_TOKENA_SPOT_MARKET` */
-export const DRIFT_TOKENA_BANK = "drift_tokenA_bank";
+/** mrgn Token A bank trading on `DRIFT_TOKEN_A_SPOT_MARKET` */
+export const DRIFT_TOKEN_A_BANK = "drift_tokenA_bank";
 /** Drift Token A Pyth Pull Oracle (with mainnet owner) */
-export const DRIFT_TOKENA_PULL_ORACLE = "drift_tokenA_pull_oracle";
+export const DRIFT_TOKEN_A_PULL_ORACLE = "drift_tokenA_pull_oracle";
 /** Drift Token A Pyth Pull Feed */
-export const DRIFT_TOKENA_PULL_FEED = "drift_tokenA_pull_feed";
+export const DRIFT_TOKEN_A_PULL_FEED = "drift_tokenA_pull_feed";
 
 // Solend related accounts
 export let solendAccounts: Map<string, PublicKey>;
@@ -209,7 +209,7 @@ export const SOLEND_MARKET_AUTHORITY = "solend_market_authority";
 /** Solend USDC Reserve */
 export const SOLEND_USDC_RESERVE = "solend_usdc_reserve";
 /** Solend Token A Reserve */
-export const SOLEND_TOKENA_RESERVE = "solend_tokena_reserve";
+export const SOLEND_TOKEN_A_RESERVE = "solend_tokena_reserve";
 
 // Reserve component accounts (critical for operations)
 /** USDC Reserve liquidity supply */
@@ -222,19 +222,19 @@ export const SOLEND_USDC_COLLATERAL_SUPPLY = "solend_usdc_collateral_supply";
 export const SOLEND_USDC_FEE_RECEIVER = "solend_usdc_fee_receiver";
 
 /** Token A Reserve liquidity supply */
-export const SOLEND_TOKENA_LIQUIDITY_SUPPLY = "solend_tokena_liquidity_supply";
+export const SOLEND_TOKEN_A_LIQUIDITY_SUPPLY = "solend_tokena_liquidity_supply";
 /** Token A Reserve collateral mint */
-export const SOLEND_TOKENA_COLLATERAL_MINT = "solend_tokena_collateral_mint";
+export const SOLEND_TOKEN_A_COLLATERAL_MINT = "solend_tokena_collateral_mint";
 /** Token A Reserve collateral supply */
-export const SOLEND_TOKENA_COLLATERAL_SUPPLY = "solend_tokena_collateral_supply";
+export const SOLEND_TOKEN_A_COLLATERAL_SUPPLY = "solend_tokena_collateral_supply";
 /** Token A Reserve fee receiver */
-export const SOLEND_TOKENA_FEE_RECEIVER = "solend_tokena_fee_receiver";
+export const SOLEND_TOKEN_A_FEE_RECEIVER = "solend_tokena_fee_receiver";
 
 // Bank accounts (for MarginFi integration)
 /** mrgn USDC bank for Solend integration */
 export const SOLEND_USDC_BANK = "solend_usdc_bank";
 /** mrgn Token A bank for Solend integration */
-export const SOLEND_TOKENA_BANK = "solend_tokena_bank";
+export const SOLEND_TOKEN_A_BANK = "solend_tokena_bank";
 
 // Kamino farms related accounts
 export const farmAccounts = new Map<string, PublicKey>();

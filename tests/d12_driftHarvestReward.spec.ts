@@ -7,9 +7,9 @@ import {
 import {
   ecosystem,
   driftAccounts,
-  DRIFT_TOKENA_BANK,
+  DRIFT_TOKEN_A_BANK,
   DRIFT_USDC_BANK,
-  DRIFT_TOKENA_SPOT_MARKET,
+  DRIFT_TOKEN_A_SPOT_MARKET,
   users,
   bankrunContext,
   bankrunProgram,
@@ -19,7 +19,7 @@ import {
   globalProgramAdmin,
   banksClient,
   driftGroup,
-  DRIFT_TOKENA_PULL_ORACLE,
+  DRIFT_TOKEN_A_PULL_ORACLE,
   globalFeeWallet,
   bankRunProvider,
 } from "./rootHooks";
@@ -65,7 +65,6 @@ import {
   composeRemainingAccounts,
   accountInit,
 } from "./utils/user-instructions";
-import { BanksTransactionResultWithMeta } from "solana-bankrun";
 
 const DRIFT_TOKENB_SPOT_MARKET = "drift_tokenb_spot_market";
 const DRIFT_TOKENB_PULL_ORACLE = "drift_tokenb_pull_oracle";
@@ -82,7 +81,7 @@ describe("d12: Drift Harvest Reward", () => {
   let TOKENB_MARKET_INDEX: number;
 
   before(async () => {
-    driftTokenABank = driftAccounts.get(DRIFT_TOKENA_BANK);
+    driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
     driftUsdcBank = driftAccounts.get(DRIFT_USDC_BANK);
 
     const driftState = await getDriftStateAccount(driftBankrunProgram);
@@ -282,8 +281,8 @@ describe("d12: Drift Harvest Reward", () => {
       true
     );
 
-    const tokenAOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
-    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
     const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
     const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKENB_SPOT_MARKET);
 
@@ -414,11 +413,11 @@ describe("d12: Drift Harvest Reward", () => {
     await createGlobalFeeWalletTokenAccount(ecosystem.tokenAMint.publicKey);
 
     // Try to harvest Token A from Token A bank (harvest market same as bank's drift spot market)
-    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
 
     const remainingAccounts = [];
 
-    const tokenAOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
     if (tokenAOracle) {
       remainingAccounts.push({
         pubkey: tokenAOracle,
@@ -464,8 +463,8 @@ describe("d12: Drift Harvest Reward", () => {
     const user = users[0];
 
     const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
-    const tokenAOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
-    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
 
     const remainingAccounts = [];
 
