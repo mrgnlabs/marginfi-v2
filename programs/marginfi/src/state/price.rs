@@ -167,6 +167,11 @@ impl OraclePriceFeedAdapter {
                 // decimal-adjusted because both SOL and stake positions use 9 decimals
 
                 let account_info = &ais[0];
+                require_keys_eq!(
+                    *account_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
 
                 if live!() {
                     check_eq!(
