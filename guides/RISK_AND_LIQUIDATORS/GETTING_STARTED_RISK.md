@@ -87,7 +87,7 @@ For Maintenance purposes, Susie has 90 * .95 - 81.82 * 1.05 = -$0.411, Susie can
 
 Most borrow-lending platforms, including ours, offer Partial Liquidation. In a nutshell, this means
 the liquidator repays some of your debts and withdraws some of your assets, making the account more
-healthy. In exchange for performing this service, the liqudiator gets to keep some of the user's
+healthy. In exchange for performing this service, the liquidator gets to keep some of the user's
 funds as profit: we call this the "Liquidator Premium". A portion may also be paid out to the
 insurance fund. Typically, the liquidator premium and insurance fund payout is a few percent in
 total. Let's go back to the example with Susie:
