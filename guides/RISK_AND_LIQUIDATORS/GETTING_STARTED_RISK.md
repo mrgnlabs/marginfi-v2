@@ -111,4 +111,4 @@ account healthy again, i.e., a liquidator can only bring a user's health up to 0
 
 At any point, Susie could withdraw/repay herself, avoiding paying the liquidation premium!
 
-In the above example, the liquidator collected a premium of $0.05 (\$1 withdrawn - \$0.95 repaid).
+In the above example, the liquidator collected a premium of \$0.05 (\$1 withdrawn - \$0.95 repaid).
