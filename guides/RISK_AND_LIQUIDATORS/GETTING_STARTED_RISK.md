@@ -26,7 +26,7 @@ Summarizing the above scenario, your \$100 deposit and \$50 borrow have a real L
 ```
 
 Most borrowing lending venues (including ours) publish only the "Asset" weight on the user-facing
-front end. The "Liability" Weights, while publically available, can be confusing. This means that
+front end. The "Liability" Weights, while publicly available, can be confusing. This means that
 when lending/borrowing some pair A/B, you may end up with a HIGHER LTV on a platform that shows a
 HIGHER asset weight, if the more-hidden liability weight is LOWER. 
 
