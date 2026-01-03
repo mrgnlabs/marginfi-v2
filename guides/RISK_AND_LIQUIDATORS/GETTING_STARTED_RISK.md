@@ -14,7 +14,7 @@ The Loan-To-Value ratio (LTV) is simply borrows/deposits. For example, if you le
 \$50, your LTV is 50/100 = 50%.
 
 Some Borrow-Lending platforms will refer to "Weight" as the LTV: these are similar concepts, but not
-entirely the same. When you deposit $100 of token A, an "Asset Weight" is applied. This weight
+entirely the same. When you deposit \$100 of token A, an "Asset Weight" is applied. This weight
 discounts your asset, your \$100 deposit with a weight of 90% is only worth \$90. Likewise, a
 "Liability Weight" applies to the assets you borrow, the \$50 you borrowed with a liability weight
 of 110% is actually worth \$55. 
