@@ -20,8 +20,8 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use marginfi_type_crate::types::{
-    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
-    MAX_EMODE_ENTRIES,
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, OrderTrigger,
+    WrappedI80F48, MAX_EMODE_ENTRIES,
 };
 use prelude::*;
 
@@ -281,6 +281,43 @@ pub mod marginfi {
         third_party_id: Option<u16>,
     ) -> MarginfiResult {
         marginfi_account::initialize_account_pda(ctx, account_index, third_party_id)
+    }
+
+    pub fn marginfi_account_place_order(
+        ctx: Context<PlaceOrder>,
+        mint_keys: Vec<Pubkey>,
+        trigger: OrderTrigger,
+    ) -> MarginfiResult {
+        marginfi_account::place_order(ctx, mint_keys, trigger)
+    }
+
+    pub fn marginfi_account_close_order(ctx: Context<CloseOrder>) -> MarginfiResult {
+        marginfi_account::close_order(ctx)
+    }
+
+    pub fn marginfi_account_liquidator_close_order(
+        ctx: Context<KeeperCloseOrder>,
+    ) -> MarginfiResult {
+        marginfi_account::liquidator_close_order(ctx)
+    }
+
+    pub fn marginfi_account_set_liquidator_close_flags(
+        ctx: Context<SetLiquidatorCloseFlags>,
+        bank_keys_opt: Option<Vec<Pubkey>>,
+    ) -> MarginfiResult {
+        marginfi_account::set_liquidator_close_flags(ctx, bank_keys_opt)
+    }
+
+    pub fn marginfi_account_start_execute_order<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartExecuteOrder<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_execute_order(ctx)
+    }
+
+    pub fn marginfi_account_end_execute_order<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndExecuteOrder<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_execute_order(ctx)
     }
 
     pub fn lending_account_deposit<'info>(
