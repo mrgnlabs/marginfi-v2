@@ -19,7 +19,10 @@ use marginfi_type_crate::{
     constants::{
         TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE, ZERO_AMOUNT_THRESHOLD,
     },
-    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
+    types::{
+        Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_ORDER_EXECUTION,
+        ACCOUNT_IN_RECEIVERSHIP,
+    },
 };
 
 /// 1. Accrue interest
@@ -163,15 +166,15 @@ pub struct LendingAccountRepay<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         constraint = {
             let a = marginfi_account.load()?;
-            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
+            a.authority == authority.key() || a.get_flag(ACCOUNT_IN_RECEIVERSHIP | ACCOUNT_IN_ORDER_EXECUTION)
         } @MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
-    /// Must be marginfi_account's authority, unless in liquidation/deleverage receivership
+    /// Must be marginfi_account's authority, unless in liquidation/deleverage receivership or order execution
     ///
-    /// Note: during receivership, there are no signer checks whatsoever: any key can repay as
-    /// long as the invariants checked at the end of receivership are met.
+    /// Note: during receivership and order execution, there are no signer checks whatsoever: any key can repay as
+    /// long as the invariants checked at the end of execution are met.
     pub authority: Signer<'info>,
 
     #[account(
