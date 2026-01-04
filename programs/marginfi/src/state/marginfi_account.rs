@@ -11,7 +11,8 @@ use marginfi_type_crate::{
     constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
         EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, ORDER_ACTIVE_TAGS, SECONDS_PER_YEAR,
+        ZERO_AMOUNT_THRESHOLD,
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
@@ -20,6 +21,7 @@ use marginfi_type_crate::{
     },
 };
 use std::cmp::{max, min};
+use std::collections::BTreeSet;
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
 /// for Kamino (bank, oracle, reserve), 1 for Fixed
@@ -271,7 +273,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                             RequirementType::Maintenance => {
                                 I80F48::from(emode_entry.asset_weight_maint)
                             }
-                            // Note: For equity (which is only used for bankruptcies) emode does not
+                            // Note: For equity (which is only used for bankruptcies and orders) emode does not
                             // apply, as the asset weight is always 1
                             RequirementType::Equity => I80F48::ONE,
                         };
@@ -571,6 +573,47 @@ impl<'info> RiskEngine<'_, 'info> {
         Ok((total_assets, total_liabilities))
     }
 
+    /// Returns the total assets and liabilities restricted to the provided set of bank pubkeys
+    pub fn get_tagged_account_health_components(
+        &self,
+        balance_tags: &[u16],
+    ) -> MarginfiResult<(I80F48, I80F48, usize, usize)> {
+        let mut total_assets: I80F48 = I80F48::ZERO;
+        let mut total_liabilities: I80F48 = I80F48::ZERO;
+        let mut asset_count = 0;
+        let mut liab_count = 0;
+
+        let requirement_type = RiskRequirementType::Equity.to_weight_type();
+
+        for bank_account in self.bank_accounts_with_price.iter() {
+            if balance_tags
+                .iter()
+                .find(|tag| **tag == bank_account.balance.tag)
+                .is_none()
+            {
+                continue;
+            }
+
+            let (asset_val, liab_val, _price, _err_code) =
+                bank_account.calc_weighted_value(requirement_type, &self.emode_config)?;
+
+            if asset_val.ne(&I80F48::ZERO) {
+                asset_count += 1;
+            } else {
+                liab_count += 1;
+            }
+
+            total_assets = total_assets
+                .checked_add(asset_val)
+                .ok_or_else(math_error!())?;
+            total_liabilities = total_liabilities
+                .checked_add(liab_val)
+                .ok_or_else(math_error!())?;
+        }
+
+        Ok((total_assets, total_liabilities, asset_count, liab_count))
+    }
+
     /// Errors if risk account's liabilities exceed their assets.
     fn check_account_health(
         &self,
@@ -792,6 +835,7 @@ impl<'info> RiskEngine<'_, 'info> {
 pub trait LendingAccountImpl {
     fn get_first_empty_balance(&self) -> Option<usize>;
     fn sort_balances(&mut self);
+    fn reserve_n_tags(&mut self, n: usize) -> [u16; ORDER_ACTIVE_TAGS];
 }
 
 impl LendingAccountImpl for LendingAccount {
@@ -802,6 +846,45 @@ impl LendingAccountImpl for LendingAccount {
     fn sort_balances(&mut self) {
         // Sort all balances in descending order by bank_pk
         self.balances.sort_by(|a, b| b.bank_pk.cmp(&a.bank_pk));
+    }
+
+    /// Finds n free tags for new orders, starting with newer ones first
+    /// n is expected to be <= [`ORDER_ACTIVE_TAGS`].
+    /// It fills only the first n, leaving the rest as 0.
+    fn reserve_n_tags(&mut self, n: usize) -> [u16; ORDER_ACTIVE_TAGS] {
+        assert!(n <= ORDER_ACTIVE_TAGS, "Invalid tag count");
+
+        let used: BTreeSet<u16> = self
+            .balances
+            .iter()
+            .filter(|b| b.is_active() && b.tag != 0)
+            .map(|b| b.tag)
+            .collect();
+
+        let mut tags = [0u16; ORDER_ACTIVE_TAGS];
+
+        let mut next = self.last_tag_used.wrapping_add(1);
+
+        let mut filled = 0;
+
+        while filled < n {
+            if next == 0 {
+                next = 1;
+            }
+
+            if !used.contains(&next) {
+                tags[filled] = next;
+                filled += 1;
+            }
+
+            next = next.wrapping_add(1);
+        }
+
+        if n > 0 {
+            self.last_tag_used = tags[n - 1];
+        }
+
+        tags
     }
 }
 
@@ -909,7 +992,8 @@ impl<'a> BankAccountWrapper<'a> {
                     active: 1,
                     bank_pk: *bank_pk,
                     bank_asset_tag: bank.config.asset_tag,
-                    _pad0: [0; 6],
+                    tag: 0,
+                    _pad0: [0; 4],
                     asset_shares: I80F48::ZERO.into(),
                     liability_shares: I80F48::ZERO.into(),
                     emissions_outstanding: I80F48::ZERO.into(),
