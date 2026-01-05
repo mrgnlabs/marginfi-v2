@@ -210,6 +210,25 @@ pub enum MarginfiError {
     ZeroWithdrawalLimit,
     #[msg("Account is frozen by the group admin")] // 6103
     AccountFrozen,
+    #[msg("Cannot reference duplicate balances")] // 6104
+    DuplicateBalance,
+    #[msg("Invalid amount of balances referenced")] // 6105
+    InvalidBalanceCount,
+    #[msg("Liquidator not allowed to close order")] // 6106
+    LiquidatorOrderCloseNotAllowed,
+    #[msg("Order trigger values must be greater than zero")] // 6107
+    OrderTriggerValueNonPositive,
+    #[msg("Order trigger is yet to be met")] // 6108
+    OrderTriggerNotMet,
+    #[msg("Order execution state issue. Check the necessary invariants i.e not in flashloan or disabled e.t.c")]
+    // 6109
+    UnexpectedOrderExecutionState,
+    #[msg("Order liability not closed")] // 6110
+    OrderLiabilityNotClosed,
+    #[msg("Invalid asset or liabilities count")] // 6111
+    InvalidAssetOrLiabilitiesCount,
+    #[msg("Account is not healthy")] // 6112
+    AccountNotHealthy,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -463,6 +482,16 @@ impl From<u32> for MarginfiError {
             6100 => MarginfiError::FixedOraclePriceNegative,
             6101 => MarginfiError::DailyWithdrawalLimitExceeded,
             6102 => MarginfiError::ZeroWithdrawalLimit,
+            6103 => MarginfiError::AccountFrozen,
+            6104 => MarginfiError::DuplicateBalance,
+            6105 => MarginfiError::InvalidBalanceCount,
+            6106 => MarginfiError::LiquidatorOrderCloseNotAllowed,
+            6107 => MarginfiError::OrderTriggerValueNonPositive,
+            6108 => MarginfiError::OrderTriggerNotMet,
+            6108 => MarginfiError::UnexpectedOrderExecutionState,
+            6110 => MarginfiError::OrderLiabilityNotClosed,
+            6111 => MarginfiError::InvalidAssetOrLiabilitiesCount,
+            6112 => MarginfiError::AccountNotHealthy,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,
