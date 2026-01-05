@@ -2657,6 +2657,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "juplend-mocks"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+]
+
+[[package]]
 name = "kamino-mocks"
 version = "0.1.0"
 dependencies = [
@@ -2877,6 +2884,7 @@ dependencies = [
  "fixed-macro",
  "futures",
  "id-crate",
+ "juplend-mocks",
  "kamino-mocks",
  "lazy_static",
  "marginfi-type-crate",
@@ -6616,6 +6624,7 @@ dependencies = [
  "bytemuck",
  "fixed",
  "fixed-macro",
+ "marginfi-type-crate",
  "static_assertions",
 ]
 

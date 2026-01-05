@@ -12,6 +12,7 @@ use crate::{
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
 use drift_mocks::drift::client::args as drift;
+use juplend_mocks::lending::client::args as juplend;
 use kamino_mocks::kamino_lending::client::args as kamino;
 use marginfi_type_crate::{
     constants::ix_discriminators,
@@ -122,6 +123,7 @@ pub fn validate_instructions(
         id_crate::ID,
         kamino_mocks::kamino_lending::ID,
         DRIFT_PROGRAM_ID,
+        juplend_mocks::lending::ID,
     ];
     let ixes = load_and_validate_instructions(sysvar, Some(allowed_program_ids))?;
     validate_ix_first(
@@ -142,6 +144,10 @@ pub fn validate_instructions(
                 DRIFT_PROGRAM_ID,
                 drift::UpdateSpotMarketCumulativeInterest::DISCRIMINATOR,
             ),
+            (
+                juplend_mocks::lending::ID,
+                juplend::UpdateRate::DISCRIMINATOR,
+            ),
         ],
     )?;
     validate_ix_last(&ixes, program_id, end_ix)?;
@@ -159,6 +165,7 @@ pub fn validate_instructions(
             &ix_discriminators::LENDING_ACCOUNT_REPAY,
             &ix_discriminators::KAMINO_WITHDRAW,
             &ix_discriminators::DRIFT_WITHDRAW,
+            &ix_discriminators::JUPLEND_WITHDRAW,
             // TODO add withdraw/repay from integrator as they are added to the program. Also
             // remember to add a test to ix_utils to validate you added the correct hash.
 

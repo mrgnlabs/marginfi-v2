@@ -54,6 +54,7 @@ export const ASSET_TAG_STAKED = 2;
 export const ASSET_TAG_KAMINO = 3;
 export const ASSET_TAG_DRIFT = 4;
 export const ASSET_TAG_SOLEND = 5;
+export const ASSET_TAG_JUPLEND = 6;
 
 export const ORACLE_SETUP_NONE = 0;
 export const ORACLE_SETUP_SWITCHBOARD_v2 = 2;

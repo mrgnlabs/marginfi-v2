@@ -9,6 +9,7 @@ use anchor_lang::solana_program::{borsh1::try_from_slice_unchecked, stake::state
 use anchor_spl::token::Mint;
 use enum_dispatch::enum_dispatch;
 use fixed::types::I80F48;
+use juplend_mocks::state::Lending as JuplendLending;
 use kamino_mocks::state::{adjust_i128, adjust_i64, adjust_u64, MinimalReserve};
 use marginfi_type_crate::{
     constants::{
@@ -534,6 +535,103 @@ impl OraclePriceFeedAdapter {
 
                 Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
             }
+
+            OracleSetup::JuplendPythPull => {
+                // (1) Pyth oracle (for price) and (2) JupLend Lending state (for exchange rate)
+                require_eq!(ais.len(), 2, MarginfiError::WrongNumberOfOracleAccounts);
+
+                let oracle_info = &ais[0];
+                let lending_info = &ais[1];
+
+                // Validate oracle account matches expected key
+                require_keys_eq!(
+                    *oracle_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                // Validate lending account matches expected key
+                require_keys_eq!(
+                    *lending_info.key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::JuplendLendingValidationFailed
+                );
+
+                // Verifies owner + discriminator automatically
+                let lending: Account<'info, JuplendLending> = Account::try_from(lending_info)
+                    .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+
+                // Strict freshness requirement: must be updated this slot/time
+                require!(
+                    !lending.is_stale(clock.unix_timestamp),
+                    MarginfiError::JuplendLendingStale
+                );
+
+                if live!() {
+                    require_keys_eq!(
+                        *oracle_info.owner,
+                        pyth_solana_receiver_sdk::id(),
+                        MarginfiError::PythPushWrongAccountOwner
+                    );
+                } else {
+                    // Localnet only: allow the mock program ID -OR- the real one
+                    let owner_ok = oracle_info.owner.eq(&PYTH_ID)
+                        || oracle_info.owner.eq(&pyth_solana_receiver_sdk::id());
+                    check!(owner_ok, MarginfiError::PythPushWrongAccountOwner);
+                };
+
+                let mut price_feed =
+                    PythPushOraclePriceFeed::load_checked(oracle_info, clock, max_age)?;
+
+                // Adjust Pyth prices & confidence in place
+                price_feed.price.price = lending.adjust_i64(price_feed.price.price)?;
+                price_feed.ema_price.price = lending.adjust_i64(price_feed.ema_price.price)?;
+                price_feed.price.conf = lending.adjust_u64(price_feed.price.conf)?;
+                price_feed.ema_price.conf = lending.adjust_u64(price_feed.ema_price.conf)?;
+
+                Ok(OraclePriceFeedAdapter::PythPushOracle(price_feed))
+            }
+
+            OracleSetup::JuplendSwitchboardPull => {
+                // (1) Switchboard oracle (for price) and (2) JupLend Lending state (for exchange rate)
+                require_eq!(ais.len(), 2, MarginfiError::WrongNumberOfOracleAccounts);
+
+                let oracle_info = &ais[0];
+                let lending_info = &ais[1];
+
+                require_keys_eq!(
+                    *oracle_info.key,
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+
+                require_keys_eq!(
+                    *lending_info.key,
+                    bank_config.oracle_keys[1],
+                    MarginfiError::JuplendLendingValidationFailed
+                );
+
+                let lending: Account<'info, JuplendLending> = Account::try_from(lending_info)
+                    .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+
+                require!(
+                    !lending.is_stale(clock.unix_timestamp),
+                    MarginfiError::JuplendLendingStale
+                );
+
+                let mut price_feed = SwitchboardPullPriceFeed::load_checked(
+                    oracle_info,
+                    clock.unix_timestamp,
+                    max_age,
+                )?;
+
+                // Adjust Switchboard value & std_dev (i128 with 1e18 precision)
+                price_feed.feed.result.value = lending.adjust_i128(price_feed.feed.result.value)?;
+                price_feed.feed.result.std_dev =
+                    lending.adjust_i128(price_feed.feed.result.std_dev)?;
+
+                Ok(OraclePriceFeedAdapter::SwitchboardPull(price_feed))
+            }
         }
     }
 
@@ -798,6 +896,54 @@ impl OraclePriceFeedAdapter {
                     oracle_ais[1].key(),
                     bank_config.oracle_keys[1],
                     MarginfiError::SolendReserveValidationFailed
+                );
+                Ok(())
+            }
+
+            OracleSetup::JuplendPythPull => {
+                require_eq!(
+                    oracle_ais.len(),
+                    2,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+
+                // First account is the Pyth Push oracle
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+                load_price_update_v2_checked(&oracle_ais[0])?;
+
+                // Second account is the JupLend Lending state
+                require_keys_eq!(
+                    oracle_ais[1].key(),
+                    bank_config.oracle_keys[1],
+                    MarginfiError::JuplendLendingValidationFailed
+                );
+                Ok(())
+            }
+
+            OracleSetup::JuplendSwitchboardPull => {
+                require_eq!(
+                    oracle_ais.len(),
+                    2,
+                    MarginfiError::WrongNumberOfOracleAccounts
+                );
+
+                // First account is the Switchboard Pull oracle
+                require_keys_eq!(
+                    oracle_ais[0].key(),
+                    bank_config.oracle_keys[0],
+                    MarginfiError::WrongOracleAccountKeys
+                );
+                SwitchboardPullPriceFeed::check_ais(&oracle_ais[0])?;
+
+                // Second account is the JupLend Lending state
+                require_keys_eq!(
+                    oracle_ais[1].key(),
+                    bank_config.oracle_keys[1],
+                    MarginfiError::JuplendLendingValidationFailed
                 );
                 Ok(())
             }

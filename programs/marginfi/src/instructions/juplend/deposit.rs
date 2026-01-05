@@ -1,0 +1,315 @@
+use crate::{
+    bank_signer, check,
+    events::{AccountEventHeader, LendingAccountDepositEvent},
+    state::{
+        bank::{BankImpl, BankVaultType},
+        marginfi_account::{BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl},
+        marginfi_group::MarginfiGroupImpl,
+    },
+    utils::{is_juplend_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind},
+    MarginfiError, MarginfiResult,
+};
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::clock::Clock;
+use anchor_spl::token::accessor;
+use anchor_spl::token_interface::{
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
+};
+use fixed::types::I80F48;
+use juplend_mocks::lending::cpi::accounts::{Deposit, UpdateRate};
+use juplend_mocks::lending::cpi::{deposit, update_rate};
+use juplend_mocks::state::{Lending as JuplendLending, EXCHANGE_PRICES_PRECISION};
+use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::types::{
+    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
+
+/// Deposit into a JupLend lending pool through a marginfi account.
+///
+/// Flow (program-first, exact-math):
+/// 1. CPI `update_rate` to refresh `token_exchange_price`.
+/// 2. Enforce same-slot freshness (`last_update_timestamp == Clock::unix_timestamp`).
+/// 3. Compute expected fTokens minted: `assets * 1e12 / token_exchange_price` (floor).
+/// 4. Transfer underlying from user -> bank liquidity vault.
+/// 5. CPI `deposit` (bank vault -> fToken vault).
+/// 6. Verify minted fTokens == expected.
+/// 7. Credit marginfi asset_shares by minted fTokens.
+pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiResult {
+    let authority_bump: u8;
+    {
+        let marginfi_account = ctx.accounts.marginfi_account.load()?;
+        let bank = ctx.accounts.bank.load()?;
+        authority_bump = bank.liquidity_vault_authority_bump;
+
+        validate_asset_tags(&bank, &marginfi_account)?;
+        validate_bank_state(&bank, InstructionKind::FailsIfPausedOrReduceState)?;
+
+        check!(
+            !marginfi_account.get_flag(ACCOUNT_DISABLED)
+                && !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP),
+            MarginfiError::AccountDisabled
+        );
+    }
+
+    // Enforce canonical fToken vault (ATA of liquidity_vault_authority for f_token_mint).
+    ctx.accounts.validate_f_token_vault_ata()?;
+
+    // Refresh the exchange price (interest/rewards) and require it is updated for this slot.
+    ctx.accounts.cpi_update_rate()?;
+    ctx.accounts.juplend_lending.reload()?;
+
+    let clock = Clock::get()?;
+    require!(
+        !ctx.accounts.juplend_lending.is_stale(clock.unix_timestamp),
+        MarginfiError::JuplendLendingStale
+    );
+
+    // Compute expected shares minted (floor division).
+    let token_exchange_price = ctx.accounts.juplend_lending.token_exchange_price as u128;
+    require!(token_exchange_price > 0, MarginfiError::MathError);
+    let expected_shares_u128 = (amount as u128)
+        .checked_mul(EXCHANGE_PRICES_PRECISION)
+        .ok_or_else(|| error!(MarginfiError::MathError))?
+        .checked_div(token_exchange_price)
+        .ok_or_else(|| error!(MarginfiError::MathError))?;
+    let expected_shares: u64 = expected_shares_u128
+        .try_into()
+        .map_err(|_| error!(MarginfiError::MathError))?;
+
+    let pre_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
+
+    // Move underlying into the vault and deposit into JupLend.
+    ctx.accounts.cpi_transfer_user_to_liquidity_vault(amount)?;
+    ctx.accounts.cpi_juplend_deposit(amount, authority_bump)?;
+
+    let post_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
+    let minted_shares = post_f_token_balance
+        .checked_sub(pre_f_token_balance)
+        .ok_or_else(|| error!(MarginfiError::MathError))?;
+
+    // Exact match required.
+    require_eq!(
+        minted_shares,
+        expected_shares,
+        MarginfiError::JuplendDepositFailed
+    );
+
+    {
+        let mut bank = ctx.accounts.bank.load_mut()?;
+        let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
+        let group = &ctx.accounts.group.load()?;
+
+        let mut bank_account = BankAccountWrapper::find_or_create(
+            &ctx.accounts.bank.key(),
+            &mut bank,
+            &mut marginfi_account.lending_account,
+        )?;
+
+        bank_account.deposit_no_repay(I80F48::from_num(minted_shares))?;
+
+        bank.update_bank_cache(group)?;
+
+        marginfi_account.last_update = clock.unix_timestamp as u64;
+        marginfi_account.lending_account.sort_balances();
+
+        emit!(LendingAccountDepositEvent {
+            header: AccountEventHeader {
+                signer: Some(ctx.accounts.authority.key()),
+                marginfi_account: ctx.accounts.marginfi_account.key(),
+                marginfi_account_authority: marginfi_account.authority,
+                marginfi_group: marginfi_account.group,
+            },
+            bank: ctx.accounts.bank.key(),
+            mint: bank.mint,
+            amount,
+        });
+    }
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct JuplendDeposit<'info> {
+    #[account(
+        constraint = (
+            !group.load()?.is_protocol_paused()
+        ) @ MarginfiError::ProtocolPaused
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = authority @ MarginfiError::Unauthorized
+    )]
+    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = group @ MarginfiError::InvalidGroup,
+        has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
+        has_one = juplend_lending @ MarginfiError::InvalidJuplendLending,
+        has_one = mint @ MarginfiError::InvalidMint,
+        constraint = is_juplend_asset_tag(bank.load()?.config.asset_tag)
+            @ MarginfiError::WrongBankAssetTagForJuplendOperation
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+
+    /// Owned by authority, the source account for the token deposit.
+    #[account(mut)]
+    pub signer_token_account: InterfaceAccount<'info, TokenAccount>,
+
+    /// The bank's liquidity vault authority PDA (acts as signer for JupLend CPIs).
+    /// NOTE: JupLend marks the signer as writable in their deposit instruction.
+    #[account(
+        mut,
+        seeds = [
+            LIQUIDITY_VAULT_AUTHORITY_SEED.as_bytes(),
+            bank.key().as_ref(),
+        ],
+        bump = bank.load()?.liquidity_vault_authority_bump
+    )]
+    pub liquidity_vault_authority: SystemAccount<'info>,
+
+    /// Bank liquidity vault (holds underlying mint and is used as depositor_token_account).
+    #[account(mut)]
+    pub liquidity_vault: InterfaceAccount<'info, TokenAccount>,
+
+    /// Underlying mint.
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
+
+    /// JupLend lending state account.
+    #[account(mut)]
+    pub juplend_lending: Account<'info, JuplendLending>,
+
+    /// JupLend fToken mint.
+    #[account(
+        mut,
+        constraint = f_token_mint.key() == juplend_lending.f_token_mint
+            @ MarginfiError::InvalidJuplendLending,
+    )]
+    pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    /// Bank's fToken vault (ATA of liquidity_vault_authority for f_token_mint).
+    #[account(mut)]
+    pub f_token_vault: InterfaceAccount<'info, TokenAccount>,
+
+    // ---- JupLend CPI accounts ----
+    /// CHECK: validated by the JupLend program
+    pub lending_admin: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    #[account(
+        mut,
+        constraint = supply_token_reserves_liquidity.key() == juplend_lending.token_reserves_liquidity
+            @ MarginfiError::InvalidJuplendLending,
+    )]
+    pub supply_token_reserves_liquidity: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    #[account(
+        mut,
+        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.supply_position_on_liquidity
+            @ MarginfiError::InvalidJuplendLending,
+    )]
+    pub lending_supply_position_on_liquidity: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    pub rate_model: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    #[account(mut)]
+    pub vault: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    #[account(mut)]
+    pub liquidity: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    /// NOTE: JupLend marks this as writable in their Lending program (unusual for a program account)
+    #[account(mut)]
+    pub liquidity_program: UncheckedAccount<'info>,
+    /// CHECK: validated by the JupLend program
+    pub rewards_rate_model: UncheckedAccount<'info>,
+
+    /// CHECK: validated against hardcoded program id
+    #[account(address = juplend_mocks::ID)]
+    pub juplend_program: UncheckedAccount<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+impl<'info> JuplendDeposit<'info> {
+    pub fn validate_f_token_vault_ata(&self) -> MarginfiResult {
+        let expected = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+            &self.liquidity_vault_authority.key(),
+            &self.f_token_mint.key(),
+            &self.token_program.key(),
+        );
+        require_keys_eq!(
+            self.f_token_vault.key(),
+            expected,
+            MarginfiError::InvalidJuplendFTokenVault
+        );
+        Ok(())
+    }
+
+    pub fn cpi_transfer_user_to_liquidity_vault(&self, amount: u64) -> MarginfiResult {
+        let program = self.token_program.to_account_info();
+        let accounts = TransferChecked {
+            from: self.signer_token_account.to_account_info(),
+            to: self.liquidity_vault.to_account_info(),
+            authority: self.authority.to_account_info(),
+            mint: self.mint.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(program, accounts);
+        transfer_checked(cpi_ctx, amount, self.mint.decimals)?;
+        Ok(())
+    }
+
+    pub fn cpi_update_rate(&self) -> MarginfiResult {
+        let accounts = UpdateRate {
+            lending: self.juplend_lending.to_account_info(),
+            mint: self.mint.to_account_info(),
+            f_token_mint: self.f_token_mint.to_account_info(),
+            supply_token_reserves_liquidity: self.supply_token_reserves_liquidity.to_account_info(),
+            rewards_rate_model: self.rewards_rate_model.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(self.juplend_program.to_account_info(), accounts);
+        update_rate(cpi_ctx)?;
+        Ok(())
+    }
+
+    pub fn cpi_juplend_deposit(&self, amount: u64, authority_bump: u8) -> MarginfiResult {
+        let accounts = Deposit {
+            signer: self.liquidity_vault_authority.to_account_info(),
+            depositor_token_account: self.liquidity_vault.to_account_info(),
+            recipient_token_account: self.f_token_vault.to_account_info(),
+            mint: self.mint.to_account_info(),
+            lending_admin: self.lending_admin.to_account_info(),
+            lending: self.juplend_lending.to_account_info(),
+            f_token_mint: self.f_token_mint.to_account_info(),
+            supply_token_reserves_liquidity: self.supply_token_reserves_liquidity.to_account_info(),
+            lending_supply_position_on_liquidity: self
+                .lending_supply_position_on_liquidity
+                .to_account_info(),
+            rate_model: self.rate_model.to_account_info(),
+            vault: self.vault.to_account_info(),
+            liquidity: self.liquidity.to_account_info(),
+            liquidity_program: self.liquidity_program.to_account_info(),
+            rewards_rate_model: self.rewards_rate_model.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+            associated_token_program: self.associated_token_program.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+        };
+
+        let signer_seeds: &[&[&[u8]]] =
+            bank_signer!(BankVaultType::Liquidity, self.bank.key(), authority_bump);
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            self.juplend_program.to_account_info(),
+            accounts,
+            signer_seeds,
+        );
+        deposit(cpi_ctx, amount)?;
+        Ok(())
+    }
+}

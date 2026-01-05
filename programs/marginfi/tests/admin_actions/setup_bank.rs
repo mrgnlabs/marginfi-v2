@@ -172,7 +172,7 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(drift_user_stats, Pubkey::default());
             assert_eq!(solend_reserve, Pubkey::default());
             assert_eq!(solend_obligation, Pubkey::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 5] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 3] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -323,7 +323,7 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(drift_user_stats, Pubkey::default());
             assert_eq!(solend_reserve, Pubkey::default());
             assert_eq!(solend_obligation, Pubkey::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 5] as Default>::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 3] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);

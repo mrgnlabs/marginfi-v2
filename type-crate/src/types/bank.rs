@@ -136,7 +136,11 @@ pub struct Bank {
     /// Solend banks only, otherwise Pubkey default
     pub solend_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 5], // 8 * 2 * 5 = 80B
+    /// JupLend banks only, otherwise Pubkey default
+    pub juplend_lending: Pubkey,
+
+    // Keep total Bank size unchanged: old padding was 80B, new is 32B + 48B = 80B
+    pub _padding_1: [[u64; 2]; 3], // 8 * 2 * 3 = 48B
 }
 
 impl Bank {
@@ -190,6 +194,8 @@ pub enum OracleSetup {
     DriftSwitchboardPull,
     SolendPythPull,
     SolendSwitchboardPull,
+    JuplendPythPull,
+    JuplendSwitchboardPull,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -210,6 +216,8 @@ impl OracleSetup {
             10 => Some(Self::DriftSwitchboardPull),
             11 => Some(Self::SolendPythPull),
             12 => Some(Self::SolendSwitchboardPull),
+            13 => Some(Self::JuplendPythPull),
+            14 => Some(Self::JuplendSwitchboardPull),
             _ => None,
         }
     }
