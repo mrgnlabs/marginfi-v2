@@ -1,6 +1,9 @@
 use crate::StakedSettingsEditConfig;
 use anchor_lang::prelude::*;
-use marginfi_type_crate::types::{BankConfigOpt, HealthCache, WrappedI80F48};
+use marginfi_type_crate::{
+    constants::ORDER_ACTIVE_TAGS,
+    types::{BankConfigOpt, HealthCache, OrderTriggerType, WrappedI80F48},
+};
 
 // Event headers
 
@@ -178,6 +181,34 @@ pub struct MarginfiAccountTransferToNewAccount {
     pub old_account: Pubkey,
     pub old_account_authority: Pubkey,
     pub new_account_authority: Pubkey,
+}
+
+#[event]
+pub struct MarginfiAccountPlaceOrderEvent {
+    pub header: AccountEventHeader,
+    pub order: Pubkey,
+    pub trigger: OrderTriggerType,
+    pub stop_loss: WrappedI80F48,
+    pub take_profit: WrappedI80F48,
+    pub tags: [u16; ORDER_ACTIVE_TAGS],
+}
+
+#[event]
+pub struct MarginfiAccountCloseOrderEvent {
+    pub header: AccountEventHeader,
+    pub order: Pubkey,
+}
+
+#[event]
+pub struct KeeperCloseOrderEvent {
+    pub header: AccountEventHeader,
+    pub order: Pubkey,
+}
+
+#[event]
+pub struct SetLiquidatorCloseFlagsEvent {
+    pub header: AccountEventHeader,
+    pub bank_keys: Option<Vec<Pubkey>>,
 }
 
 #[event]

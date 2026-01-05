@@ -107,6 +107,8 @@ pub const ACCOUNT_IN_FLASHLOAN: u64 = 1 << 1;
 pub const ACCOUNT_FLAG_DEPRECATED: u64 = 1 << 2;
 pub const ACCOUNT_TRANSFER_AUTHORITY_DEPRECATED: u64 = 1 << 3;
 pub const ACCOUNT_IN_RECEIVERSHIP: u64 = 1 << 4;
+pub const ACCOUNT_IN_DELEVERAGE: u64 = 1 << 5;
+pub const ACCOUNT_IN_ORDER_EXECUTION: u64 = 1 << 6;
 pub const MAX_LENDING_ACCOUNT_BALANCES: usize = 16;
 
 assert_struct_size!(LendingAccount, 1728);
@@ -116,7 +118,10 @@ assert_struct_align!(LendingAccount, 8);
 #[derive(Debug, PartialEq, Eq, Pod, Zeroable, Copy, Clone)]
 pub struct LendingAccount {
     pub balances: [Balance; MAX_LENDING_ACCOUNT_BALANCES], // 104 * 16 = 1664
-    pub _padding: [u64; 8],                                // 8 * 8 = 64
+    /// Last allocated balance tag (u16), used to find the next unused tag.
+    pub last_tag_used: u16,
+    pub _pad1: [u8; 6],
+    pub _padding: [u64; 7], // 7 * 8 = 56;
 }
 
 impl LendingAccount {
@@ -147,7 +152,10 @@ pub struct Balance {
     /// Inherited from the bank when the position is first created and CANNOT BE CHANGED after that.
     /// Note that all balances created before the addition of this feature use `ASSET_TAG_DEFAULT`
     pub bank_asset_tag: u8,
-    pub _pad0: [u8; 6],
+    /// Tag used by orders to reference this balance (0 means unused/unassigned).
+    /// A tag may also have a non-zero value while having no orders.
+    pub tag: u16,
+    pub _pad0: [u8; 4],
     pub asset_shares: WrappedI80F48,
     pub liability_shares: WrappedI80F48,
     pub emissions_outstanding: WrappedI80F48,
@@ -199,7 +207,8 @@ impl Balance {
             active: 0,
             bank_pk: Pubkey::default(),
             bank_asset_tag: ASSET_TAG_DEFAULT,
-            _pad0: [0; 6],
+            tag: 0,
+            _pad0: [0; 4],
             asset_shares: WrappedI80F48::from(I80F48::ZERO),
             liability_shares: WrappedI80F48::from(I80F48::ZERO),
             emissions_outstanding: WrappedI80F48::from(I80F48::ZERO),

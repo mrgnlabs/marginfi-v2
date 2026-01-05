@@ -37,7 +37,7 @@ pub struct FeeState {
     // Pad to next 8-byte multiple
     _padding0: [u8; 3],
     /// Liquidators can claim at this premium, when liquidating an asset in receivership
-    /// liquidation, e.g. (1 + this) * amount repaid <= asset seized
+    /// liquidation, e.g. (1 + this) * amount repaid >= asset seized
     /// * A percentage
     pub liquidation_max_fee: WrappedI80F48,
     /// Fee collected by the program owner from all groups
