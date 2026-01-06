@@ -101,7 +101,7 @@ pub fn drift_withdraw<'info>(
             // amount by 1 base unit to keep the init deposit buffer intact. In practice, this means
             // if you deposit and immediately withdraw_all, you will lose one lamport, which will be
             // trapped in the Drift init buffer forever.
-            if expected_scaled_balance_change > scaled_balance && token_amount > 0 {
+            if expected_scaled_balance_change == scaled_balance + 1 && token_amount > 0 {
                 token_amount = token_amount.saturating_sub(1);
                 expected_scaled_balance_change =
                     drift_spot_market.get_scaled_balance_decrement(token_amount)?;
