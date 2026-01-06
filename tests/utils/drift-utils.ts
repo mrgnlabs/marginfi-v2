@@ -24,7 +24,7 @@ export type DriftState = IdlAccounts<Drift>["state"];
 export type DriftUser = IdlAccounts<Drift>["user"];
 export type DriftUserStats = IdlAccounts<Drift>["userStats"];
 export type DriftSpotMarket = IdlAccounts<Drift>["spotMarket"];
-export type DriftSpotPosition = IdlTypes<Drift>["spotPosition"];
+export type DriftSpotPosition = IdlTypes<Drift>["SpotPosition"];
 
 /**
  * Determines if a Drift spot position represents a borrow position
@@ -397,6 +397,9 @@ export const USDC_SCALING_FACTOR = getDriftScalingFactor(
 export const TOKEN_A_SCALING_FACTOR = getDriftScalingFactor(
   ecosystem.tokenADecimals
 ); // 10^1 = 10
+export const TOKEN_B_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.tokenBDecimals
+); // 10^3 = 1000
 
 /**
  * Formats Drift internal deposit amounts with consistent 9-decimal precision

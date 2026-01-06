@@ -23,7 +23,7 @@ import {
   globalProgramAdmin,
 } from "./rootHooks";
 import { processBankrunTransaction } from "./utils/tools";
-import { assertBNApproximately } from "./utils/genericTests";
+import { assertBNApproximately, assertBNEqual } from "./utils/genericTests";
 import { makeDriftDepositIx } from "./utils/drift-instructions";
 import {
   DRIFT_SCALED_BALANCE_DECIMALS,
@@ -32,6 +32,11 @@ import {
   makePulseHealthIx,
   USDC_MARKET_INDEX,
   TOKEN_A_MARKET_INDEX,
+  calculateUtilizationRate,
+  calculateInterestRate,
+  DRIFT_UTILIZATION_PRECISION,
+  USDC_SCALING_FACTOR,
+  TOKEN_A_SCALING_FACTOR,
 } from "./utils/drift-utils";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { makeUpdateSpotMarketCumulativeInterestIx } from "./utils/drift-sdk";
@@ -79,6 +84,10 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
 
   let initialAssetShares0: BN;
   let initialAssetShares1: BN;
+  let initialUsdcDeposits: BN;
+  let usdcInterestRate: number;
+  let initialTokenADeposits: BN;
+  let tokenAInterestRate: number;
   let initialUsdcCumulativeInterest: BN;
   let initialTokenACumulativeInterest: BN;
   let finalUsdcCumulativeInterest: BN;
@@ -148,10 +157,49 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
       driftBankrunProgram,
       USDC_MARKET_INDEX
     );
+    initialUsdcDeposits = usdcSpotMarket.depositBalance;
+    console.log("Initial USDC Deposits: " + initialUsdcDeposits);
+
+    const usdcUtilization = calculateUtilizationRate(
+      usdcSpotMarket.depositBalance,
+      usdcSpotMarket.borrowBalance
+    );
+
+    usdcInterestRate = calculateInterestRate(
+      usdcUtilization,
+      usdcSpotMarket.optimalUtilization,
+      usdcSpotMarket.optimalBorrowRate,
+      usdcSpotMarket.maxBorrowRate
+    );
+    console.log(
+      "USDC InterestRate: " +
+        (usdcInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
+        "%"
+    ); // ~1%
+
     const tokenASpotMarket = await getSpotMarketAccount(
       driftBankrunProgram,
       TOKEN_A_MARKET_INDEX
     );
+    initialTokenADeposits = tokenASpotMarket.depositBalance;
+    console.log("Initial Token A Deposits: " + initialTokenADeposits);
+
+    const tokenAUtilization = calculateUtilizationRate(
+      tokenASpotMarket.depositBalance,
+      tokenASpotMarket.borrowBalance
+    );
+
+    tokenAInterestRate = calculateInterestRate(
+      tokenAUtilization,
+      tokenASpotMarket.optimalUtilization,
+      tokenASpotMarket.optimalBorrowRate,
+      tokenASpotMarket.maxBorrowRate
+    );
+    console.log(
+      "Token A InterestRate: " +
+        (tokenAInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
+        "%"
+    ); // ~392%
 
     initialUsdcCumulativeInterest = new BN(
       usdcSpotMarket.cumulativeDepositInterest.toString()
@@ -213,19 +261,41 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
       driftBankrunProgram,
       USDC_MARKET_INDEX
     );
+
+    finalUsdcCumulativeInterest = usdcSpotMarketAfter.cumulativeDepositInterest;
+
+    // TODO: Fix the calculations here
+    const accumulatedUsdcInterest = initialUsdcDeposits
+      .mul(new BN(usdcInterestRate * 30))
+      .div(new BN(365 * DRIFT_UTILIZATION_PRECISION))
+      .div(USDC_SCALING_FACTOR);
+
+    // assertBNApproximately(
+    //   finalUsdcCumulativeInterest.sub(initialUsdcCumulativeInterest),
+    //   accumulatedUsdcInterest,
+    //   new BN(1)
+    // );
+    assert.ok(finalUsdcCumulativeInterest.gt(initialUsdcCumulativeInterest));
+
     const tokenASpotMarketAfter = await getSpotMarketAccount(
       driftBankrunProgram,
       TOKEN_A_MARKET_INDEX
     );
 
-    finalUsdcCumulativeInterest = new BN(
-      usdcSpotMarketAfter.cumulativeDepositInterest.toString()
-    );
-    finalTokenACumulativeInterest = new BN(
-      tokenASpotMarketAfter.cumulativeDepositInterest.toString()
-    );
+    finalTokenACumulativeInterest =
+      tokenASpotMarketAfter.cumulativeDepositInterest;
 
-    assert.ok(finalUsdcCumulativeInterest.gt(initialUsdcCumulativeInterest));
+    // TODO: Fix the calculations here
+    const accumulatedTokenAInterest = initialTokenADeposits
+      .mul(new BN(tokenAInterestRate * 30))
+      .div(new BN(365 * DRIFT_UTILIZATION_PRECISION))
+      .div(TOKEN_A_SCALING_FACTOR);
+
+    // assertBNApproximately(
+    //   finalTokenACumulativeInterest.sub(initialTokenACumulativeInterest),
+    //   accumulatedTokenAInterest,
+    //   new BN(1)
+    // );
     assert.ok(
       finalTokenACumulativeInterest.gt(initialTokenACumulativeInterest)
     );
@@ -301,7 +371,7 @@ describe("d13: Oracle Price Conversion and Interest Tracking", () => {
     const actualUsdcValue = new BN(
       Math.floor(assetValue.toNumber() * 10 ** ecosystem.usdcDecimals)
     );
-    assertBNApproximately(actualUsdcValue, expectedUsdcValue, new BN(3));
+    assertBNApproximately(actualUsdcValue, expectedUsdcValue, new BN(2)); // TODO: why is this fluctuating?
   });
 
   it("Validates Token A oracle price conversion matches health check valuation", async () => {

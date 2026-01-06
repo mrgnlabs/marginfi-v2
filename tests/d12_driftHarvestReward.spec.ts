@@ -53,6 +53,7 @@ import {
   DriftOracleSourceValues,
   TOKEN_A_MARKET_INDEX,
   getDriftUserAccount,
+  TOKEN_B_SCALING_FACTOR,
 } from "./utils/drift-utils";
 import { setPythPullOraclePrice } from "./utils/bankrun-oracles";
 import {
@@ -66,9 +67,10 @@ import {
   accountInit,
 } from "./utils/user-instructions";
 
-const DRIFT_TOKENB_SPOT_MARKET = "drift_tokenb_spot_market";
-const DRIFT_TOKENB_PULL_ORACLE = "drift_tokenb_pull_oracle";
-const DRIFT_TOKENB_PULL_FEED = "drift_tokenb_pull_feed";
+const DRIFT_TOKEN_B_SPOT_MARKET = "drift_token_b_spot_market";
+const DRIFT_TOKEN_B_PULL_ORACLE = "drift_token_b_pull_oracle";
+const DRIFT_TOKEN_B_PULL_FEED = "drift_token_b_pull_feed";
+const depositBAmount = new BN(50 * 10 ** ecosystem.tokenBDecimals);
 
 describe("d12: Drift Harvest Reward", () => {
   let driftTokenABank: PublicKey;
@@ -78,14 +80,14 @@ describe("d12: Drift Harvest Reward", () => {
   let driftTokenBSpotMarket: PublicKey;
   let driftTokenBPullOracle: Keypair;
   let driftTokenBPullFeed: Keypair;
-  let TOKENB_MARKET_INDEX: number;
+  let TOKEN_B_MARKET_INDEX: number;
 
   before(async () => {
     driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
     driftUsdcBank = driftAccounts.get(DRIFT_USDC_BANK);
 
     const driftState = await getDriftStateAccount(driftBankrunProgram);
-    TOKENB_MARKET_INDEX = driftState.numberOfSpotMarkets;
+    TOKEN_B_MARKET_INDEX = driftState.numberOfSpotMarkets;
 
     await createIntermediaryTokenAccountIfNeeded(
       driftTokenABank,
@@ -99,11 +101,11 @@ describe("d12: Drift Harvest Reward", () => {
 
     const [spotMarketPDA] = deriveSpotMarketPDA(
       driftBankrunProgram.programId,
-      TOKENB_MARKET_INDEX
+      TOKEN_B_MARKET_INDEX
     );
 
     driftTokenBSpotMarket = spotMarketPDA;
-    driftAccounts.set(DRIFT_TOKENB_SPOT_MARKET, spotMarketPDA);
+    driftAccounts.set(DRIFT_TOKEN_B_SPOT_MARKET, spotMarketPDA);
 
     driftTokenBPullOracle = Keypair.generate();
     driftTokenBPullFeed = Keypair.generate();
@@ -116,10 +118,10 @@ describe("d12: Drift Harvest Reward", () => {
     );
 
     driftAccounts.set(
-      DRIFT_TOKENB_PULL_ORACLE,
+      DRIFT_TOKEN_B_PULL_ORACLE,
       driftTokenBPullOracle.publicKey
     );
-    driftAccounts.set(DRIFT_TOKENB_PULL_FEED, driftTokenBPullFeed.publicKey);
+    driftAccounts.set(DRIFT_TOKEN_B_PULL_FEED, driftTokenBPullFeed.publicKey);
 
     await setPythPullOraclePrice(
       bankrunContext,
@@ -148,7 +150,7 @@ describe("d12: Drift Harvest Reward", () => {
         maintenanceAssetWeight: config.maintenanceAssetWeight,
         initialLiabilityWeight: config.initialLiabilityWeight,
         maintenanceLiabilityWeight: config.maintenanceLiabilityWeight,
-        marketIndex: TOKENB_MARKET_INDEX,
+        marketIndex: TOKEN_B_MARKET_INDEX,
       }
     );
 
@@ -163,10 +165,10 @@ describe("d12: Drift Harvest Reward", () => {
 
     const tokenBMarket = await getSpotMarketAccount(
       driftBankrunProgram,
-      TOKENB_MARKET_INDEX
+      TOKEN_B_MARKET_INDEX
     );
     assert.ok(tokenBMarket);
-    assert.equal(tokenBMarket.marketIndex, TOKENB_MARKET_INDEX);
+    assert.equal(tokenBMarket.marketIndex, TOKEN_B_MARKET_INDEX);
     assertKeysEqual(tokenBMarket.mint, ecosystem.tokenBMint.publicKey);
     assertKeysEqual(tokenBMarket.oracle, driftTokenBPullOracle.publicKey);
     assert.deepStrictEqual(
@@ -175,7 +177,7 @@ describe("d12: Drift Harvest Reward", () => {
     );
 
     const state = await getDriftStateAccount(driftBankrunProgram);
-    assert.equal(state.numberOfSpotMarkets, TOKENB_MARKET_INDEX + 1);
+    assert.equal(state.numberOfSpotMarkets, TOKEN_B_MARKET_INDEX + 1);
   });
 
   it("Admin: Add deposits to Token A bank's drift user", async () => {
@@ -214,10 +216,8 @@ describe("d12: Drift Harvest Reward", () => {
       true
     );
 
-    const depositAmount = new BN(50 * 10 ** ecosystem.tokenBDecimals);
-
-    const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
-    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKENB_SPOT_MARKET);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
+    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
 
     const remainingAccounts: PublicKey[] = [];
     if (tokenBOracle) {
@@ -235,8 +235,8 @@ describe("d12: Drift Harvest Reward", () => {
         adminTokenAccount: adminTokenBAccount,
       },
       {
-        marketIndex: TOKENB_MARKET_INDEX,
-        amount: depositAmount,
+        marketIndex: TOKEN_B_MARKET_INDEX,
+        amount: depositBAmount,
         remainingAccounts,
       }
     );
@@ -256,8 +256,11 @@ describe("d12: Drift Harvest Reward", () => {
       driftUser
     );
     const tokenBPosition = driftUserAccount.spotPositions[2];
-    assert.ok(tokenBPosition.scaledBalance.gt(new BN(0)));
-    assert.equal(tokenBPosition.marketIndex, TOKENB_MARKET_INDEX);
+    assertBNEqual(
+      tokenBPosition.scaledBalance,
+      depositBAmount.mul(TOKEN_B_SCALING_FACTOR)
+    );
+    assert.equal(tokenBPosition.marketIndex, TOKEN_B_MARKET_INDEX);
   });
 
   it("User: Can deposit and withdraw normally after admin deposit", async () => {
@@ -283,8 +286,8 @@ describe("d12: Drift Harvest Reward", () => {
 
     const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
     const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
-    const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
-    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKENB_SPOT_MARKET);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
+    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
 
     const depositAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
 
@@ -459,10 +462,10 @@ describe("d12: Drift Harvest Reward", () => {
     assertBankrunTxFailed(result, 0x18ac); // DriftNoAdminDeposit - no admin deposits for Token A harvest
   });
 
-  it("User: Harvest reward from drift position", async () => {
+  it("User 0: Harvest reward from drift position", async () => {
     const user = users[0];
 
-    const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
     const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
     const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
 
@@ -507,6 +510,7 @@ describe("d12: Drift Harvest Reward", () => {
       },
       remainingAccounts
     );
+    const destinationTokenAccount = harvestIx.keys.at(4).pubkey;
 
     const tx = new Transaction()
       .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
@@ -519,6 +523,9 @@ describe("d12: Drift Harvest Reward", () => {
       false,
       false
     );
+
+    const userTokenBAfter = await getTokenBalance(bankRunProvider, destinationTokenAccount);
+    assertBNEqual(depositBAmount, userTokenBAfter);
   });
 
   it("Error: Try to harvest from USDC bank (no admin deposits)", async () => {
@@ -540,7 +547,7 @@ describe("d12: Drift Harvest Reward", () => {
       });
     }
 
-    const tokenBOracle = driftAccounts.get(DRIFT_TOKENB_PULL_ORACLE);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
     if (tokenBOracle) {
       remainingAccounts.push({
         pubkey: tokenBOracle,

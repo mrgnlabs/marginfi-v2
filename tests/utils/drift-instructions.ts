@@ -324,7 +324,6 @@ export const makeDriftHarvestRewardIx = async (
   accounts: DriftHarvestRewardAccounts,
   remainingAccounts: AccountMeta[] = []
 ): Promise<TransactionInstruction> => {
-  // 1. Derive all PDAs
   const [driftState] = deriveDriftStatePDA(DRIFT_PROGRAM_ID);
 
   const [driftSigner] = PublicKey.findProgramAddressSync(
@@ -332,21 +331,17 @@ export const makeDriftHarvestRewardIx = async (
     DRIFT_PROGRAM_ID
   );
 
-  // 2. Fetch the harvest spot market to get the market index and mint
   const harvestSpotMarket = await driftProgram.account.spotMarket.fetch(
     accounts.harvestDriftSpotMarket
   );
 
-  // 3. Get the reward mint from the harvest spot market
   const rewardMint = harvestSpotMarket.mint;
 
-  // 4. Derive the harvest spot market vault
   const [harvestDriftSpotMarketVault] = deriveSpotMarketVaultPDA(
     DRIFT_PROGRAM_ID,
     harvestSpotMarket.marketIndex
   );
 
-  // 5. Derive the ATA of the fee state's global fee wallet for the reward mint
   const expectedDestinationTokenAccount = getAssociatedTokenAddressSync(
     rewardMint,
     globalFeeWallet,
@@ -354,20 +349,26 @@ export const makeDriftHarvestRewardIx = async (
   );
 
   // 6. Build instruction
-  return program.methods
-    .driftHarvestReward()
-    .accounts({
-      bank: accounts.bank,
-      // feeState is auto-derived via seeds constraint
-      driftState,
-      // drift_user and drift_user_stats are auto-included via has_one constraint
-      harvestDriftSpotMarket: accounts.harvestDriftSpotMarket,
-      harvestDriftSpotMarketVault,
-      driftSigner,
-      rewardMint,
-      // destinationTokenAccount is auto-derived via associated_token constraint
-      tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
-    })
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+  return (
+    program.methods
+      .driftHarvestReward()
+      .accounts({
+        bank: accounts.bank,
+        // feeState is auto-derived via seeds constraint
+        driftState,
+        // drift_user and drift_user_stats are auto-included via has_one constraint
+        harvestDriftSpotMarket: accounts.harvestDriftSpotMarket,
+        harvestDriftSpotMarketVault,
+        driftSigner,
+        rewardMint,
+        tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
+      })
+      // Explicit ATA required: authority is fee_state.global_fee_wallet (on-chain data),
+      // which Anchor TS cannot use for auto account resolution.
+      .accountsPartial({
+        destinationTokenAccount: expectedDestinationTokenAccount,
+      })
+      .remainingAccounts(remainingAccounts)
+      .instruction()
+  );
 };
