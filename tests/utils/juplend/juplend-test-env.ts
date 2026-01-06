@@ -100,6 +100,8 @@ export function deriveJuplendMrgnAddresses(
   const [feeVaultAuthority] = deriveFeeVaultAuthority(args.mrgnProgramId, bank);
   const [feeVault] = deriveFeeVault(args.mrgnProgramId, bank);
 
+  // JupLend creates fToken mints using the same token program as the underlying mint,
+  // so for Token-2022 underlying mints, fToken mints are also Token-2022.
   const fTokenVault = getAssociatedTokenAddressSync(
     args.fTokenMint,
     liquidityVaultAuthority,
@@ -199,6 +201,8 @@ export const makeAddJuplendBankIx = async (
   const [feeVault] = deriveFeeVault(program.programId, bank);
 
   // fToken vault is an ATA owned by liquidityVaultAuthority for the fToken mint
+  // Note: JupLend creates fToken mints using the same token program as the underlying mint,
+  // so for Token-2022 underlying mints, fToken mints are also Token-2022.
   const fTokenVault = getAssociatedTokenAddressSync(
     accounts.fTokenMint,
     liquidityVaultAuthority,

@@ -219,8 +219,14 @@ pub struct LendingPoolAddBankJuplend<'info> {
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// The bank's fToken vault: ATA of liquidity_vault_authority for fToken mint.
-    /// This holds the fTokens received when depositing into JupLend.
+    /// The bank's fToken vault holds the fTokens received when depositing into JupLend.
+    ///
+    /// TEMPORARY: Uses ATA derivation instead of a seed-based PDA. Mainnet Fluid currently
+    /// requires ATA for depositor_token_account, but this constraint is expected to be removed
+    /// in an upcoming upgrade. Once that happens, revert to a PDA with seeds like other vaults.
+    ///
+    /// NOTE: JupLend creates fToken mints using the same token program as the underlying mint,
+    /// so for Token-2022 underlying mints, fToken mints are also Token-2022.
     #[account(
         init,
         payer = fee_payer,
@@ -230,6 +236,8 @@ pub struct LendingPoolAddBankJuplend<'info> {
     )]
     pub f_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// Token program for both underlying mint and fToken mint (SPL Token or Token-2022).
+    /// JupLend creates fToken mints using the same token program as the underlying.
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
