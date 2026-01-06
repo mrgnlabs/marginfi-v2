@@ -80,8 +80,8 @@ export function deriveJuplendMrgnAddresses(
     args.mrgnProgramId,
     bank
   );
-  // NOTE: For JupLend, liquidityVault is an ATA (not PDA) because JupLend's deposit instruction
-  // enforces `associated_token::authority = signer`. TODO: Revert to PDA if JupLend removes this.
+  // TEMPORARY: liquidityVault uses ATA instead of PDA. Mainnet Fluid currently requires ATA for
+  // depositor_token_account but this is expected to be removed soon. Revert to deriveLiquidityVault() after.
   const tokenProgram = args.tokenProgram ?? TOKEN_PROGRAM_ID;
   const liquidityVault = getAssociatedTokenAddressSync(
     args.bankMint,
@@ -182,7 +182,7 @@ export const makeAddJuplendBankIx = async (
     program.programId,
     bank
   );
-  // NOTE: For JupLend, liquidityVault is an ATA (not PDA) - see add_pool.rs comment
+  // TEMPORARY: ATA instead of PDA - mainnet requires ATA for now (see deriveJuplendMrgnAddresses)
   const liquidityVault = getAssociatedTokenAddressSync(
     accounts.bankMint,
     liquidityVaultAuthority,
@@ -397,8 +397,8 @@ export type JuplendWithdrawAccounts = {
 
   /**
    * JupLend claim account for liquidity_vault_authority.
-   * Required despite IDL marking it as optional - passing None causes ConstraintMut errors.
-   * Must be created via init_claim_account before first withdraw.
+   * TEMPORARY: Mainnet currently requires this (passing None causes ConstraintMut errors),
+   * but an upcoming upgrade is expected to make it truly optional.
    */
   claimAccount: PublicKey;
 

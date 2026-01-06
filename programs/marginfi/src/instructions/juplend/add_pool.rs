@@ -14,7 +14,7 @@ use anchor_spl::{associated_token::AssociatedToken, token_interface::*};
 use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::{
     FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
-    LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+    LIQUIDITY_VAULT_AUTHORITY_SEED,
 };
 use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 
@@ -53,11 +53,10 @@ pub fn lending_pool_add_bank_juplend(
 
     let config = bank_config.to_bank_config(lending_key);
 
-    // TEMPORARY: liquidity_vault is an ATA (not PDA) for JupLend, so ctx.bumps doesn't have it.
-    // Using 0u8 placeholder - this field is unused for JupLend since we sign with
-    // liquidity_vault_authority, not the vault itself. TODO: Remove this hack when either
-    // (1) we rename this account to reflect it's not using LIQUIDITY_VAULT_SEED, or
-    // (2) JupLend relaxes their ATA requirement and we can revert to PDA seeds.
+    // TEMPORARY: liquidity_vault uses ATA derivation instead of LIQUIDITY_VAULT_SEED PDA.
+    // Mainnet Fluid currently requires ATA for depositor_token_account, but this constraint
+    // is expected to be removed in an upcoming upgrade. Once that happens, revert to
+    // LIQUIDITY_VAULT_SEED like other integrations.
     let liquidity_vault_bump = 0u8;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
     let insurance_vault_bump = ctx.bumps.insurance_vault;
@@ -156,11 +155,9 @@ pub struct LendingPoolAddBankJuplend<'info> {
     /// For JupLend banks, the `liquidity_vault` is used as an intermediary when depositing/
     /// withdrawing, e.g., withdrawn funds move from JupLend -> here -> the user's token account.
     ///
-    /// WARNING: This uses ATA derivation instead of LIQUIDITY_VAULT_SEED PDA because the mainnet
-    /// JupLend program enforces `associated_token::authority = signer` on depositor_token_account
-    /// in their deposit instruction. This breaks our naming convention (liquidity_vault typically
-    /// implies PDA seeds). TODO: If JupLend removes the ATA requirement, revert to PDA seeds for
-    /// consistency with other integrations. See: marginfi/src/instructions/marginfi_group/add_pool.rs
+    /// TEMPORARY: Uses ATA derivation instead of LIQUIDITY_VAULT_SEED PDA. Mainnet Fluid
+    /// currently requires ATA for depositor_token_account, but this is expected to be removed
+    /// in an upcoming upgrade. Once that happens, revert to PDA seeds like other integrations.
     #[account(
         init,
         payer = fee_payer,

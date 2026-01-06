@@ -346,11 +346,10 @@ pub struct JuplendWithdraw<'info> {
     pub vault: UncheckedAccount<'info>,
 
     /// JupLend claim account for liquidity_vault_authority.
-    /// NOTE: IDL marks this as optional, but passing None causes ConstraintMut errors on mainnet
-    /// binaries. The account is never actually validated or used by JupLend - you can pass any
-    /// mutable account here. We create the "correct" PDA via init_claim_account for consistency,
-    /// but it's not strictly required.
-    /// Seeds (if you want the canonical one): ["user_claim", liquidity_vault_authority, mint] on Liquidity program.
+    /// TEMPORARY: Mainnet currently requires this account (passing None causes ConstraintMut errors),
+    /// but an upcoming upgrade is expected to make it truly optional. The account is never actually
+    /// validated or used - you can pass any mutable account. We create the canonical PDA for consistency.
+    /// Seeds: ["user_claim", liquidity_vault_authority, mint] on Liquidity program.
     /// CHECK: not validated by JupLend - any mutable account works
     #[account(mut)]
     pub claim_account: UncheckedAccount<'info>,
