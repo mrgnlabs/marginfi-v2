@@ -17,6 +17,7 @@ import {
   ecosystem,
   globalProgramAdmin,
   groupAdmin,
+  oracles,
   users,
   verbose,
 } from "./rootHooks";
@@ -55,6 +56,7 @@ import {
 } from "./utils/types";
 import {
   createBankrunSwitchboardPullFeedAccount,
+  refreshPullOraclesBankrun,
   refreshSwitchboardPullOracleBankrun,
   setSwitchboardPullFeedAccountData,
   SWITCHBOARD_PULL_MIN_FEED_ACCOUNT_DATA_LEN,
@@ -488,13 +490,16 @@ describe("jl12: JupLend Switchboard Pull oracle conversion tracks token_exchange
     const now = await banksClient.getClock();
     const targetTs = now.unixTimestamp + BigInt(ONE_WEEK_IN_SECONDS);
 
+    // Advance the clock timestamp (for interest accrual) and slot (for rate refresh).
+    // NOTE: Use a small slot advance to avoid polluting state for subsequent tests.
+    // Large slot advances break tests that warp to absolute slot numbers.
+    const slotsToAdvance = BigInt(10);
     bankrunContext.setClock(
-      new Clock(now.slot, now.epochStartTimestamp, now.epoch, now.leaderScheduleEpoch, targetTs)
+      new Clock(now.slot + slotsToAdvance, now.epochStartTimestamp, now.epoch, now.leaderScheduleEpoch, targetTs)
     );
 
-    // Warp slots so liquidity exchange price can be refreshed in a newer slot.
-    const slotsToAdvance = BigInt(Math.floor(ONE_WEEK_IN_SECONDS * 0.4));
-    bankrunContext.warpToSlot(now.slot + slotsToAdvance);
+    // CRITICAL: Refresh shared Pyth oracles to prevent state pollution for other test suites
+    await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     const refreshLiquidityIx = await makeJuplendUpdateExchangePriceIx({
       mint: ecosystem.usdcMint.publicKey,
@@ -626,4 +631,8 @@ describe("jl12: JupLend Switchboard Pull oracle conversion tracks token_exchange
 
     assert.isBelow(relErr, 1e-6, "oracle conversion ratio should match token_exchange_price ratio");
   });
+
+  // NOTE: No after() hook - jl12 doesn't reset clock state.
+  // jl12 only uses setClock (not warpToSlot) so it doesn't advance bankrun's internal
+  // slot counter. The shared Pyth oracles are refreshed mid-test after the time warp.
 });

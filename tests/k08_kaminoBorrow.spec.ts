@@ -369,10 +369,10 @@ describe("k08: Borrow from Kamino reserve to simulate interest accrual", () => {
     const timeTarget = clock.unixTimestamp + 3600n;
     const targetUnix = BigInt(timeTarget);
     const newClock = new Clock(
-      0n, // slot
-      0n, // epochStartTimestamp
-      0n, // epoch
-      0n, // leaderScheduleEpoch
+      clock.slot, // preserve current slot
+      clock.epochStartTimestamp,
+      clock.epoch,
+      clock.leaderScheduleEpoch,
       targetUnix
     );
     bankrunContext.setClock(newClock);
