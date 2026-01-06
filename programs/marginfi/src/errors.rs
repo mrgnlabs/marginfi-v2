@@ -357,7 +357,9 @@ pub enum MarginfiError {
     JuplendDepositFailed, // 6509
     #[msg("Juplend withdraw failed")]
     JuplendWithdrawFailed, // 6510
-                           // **************END JUPLEND ERRORS
+    #[msg("Juplend init position deposit insufficient")]
+    JuplendInitPositionDepositInsufficient, // 6511
+                                            // **************END JUPLEND ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -561,6 +563,7 @@ impl From<u32> for MarginfiError {
             6508 => MarginfiError::InvalidJuplendFTokenVault,
             6509 => MarginfiError::JuplendDepositFailed,
             6510 => MarginfiError::JuplendWithdrawFailed,
+            6511 => MarginfiError::JuplendInitPositionDepositInsufficient,
 
             _ => MarginfiError::InternalLogicError,
         }

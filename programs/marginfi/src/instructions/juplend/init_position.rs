@@ -25,6 +25,13 @@ use marginfi_type_crate::types::{Bank, BankOperationalState};
 /// - The seed deposit is intentionally not credited to any marginfi account.
 /// - The bank MUST be created in `Paused` state; this instruction is what activates it.
 pub fn juplend_init_position(ctx: Context<JuplendInitPosition>, amount: u64) -> MarginfiResult {
+    // Require minimum seed deposit amount (same as other integrations)
+    require_gte!(
+        amount,
+        10,
+        MarginfiError::JuplendInitPositionDepositInsufficient
+    );
+
     // Ensure the bank is not already active.
     {
         let bank = ctx.accounts.bank.load()?;
