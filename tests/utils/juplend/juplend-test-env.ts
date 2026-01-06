@@ -390,6 +390,8 @@ export type JuplendWithdrawAccounts = {
   pool: JuplendPoolKeys;
 
   amount: BN;
+  /** If true, ignore `amount` and withdraw the entire position (burn all shares). */
+  withdrawAll?: boolean;
   /** Remaining accounts for risk engine (bank/oracles) */
   remainingAccounts?: PublicKey[];
 
@@ -405,9 +407,7 @@ export type JuplendWithdrawAccounts = {
   systemProgram?: PublicKey;
 };
 
-/**
- * Build `juplend_withdraw(amount)`.
- */
+/** Build `juplend_withdraw(amount, withdraw_all)` */
 export const makeJuplendWithdrawIx = async (
   program: Program<Marginfi>,
   accounts: JuplendWithdrawAccounts
@@ -421,7 +421,7 @@ export const makeJuplendWithdrawIx = async (
   );
 
   return program.methods
-    .juplendWithdraw(accounts.amount)
+    .juplendWithdraw(accounts.amount, accounts.withdrawAll ? true : null)
     .accounts({
       group: accounts.group,
       marginfiAccount: accounts.marginfiAccount,

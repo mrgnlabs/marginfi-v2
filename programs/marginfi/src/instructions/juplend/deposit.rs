@@ -18,7 +18,7 @@ use anchor_spl::token_interface::{
 use fixed::types::I80F48;
 use juplend_mocks::lending::cpi::accounts::{Deposit, UpdateRate};
 use juplend_mocks::lending::cpi::{deposit, update_rate};
-use juplend_mocks::state::{Lending as JuplendLending, EXCHANGE_PRICES_PRECISION};
+use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use marginfi_type_crate::types::{
     Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
@@ -35,6 +35,11 @@ use marginfi_type_crate::types::{
 /// 6. Verify minted fTokens == expected.
 /// 7. Credit marginfi asset_shares by minted fTokens.
 pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiResult {
+    // Match marginfi deposit semantics: depositing 0 is a no-op.
+    if amount == 0 {
+        return Ok(());
+    }
+
     let authority_bump: u8;
     {
         let marginfi_account = ctx.accounts.marginfi_account.load()?;
@@ -64,16 +69,11 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
         MarginfiError::JuplendLendingStale
     );
 
-    // Compute expected shares minted (floor division).
-    let token_exchange_price = ctx.accounts.juplend_lending.token_exchange_price as u128;
-    require!(token_exchange_price > 0, MarginfiError::MathError);
-    let expected_shares_u128 = (amount as u128)
-        .checked_mul(EXCHANGE_PRICES_PRECISION)
-        .ok_or_else(|| error!(MarginfiError::MathError))?
-        .checked_div(token_exchange_price)
-        .ok_or_else(|| error!(MarginfiError::MathError))?;
-    let expected_shares: u64 = expected_shares_u128
-        .try_into()
+    // Compute expected shares minted (round-down) using the same math as JupLend.
+    let expected_shares = ctx
+        .accounts
+        .juplend_lending
+        .expected_shares_for_deposit(amount)
         .map_err(|_| error!(MarginfiError::MathError))?;
 
     let pre_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;

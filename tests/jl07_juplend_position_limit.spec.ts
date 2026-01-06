@@ -44,9 +44,7 @@ import {
   makeJuplendWithdrawIx,
 } from "./utils/juplend/juplend-test-env";
 import { defaultJuplendBankConfig } from "./utils/juplend/juplend-utils";
-import { decodeJuplendLendingState, EXCHANGE_PRICE_PRECISION } from "./utils/juplend/juplend-state";
 import { HEALTH_CACHE_HEALTHY } from "./utils/types";
-import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 /** deterministic 32 bytes */
 const THROWAWAY_GROUP_SEED_JL07 = Buffer.from(
@@ -389,34 +387,13 @@ describe("jl07: JupLend integration position limit (8 positions)", () => {
       assertBankrunTxFailed(result, 6212);
     }
 
-    // 4) Close one Juplend position (withdraw all shares) and retry deposit into 9th
+    // 4) Close one Juplend position (withdraw_all) and retry deposit into 9th
     const bankToClose = juplendBanks[0];
 
-    // derive redeemable underlying from current share balance and exchange price
-    const mfiAcc = await user.mrgnBankrunProgram!.account.marginfiAccount.fetch(
-      user.accounts.get(USER_ACCOUNT)
-    );
-    const bal = (mfiAcc.lendingAccount.balances as any[]).find(
-      (b) => b.active && (b.bankPk as any as PublicKey).equals(bankToClose.bank)
-    );
-    assert.ok(bal, "expected active balance for bankToClose");
-
-    const shares = BigInt(wrappedI80F48toBigNumber(bal.assetShares).toFixed(0));
-    assert.isTrue(shares > 0n, "expected shares > 0");
-
-    const lendingInfo = await bankRunProvider.connection.getAccountInfo(pool.lending);
-    assert.ok(lendingInfo, "missing juplend lending account");
-    const lending = decodeJuplendLendingState(lendingInfo.data);
-    const price = lending.tokenExchangePrice;
-
-    // redeemable underlying = floor(shares * price / 1e12)
-    const redeemable = (shares * price) / EXCHANGE_PRICE_PRECISION;
-    assert.isTrue(redeemable > 0n, "expected redeemable > 0");
-
-    // Withdraw needs remaining accounts for ALL active balances, not just the bank being withdrawn.
-    // composeRemainingAccounts will sort them in the correct order (descending by bank_pk).
+    // For withdraw_all, the position will be closed so we exclude it from remaining accounts.
+    // Only include banks 1-7 (the positions that will remain active after withdraw_all).
     const remaining = composeRemainingAccounts(
-      juplendBanks.slice(0, 8).map((b) =>
+      juplendBanks.slice(1, 8).map((b) =>
         juplendHealthRemainingAccounts(
           b.bank,
           oracles.usdcOracle.publicKey,
@@ -437,7 +414,8 @@ describe("jl07: JupLend integration position limit (8 positions)", () => {
       claimAccount: bankToClose.claimAccount,
       mint: ecosystem.usdcMint.publicKey,
       pool,
-      amount: new BN(redeemable.toString()),
+      amount: new BN(0),
+      withdrawAll: true,
       remainingAccounts: remaining,
       tokenProgram: pool.tokenProgram,
     });
@@ -474,44 +452,58 @@ describe("jl07: JupLend integration position limit (8 positions)", () => {
     const versionedTx = new VersionedTransaction(messageV0);
     versionedTx.sign([user.wallet]);
 
-    console.log("[jl07] Processing versioned withdraw tx with LUT...");
     const result = await banksClient.tryProcessTransaction(versionedTx);
-    console.log("[jl07] Withdraw result:", JSON.stringify(result.result));
-    console.log("[jl07] Withdraw meta:", result.meta ? "present" : "missing");
     if (result.result) {
       // Transaction failed - dump logs for debugging
       console.log("[jl07] Withdraw transaction failed:", result.result);
       console.log("[jl07] Logs:", result.meta?.logMessages?.join("\n"));
       throw new Error(`Withdraw failed: ${result.result}`);
     }
-    console.log("[jl07] Withdraw succeeded, logs:");
-    result.meta?.logMessages?.forEach((log, i) => console.log(`  ${i}: ${log}`));
 
-    // WORKAROUND: JupLend withdraw doesn't support withdraw_all yet, so position won't fully close.
-    // Verify position value is close to zero (only dust remaining).
+    // Verify position is fully closed (withdraw_all sets close_balance: true)
     const mfiAccAfter = await user.mrgnBankrunProgram!.account.marginfiAccount.fetch(
       user.accounts.get(USER_ACCOUNT)
     );
     const balAfter = (mfiAccAfter.lendingAccount.balances as any[]).find(
       (b) => b.active && (b.bankPk as any as PublicKey).equals(bankToClose.bank)
     );
+    assert.isUndefined(balAfter, "expected position to be fully closed after withdraw_all");
 
-    if (balAfter) {
-      const sharesAfter = BigInt(
-        wrappedI80F48toBigNumber(balAfter.assetShares).toFixed(0)
+    // 5) Now 9th deposit should succeed (we freed up a slot)
+    {
+      const b = juplendBanks[8];
+      const ix = await makeJuplendDepositIx(user.mrgnBankrunProgram!, {
+        group: throwawayGroup.publicKey,
+        marginfiAccount: user.accounts.get(USER_ACCOUNT),
+        authority: user.wallet.publicKey,
+        signerTokenAccount: user.usdcAccount,
+        bank: b.bank,
+        liquidityVaultAuthority: b.liquidityVaultAuthority,
+        liquidityVault: b.liquidityVault,
+        fTokenVault: b.fTokenVault,
+        mint: ecosystem.usdcMint.publicKey,
+        pool,
+        amount: USER_DEPOSIT_AMOUNT,
+        tokenProgram: pool.tokenProgram,
+      });
+
+      await processBankrunTransaction(
+        bankrunContext,
+        new Transaction().add(ix),
+        [user.wallet],
+        false,
+        true
       );
-      // Allow up to 1000 units of dust from rounding
-      const maxDustShares = 1000n;
-      assert.isTrue(
-        sharesAfter <= maxDustShares,
-        `expected shares close to zero after withdraw, got ${sharesAfter}`
-      );
-      if (verbose) {
-        console.log(`[jl07] Dust shares remaining: ${sharesAfter}`);
-      }
     }
 
-    // TODO: Once withdraw_all is implemented, re-enable 9th deposit retry test
+    // Verify we now have 8 active positions (7 original + 1 new from 9th bank)
+    const mfiAccFinal = await user.mrgnBankrunProgram!.account.marginfiAccount.fetch(
+      user.accounts.get(USER_ACCOUNT)
+    );
+    const activePositions = (mfiAccFinal.lendingAccount.balances as any[]).filter(
+      (b) => b.active
+    ).length;
+    assert.equal(activePositions, 8, "expected 8 active positions after closing one and opening another");
 
     const endingUsdc = await getTokenBalance(bankRunProvider, user.usdcAccount);
     if (verbose) {

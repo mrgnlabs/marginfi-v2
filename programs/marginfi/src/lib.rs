@@ -770,8 +770,9 @@ pub mod marginfi {
     pub fn juplend_withdraw<'info>(
         ctx: Context<'_, '_, 'info, 'info, JuplendWithdraw<'info>>,
         amount: u64,
+        withdraw_all: Option<bool>,
     ) -> MarginfiResult {
-        juplend::juplend_withdraw(ctx, amount)
+        juplend::juplend_withdraw(ctx, amount, withdraw_all)
     }
 }
 

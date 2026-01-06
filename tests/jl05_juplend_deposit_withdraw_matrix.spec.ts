@@ -181,9 +181,7 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
     assert.isTrue(fTokenVaultBaseline > 0n, "expected non-zero seed fToken balance");
   });
 
-  // SKIP: JupLend integration banks enforce OperationWithdrawOnly constraints that prevent
-  // deposit+withdraw in the same transaction. This test scenario is not supported.
-  it.skip("matrix: deposit+withdraw in the same transaction nets out cleanly", async () => {
+  it("matrix: deposit+withdraw in the same transaction nets out cleanly", async () => {
     const userAcc = Keypair.generate();
     const initIx = await accountInit(userA.mrgnBankrunProgram!, {
       marginfiGroup: juplendGroup.publicKey,
@@ -229,6 +227,10 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
       amount: depositAmt,
     });
 
+    // Use withdrawAll to avoid rounding issues:
+    // - Deposit uses floor(amount * 1e12 / price) for shares
+    // - Withdraw uses ceil(amount * 1e12 / price) for shares
+    // So withdraw(depositAmt) would try to burn more shares than we have.
     const withdrawIx = await makeJuplendWithdrawIx(userA.mrgnBankrunProgram!, {
       group: juplendGroup.publicKey,
       marginfiAccount: userAcc.publicKey,
@@ -243,8 +245,9 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
 
       mint: ecosystem.usdcMint.publicKey,
       pool,
-      amount: depositAmt,
-      remainingAccounts: remaining,
+      amount: new BN(0),
+      withdrawAll: true,
+      remainingAccounts: [],  // Position closes, no remaining needed
     });
 
     await processBankrunTransaction(
@@ -263,8 +266,14 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
       juplendBank
     );
 
-    assert.equal(sharesAfter, 0n, "expected no remaining shares after net-zero tx");
-    assert.equal(usdcAfter, usdcBefore, "expected net-zero USDC balance delta");
+    assert.equal(sharesAfter, 0n, "expected no remaining shares after withdraw_all");
+    // Due to floor rounding on both deposit (shares) and withdraw (underlying),
+    // user may lose at most 1 unit of underlying.
+    const maxRoundingLoss = 1n;
+    assert.isTrue(
+      usdcBefore - usdcAfter <= maxRoundingLoss,
+      `expected at most 1 unit rounding loss, got ${usdcBefore - usdcAfter}`
+    );
     assert.equal(fTokenAfter, fTokenBefore, "expected no net fToken vault delta");
   });
 
@@ -467,10 +476,9 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
       juplendBank
     );
 
-    const priceAll = await fetchTokenExchangePrice(pool.lending);
-    // redeemable underlying = floor(shares * price / 1e12)
-    const redeemableUnderlying = (sharesBeforeAll * priceAll) / EXCHANGE_PRICE_PRECISION;
-    assert.isTrue(redeemableUnderlying > 0n, "expected redeemable underlying > 0");
+    // NOTE: marginfi `juplend_withdraw` always calls `update_rate` internally.
+    // To compute the *exact* expected underlying for withdraw_all, we fetch the exchange
+    // price after the tx (it is updated in-tx) and use that for the preview math.
 
     const fTokenBeforeAll = BigInt(await getTokenBalance(bankRunProvider, fTokenVault));
     const userUsdcBeforeAll = await getTokenBalance(bankRunProvider, userA.usdcAccount);
@@ -488,7 +496,9 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
       pool,
       fTokenVault,
       claimAccount,
-      amount: new BN(redeemableUnderlying.toString()),
+      // withdraw_all ignores `amount` and withdraws the full position.
+      amount: new BN(0),
+      withdrawAll: true,
       remainingAccounts: remaining,
     });
 
@@ -507,6 +517,11 @@ describe("jl05: JupLend - deposit/withdraw matrix (bankrun)", () => {
       juplendBank
     );
     const userUsdcAfterAll = await getTokenBalance(bankRunProvider, userA.usdcAccount);
+
+    const priceAfterAll = await fetchTokenExchangePrice(pool.lending);
+    // redeemable underlying = floor(shares * price / 1e12)
+    const redeemableUnderlying = (sharesBeforeAll * priceAfterAll) / EXCHANGE_PRICE_PRECISION;
+    assert.isTrue(redeemableUnderlying > 0n, "expected redeemable underlying > 0");
 
     // Underlying exactness
     assert.equal(

@@ -82,4 +82,71 @@ impl Lending {
             .try_into()
             .map_err(|_| error!(JuplendMocksError::MathError))
     }
+
+    /// Expected fToken shares minted when depositing `assets` underlying.
+    ///
+    /// Mirrors JupLend's ERC-4626 style `preview_deposit` semantics: **round down**.
+    ///
+    /// Formula (1e12 precision): `shares = floor(assets * 1e12 / token_exchange_price)`.
+    #[inline]
+    pub fn expected_shares_for_deposit(&self, assets: u64) -> Result<u64> {
+        let token_exchange_price = self.token_exchange_price as u128;
+        require!(token_exchange_price > 0, JuplendMocksError::MathError);
+
+        let shares_u128 = (assets as u128)
+            .checked_mul(EXCHANGE_PRICES_PRECISION)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?
+            .checked_div(token_exchange_price)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?;
+
+        shares_u128
+            .try_into()
+            .map_err(|_| error!(JuplendMocksError::MathError))
+    }
+
+    /// Expected fToken shares burned when withdrawing `assets` underlying.
+    ///
+    /// Mirrors JupLend's ERC-4626 style `preview_withdraw` semantics: **round up**.
+    ///
+    /// Formula (1e12 precision): `shares = ceil(assets * 1e12 / token_exchange_price)`.
+    #[inline]
+    pub fn expected_shares_for_withdraw(&self, assets: u64) -> Result<u64> {
+        let token_exchange_price = self.token_exchange_price as u128;
+        require!(token_exchange_price > 0, JuplendMocksError::MathError);
+
+        let numerator = (assets as u128)
+            .checked_mul(EXCHANGE_PRICES_PRECISION)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?
+            .checked_add(token_exchange_price.saturating_sub(1))
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?;
+
+        let shares_u128 = numerator
+            .checked_div(token_exchange_price)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?;
+
+        shares_u128
+            .try_into()
+            .map_err(|_| error!(JuplendMocksError::MathError))
+    }
+
+    /// Expected underlying assets returned when redeeming `shares` fTokens.
+    ///
+    /// Mirrors JupLend's ERC-4626 style `preview_redeem` semantics: **round down**.
+    ///
+    /// Formula (1e12 precision): `assets = floor(shares * token_exchange_price / 1e12)`.
+    #[inline]
+    pub fn expected_assets_for_redeem(&self, shares: u64) -> Result<u64> {
+        let token_exchange_price = self.token_exchange_price as u128;
+        require!(token_exchange_price > 0, JuplendMocksError::MathError);
+
+        let assets_u128 = (shares as u128)
+            .checked_mul(token_exchange_price)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?
+            .checked_div(EXCHANGE_PRICES_PRECISION)
+            .ok_or_else(|| error!(JuplendMocksError::MathError))?;
+
+        assets_u128
+            .try_into()
+            .map_err(|_| error!(JuplendMocksError::MathError))
+    }
 }
