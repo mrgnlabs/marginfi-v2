@@ -95,6 +95,21 @@ export function expectedSharesForWithdraw(
 }
 
 /**
+ * Expected underlying assets returned when redeeming `shares` fTokens.
+ *
+ * Mirrors JupLend's ERC-4626 style `preview_redeem` semantics: **round down**.
+ *
+ * assets = floor(shares * token_exchange_price / 1e12)
+ */
+export function expectedAssetsForRedeem(
+  shares: bigint,
+  tokenExchangePrice: bigint
+): bigint {
+  if (tokenExchangePrice <= 0n) throw new Error("tokenExchangePrice must be > 0");
+  return (shares * tokenExchangePrice) / EXCHANGE_PRICE_PRECISION;
+}
+
+/**
  * Same-slot freshness rule (strict):
  *   require(lending.last_update_timestamp == nowTs)
  */
