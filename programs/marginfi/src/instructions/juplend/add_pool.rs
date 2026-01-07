@@ -142,6 +142,7 @@ pub struct LendingPoolAddBankJuplend<'info> {
     #[account(
         constraint = juplend_lending.load()?.mint == bank_mint.key()
             @ MarginfiError::JuplendLendingMintMismatch,
+        has_one = f_token_mint @ MarginfiError::InvalidJuplendLending,
     )]
     pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
@@ -216,10 +217,6 @@ pub struct LendingPoolAddBankJuplend<'info> {
     )]
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(
-        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
-            @ MarginfiError::InvalidJuplendLending,
-    )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// The bank's fToken vault holds the fTokens received when depositing into JupLend.

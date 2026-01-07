@@ -94,15 +94,11 @@ pub struct JuplendInitPosition<'info> {
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// JupLend lending state account.
-    #[account(mut)]
+    #[account(mut, has_one = f_token_mint @ MarginfiError::InvalidJuplendLending)]
     pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
-    /// JupLend fToken mint (must match the lending state).
-    #[account(
-        mut,
-        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
-            @ MarginfiError::InvalidJuplendLending,
-    )]
+    /// JupLend fToken mint.
+    #[account(mut)]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Bank's fToken vault (validated via has_one on bank).

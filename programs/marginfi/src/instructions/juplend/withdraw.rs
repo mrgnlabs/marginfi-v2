@@ -33,13 +33,12 @@ use marginfi_type_crate::types::{
 ///
 /// Flow (program-first, exact-math):
 /// 1. CPI `update_rate` to refresh `token_exchange_price`.
-/// 2. Enforce same-slot freshness (`last_update_timestamp == Clock::unix_timestamp`).
-/// 3. Compute expected fTokens burned: `ceil(assets * 1e12 / token_exchange_price)`.
-/// 4. Call `bank_account.withdraw()` for the expected burned shares.
-/// 5. CPI `withdraw` (burn fTokens, receive underlying into liquidity vault).
-/// 6. Verify received underlying == requested and burned fTokens == expected.
-/// 7. Transfer underlying from liquidity vault -> destination token account.
-/// 8. Update health cache (unless receivership).
+/// 2. Compute expected fTokens burned: `ceil(assets * 1e12 / token_exchange_price)`.
+/// 3. Call `bank_account.withdraw()` for the expected burned shares.
+/// 4. CPI `withdraw` (burn fTokens, receive underlying into liquidity vault).
+/// 5. Verify received underlying == requested and burned fTokens == expected.
+/// 6. Transfer underlying from liquidity vault -> destination token account.
+/// 7. Update health cache (unless receivership).
 pub fn juplend_withdraw<'info>(
     ctx: Context<'_, '_, 'info, 'info, JuplendWithdraw<'info>>,
     amount: u64,
@@ -51,19 +50,8 @@ pub fn juplend_withdraw<'info>(
         return Ok(());
     }
 
-    // Refresh exchange pricing (interest/rewards) and require it is updated for this slot.
+    // Refresh exchange pricing (interest/rewards) for this slot.
     ctx.accounts.cpi_update_rate()?;
-
-    let clock = Clock::get()?;
-    {
-        // Reload the lending state after the CPI `update_rate` to ensure we read fresh
-        // `token_exchange_price` for exact-math share calculations.
-        let lending = ctx.accounts.juplend_lending.load()?;
-        require!(
-            !lending.is_stale(clock.unix_timestamp),
-            MarginfiError::JuplendLendingStale
-        );
-    }
 
     let bank_key = ctx.accounts.bank.key();
     let authority_bump: u8;
@@ -79,6 +67,7 @@ pub fn juplend_withdraw<'info>(
     // - compute shares_to_burn = ceil(assets / exchange_rate)
     // - call `bank_account.withdraw(shares_to_burn)`
     // - CPI JupLend `withdraw` for the requested underlying `amount`
+    let clock = Clock::get()?;
     let (token_amount, shares_to_burn) = {
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut bank = ctx.accounts.bank.load_mut()?;
@@ -338,15 +327,11 @@ pub struct JuplendWithdraw<'info> {
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// JupLend lending state account.
-    #[account(mut)]
+    #[account(mut, has_one = f_token_mint @ MarginfiError::InvalidJuplendLending)]
     pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// JupLend fToken mint.
-    #[account(
-        mut,
-        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
-            @ MarginfiError::InvalidJuplendLending,
-    )]
+    #[account(mut)]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Bank's fToken vault (validated via has_one on bank).

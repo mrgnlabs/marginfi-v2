@@ -28,12 +28,11 @@ use marginfi_type_crate::types::{
 ///
 /// Flow (program-first, exact-math):
 /// 1. CPI `update_rate` to refresh `token_exchange_price`.
-/// 2. Enforce same-slot freshness (`last_update_timestamp == Clock::unix_timestamp`).
-/// 3. Compute expected fTokens minted: `assets * 1e12 / token_exchange_price` (floor).
-/// 4. Transfer underlying from user -> bank liquidity vault.
-/// 5. CPI `deposit` (bank vault -> fToken vault).
-/// 6. Verify minted fTokens == expected.
-/// 7. Credit marginfi asset_shares by minted fTokens.
+/// 2. Compute expected fTokens minted: `assets * 1e12 / token_exchange_price` (floor).
+/// 3. Transfer underlying from user -> bank liquidity vault.
+/// 4. CPI `deposit` (bank vault -> fToken vault).
+/// 5. Verify minted fTokens == expected.
+/// 6. Credit marginfi asset_shares by minted fTokens.
 pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiResult {
     // Match marginfi deposit semantics: depositing 0 is a no-op.
     if amount == 0 {
@@ -56,18 +55,11 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
         );
     }
 
-    // Refresh the exchange price (interest/rewards) and require it is updated for this slot.
+    // Refresh the exchange price (interest/rewards) for this slot.
     ctx.accounts.cpi_update_rate()?;
 
-    let clock = Clock::get()?;
     let expected_shares = {
         let lending = ctx.accounts.juplend_lending.load()?;
-
-        require!(
-            !lending.is_stale(clock.unix_timestamp),
-            MarginfiError::JuplendLendingStale
-        );
-
         // Compute expected shares minted (round-down) using the same math as JupLend.
         lending
             .expected_shares_for_deposit(amount)
@@ -96,6 +88,7 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let group = &ctx.accounts.group.load()?;
+        let clock = Clock::get()?;
 
         let mut bank_account = BankAccountWrapper::find_or_create(
             &ctx.accounts.bank.key(),
@@ -180,15 +173,11 @@ pub struct JuplendDeposit<'info> {
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// JupLend lending state account.
-    #[account(mut)]
+    #[account(mut, has_one = f_token_mint @ MarginfiError::InvalidJuplendLending)]
     pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// JupLend fToken mint.
-    #[account(
-        mut,
-        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
-            @ MarginfiError::InvalidJuplendLending,
-    )]
+    #[account(mut)]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Bank's fToken vault (validated via has_one on bank).
