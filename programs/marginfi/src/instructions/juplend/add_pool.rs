@@ -137,10 +137,10 @@ pub struct LendingPoolAddBankJuplend<'info> {
 
     /// JupLend lending state account that must match the bank mint.
     #[account(
-        constraint = juplend_lending.mint == bank_mint.key()
+        constraint = juplend_lending.load()?.mint == bank_mint.key()
             @ MarginfiError::JuplendLendingMintMismatch,
     )]
-    pub juplend_lending: Account<'info, JuplendLending>,
+    pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// Will be authority of the bank's liquidity vault. Used as intermediary for deposits/withdraws.
     #[account(
@@ -214,7 +214,7 @@ pub struct LendingPoolAddBankJuplend<'info> {
     pub fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        constraint = f_token_mint.key() == juplend_lending.f_token_mint
+        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,

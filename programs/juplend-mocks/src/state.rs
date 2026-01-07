@@ -2,12 +2,25 @@ use anchor_lang::prelude::*;
 
 use crate::JuplendMocksError;
 
+// Account discriminator from JupLend IDL for `Lending`.
+// Anchor discriminator = sha256("account:Lending")[0..8].
+pub const LENDING_DISCRIMINATOR: [u8; 8] = [135, 199, 82, 16, 249, 131, 182, 241];
+
 /// Precision used for exchange prices in JupLend (1e12).
 ///
 /// Source: JupLend lending program constant `EXCHANGE_PRICES_PRECISION`.
 pub const EXCHANGE_PRICES_PRECISION: u128 = 1_000_000_000_000;
 
-#[account]
+/// Minimal representation of the on-chain JupLend `Lending` account.
+///
+/// Notes:
+/// - We intentionally use a **zero-copy** layout here to match how other integrations load large
+///   external accounts (and to avoid paying Borsh (de)serialization cost on every access).
+/// - `repr(C, packed)` keeps the byte layout identical to a field-by-field serialization
+///   (i.e. no implicit padding). This is important because `Pubkey` has alignment=1 while `u64`
+///   has alignment=8; using plain `repr(C)` would insert padding before the first `u64`.
+#[account(zero_copy(unsafe), discriminator = &LENDING_DISCRIMINATOR)]
+#[repr(C, packed)]
 pub struct Lending {
     pub mint: Pubkey,
     pub f_token_mint: Pubkey,

@@ -558,8 +558,10 @@ impl OraclePriceFeedAdapter {
                 );
 
                 // Verifies owner + discriminator automatically
-                let lending: Account<'info, JuplendLending> = Account::try_from(lending_info)
-                    .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+                let lending_loader: AccountLoader<JuplendLending> =
+                    AccountLoader::try_from(lending_info)
+                        .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+                let lending = lending_loader.load()?;
 
                 // Strict freshness requirement: must be updated this slot/time
                 require!(
@@ -611,8 +613,10 @@ impl OraclePriceFeedAdapter {
                     MarginfiError::JuplendLendingValidationFailed
                 );
 
-                let lending: Account<'info, JuplendLending> = Account::try_from(lending_info)
-                    .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+                let lending_loader: AccountLoader<JuplendLending> =
+                    AccountLoader::try_from(lending_info)
+                        .map_err(|_| MarginfiError::JuplendLendingValidationFailed)?;
+                let lending = lending_loader.load()?;
 
                 require!(
                     !lending.is_stale(clock.unix_timestamp),

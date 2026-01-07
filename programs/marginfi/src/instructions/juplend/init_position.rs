@@ -101,12 +101,12 @@ pub struct JuplendInitPosition<'info> {
 
     /// JupLend lending state account.
     #[account(mut)]
-    pub juplend_lending: Account<'info, JuplendLending>,
+    pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// JupLend fToken mint (must match the lending state).
     #[account(
         mut,
-        constraint = f_token_mint.key() == juplend_lending.f_token_mint
+        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -128,7 +128,7 @@ pub struct JuplendInitPosition<'info> {
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = supply_token_reserves_liquidity.key() == juplend_lending.token_reserves_liquidity
+        constraint = supply_token_reserves_liquidity.key() == juplend_lending.load()?.token_reserves_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub supply_token_reserves_liquidity: UncheckedAccount<'info>,
@@ -136,7 +136,7 @@ pub struct JuplendInitPosition<'info> {
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.supply_position_on_liquidity
+        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.load()?.supply_position_on_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub lending_supply_position_on_liquidity: UncheckedAccount<'info>,

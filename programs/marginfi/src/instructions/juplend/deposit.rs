@@ -61,20 +61,21 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
 
     // Refresh the exchange price (interest/rewards) and require it is updated for this slot.
     ctx.accounts.cpi_update_rate()?;
-    ctx.accounts.juplend_lending.reload()?;
 
     let clock = Clock::get()?;
-    require!(
-        !ctx.accounts.juplend_lending.is_stale(clock.unix_timestamp),
-        MarginfiError::JuplendLendingStale
-    );
+    let expected_shares = {
+        let lending = ctx.accounts.juplend_lending.load()?;
 
-    // Compute expected shares minted (round-down) using the same math as JupLend.
-    let expected_shares = ctx
-        .accounts
-        .juplend_lending
-        .expected_shares_for_deposit(amount)
-        .map_err(|_| error!(MarginfiError::MathError))?;
+        require!(
+            !lending.is_stale(clock.unix_timestamp),
+            MarginfiError::JuplendLendingStale
+        );
+
+        // Compute expected shares minted (round-down) using the same math as JupLend.
+        lending
+            .expected_shares_for_deposit(amount)
+            .map_err(|_| error!(MarginfiError::MathError))?
+    };
 
     let pre_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
 
@@ -182,12 +183,12 @@ pub struct JuplendDeposit<'info> {
 
     /// JupLend lending state account.
     #[account(mut)]
-    pub juplend_lending: Account<'info, JuplendLending>,
+    pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// JupLend fToken mint.
     #[account(
         mut,
-        constraint = f_token_mint.key() == juplend_lending.f_token_mint
+        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -202,14 +203,14 @@ pub struct JuplendDeposit<'info> {
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = supply_token_reserves_liquidity.key() == juplend_lending.token_reserves_liquidity
+        constraint = supply_token_reserves_liquidity.key() == juplend_lending.load()?.token_reserves_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub supply_token_reserves_liquidity: UncheckedAccount<'info>,
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.supply_position_on_liquidity
+        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.load()?.supply_position_on_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub lending_supply_position_on_liquidity: UncheckedAccount<'info>,

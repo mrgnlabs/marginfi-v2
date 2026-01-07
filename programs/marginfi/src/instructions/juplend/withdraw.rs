@@ -56,13 +56,17 @@ pub fn juplend_withdraw<'info>(
 
     // Refresh exchange pricing (interest/rewards) and require it is updated for this slot.
     ctx.accounts.cpi_update_rate()?;
-    ctx.accounts.juplend_lending.reload()?;
 
     let clock = Clock::get()?;
-    require!(
-        !ctx.accounts.juplend_lending.is_stale(clock.unix_timestamp),
-        MarginfiError::JuplendLendingStale
-    );
+    {
+        // Reload the lending state after the CPI `update_rate` to ensure we read fresh
+        // `token_exchange_price` for exact-math share calculations.
+        let lending = ctx.accounts.juplend_lending.load()?;
+        require!(
+            !lending.is_stale(clock.unix_timestamp),
+            MarginfiError::JuplendLendingStale
+        );
+    }
 
     let bank_key = ctx.accounts.bank.key();
     let authority_bump: u8;
@@ -112,20 +116,22 @@ pub fn juplend_withdraw<'info>(
             // `withdraw_all` returns the user's full fToken share balance (u64).
             let shares_to_burn = bank_account.withdraw_all()?;
             // Redeemable underlying = floor(shares * price / 1e12)
-            let token_amount = ctx
-                .accounts
-                .juplend_lending
-                .expected_assets_for_redeem(shares_to_burn)
-                .map_err(|_| error!(MarginfiError::MathError))?;
+            let token_amount = {
+                let lending = ctx.accounts.juplend_lending.load()?;
+                lending
+                    .expected_assets_for_redeem(shares_to_burn)
+                    .map_err(|_| error!(MarginfiError::MathError))?
+            };
 
             (token_amount, shares_to_burn)
         } else {
             // shares = ceil(assets * 1e12 / token_exchange_price)
-            let shares_to_burn = ctx
-                .accounts
-                .juplend_lending
-                .expected_shares_for_withdraw(amount)
-                .map_err(|_| error!(MarginfiError::MathError))?;
+            let shares_to_burn = {
+                let lending = ctx.accounts.juplend_lending.load()?;
+                lending
+                    .expected_shares_for_withdraw(amount)
+                    .map_err(|_| error!(MarginfiError::MathError))?
+            };
 
             bank_account.withdraw(I80F48::from_num(shares_to_burn))?;
 
@@ -323,12 +329,12 @@ pub struct JuplendWithdraw<'info> {
 
     /// JupLend lending state account.
     #[account(mut)]
-    pub juplend_lending: Account<'info, JuplendLending>,
+    pub juplend_lending: AccountLoader<'info, JuplendLending>,
 
     /// JupLend fToken mint.
     #[account(
         mut,
-        constraint = f_token_mint.key() == juplend_lending.f_token_mint
+        constraint = f_token_mint.key() == juplend_lending.load()?.f_token_mint
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -344,7 +350,7 @@ pub struct JuplendWithdraw<'info> {
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = supply_token_reserves_liquidity.key() == juplend_lending.token_reserves_liquidity
+        constraint = supply_token_reserves_liquidity.key() == juplend_lending.load()?.token_reserves_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub supply_token_reserves_liquidity: UncheckedAccount<'info>,
@@ -352,7 +358,7 @@ pub struct JuplendWithdraw<'info> {
     /// CHECK: validated by the JupLend program
     #[account(
         mut,
-        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.supply_position_on_liquidity
+        constraint = lending_supply_position_on_liquidity.key() == juplend_lending.load()?.supply_position_on_liquidity
             @ MarginfiError::InvalidJuplendLending,
     )]
     pub lending_supply_position_on_liquidity: UncheckedAccount<'info>,
