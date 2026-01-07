@@ -151,9 +151,28 @@ pub fn juplend_withdraw<'info>(
         accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
     let pre_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
 
-    // When calling withdraw_all, it's possible (in theory) that the remaining share balance is
-    // worth less than 1 unit of underlying. In this case, we skip the external withdraw and leave
-    // the dust inside of JupLend (mirrors the Drift withdraw_all dust behavior).
+    // Handle potential dust case where remaining shares are worth less than 1 underlying unit.
+    //
+    // NOTE: Unlike Drift (which has reachable dust due to double-rounding in its
+    // assets → scaled_balance → assets conversion), this case is UNREACHABLE in JupLend
+    // under normal operation because:
+    //
+    // - JupLend uses single-level math: shares = floor(assets * 1e12 / price)
+    // - Minimum shares = 1 (u64 integer, not fractional)
+    // - Exchange price >= 1e12 (starts at 1:1, only increases with yield)
+    // - Therefore: floor(1 * 1e12 / 1e12) = 1 (always at least 1 underlying)
+    //
+    // Drift's dust is reachable because it uses multi-step rounding:
+    // 1. assets → scaled_balance (floor + variable precision per token)
+    // 2. scaled_balance + 1 (round up for safety)
+    // 3. scaled_balance → assets (floor again)
+    // This cascading rounding can produce 0 tokens from small positions.
+    //
+    // This defensive code exists for potential edge cases:
+    // - Socialized loss reducing JupLend's exchange price below 1e12
+    // - Future protocol changes affecting share/price invariants
+    //
+    // If we can guarantee that JupLend's price never drops below 1e12, this branch is dead code.
     let received_underlying = if withdraw_all && token_amount == 0 {
         0
     } else {

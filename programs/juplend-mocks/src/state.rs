@@ -88,6 +88,7 @@ impl Lending {
     /// Mirrors JupLend's ERC-4626 style `preview_deposit` semantics: **round down**.
     ///
     /// Formula (1e12 precision): `shares = floor(assets * 1e12 / token_exchange_price)`.
+    /// https://github.com/Instadapp/fluid-solana-programs/blob/830458299be42eaeb6e1fe8fef6aa23444430a10/programs/lending/src/utils/deposit.rs#L68-L74
     #[inline]
     pub fn expected_shares_for_deposit(&self, assets: u64) -> Result<u64> {
         let token_exchange_price = self.token_exchange_price as u128;
@@ -109,6 +110,19 @@ impl Lending {
     /// Mirrors JupLend's ERC-4626 style `preview_withdraw` semantics: **round up**.
     ///
     /// Formula (1e12 precision): `shares = ceil(assets * 1e12 / token_exchange_price)`.
+    ///
+    /// # Ceiling Division Implementation
+    ///
+    /// Uses the standard integer ceiling division identity:
+    /// ```text
+    /// ceil(a / b) = floor((a + b - 1) / b)
+    /// ```
+    ///
+    /// The `+ (b - 1)` bumps the numerator into the next bucket when there's any
+    /// remainder, but has no effect when `a` is exactly divisible by `b`.
+    ///
+    /// JupLend uses `safe_div_ceil()` which is mathematically equivalent.
+    /// https://github.com/Instadapp/fluid-solana-programs/blob/830458299be42eaeb6e1fe8fef6aa23444430a10/programs/lending/src/utils/withdraw.rs#L52-L59
     #[inline]
     pub fn expected_shares_for_withdraw(&self, assets: u64) -> Result<u64> {
         let token_exchange_price = self.token_exchange_price as u128;
@@ -117,7 +131,7 @@ impl Lending {
         let numerator = (assets as u128)
             .checked_mul(EXCHANGE_PRICES_PRECISION)
             .ok_or_else(|| error!(JuplendMocksError::MathError))?
-            .checked_add(token_exchange_price.saturating_sub(1))
+            .checked_add(token_exchange_price - 1)
             .ok_or_else(|| error!(JuplendMocksError::MathError))?;
 
         let shares_u128 = numerator
@@ -134,6 +148,8 @@ impl Lending {
     /// Mirrors JupLend's ERC-4626 style `preview_redeem` semantics: **round down**.
     ///
     /// Formula (1e12 precision): `assets = floor(shares * token_exchange_price / 1e12)`.
+    /// https://github.com/Instadapp/fluid-solana-programs/blob/830458299be42eaeb6e1fe8fef6aa23444430a10/programs/lending/src/state/context.rs#L399-L411
+    /// https://github.com/Instadapp/fluid-solana-programs/blob/830458299be42eaeb6e1fe8fef6aa23444430a10/programs/lending/src/utils/helpers.rs#L37-L41
     #[inline]
     pub fn expected_assets_for_redeem(&self, shares: u64) -> Result<u64> {
         let token_exchange_price = self.token_exchange_price as u128;
