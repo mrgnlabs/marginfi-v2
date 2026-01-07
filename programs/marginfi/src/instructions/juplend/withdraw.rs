@@ -114,14 +114,26 @@ pub fn juplend_withdraw<'info>(
 
         let (token_amount, shares_to_burn) = if withdraw_all {
             // `withdraw_all` returns the user's full fToken share balance (u64).
-            let shares_to_burn = bank_account.withdraw_all()?;
+            let total_shares = bank_account.withdraw_all()?;
             // Redeemable underlying = floor(shares * price / 1e12)
-            let token_amount = {
+            // Then recalculate shares_to_burn from token_amount to guarantee we match
+            // JupLend's expected burn amount (should be identical, but this is safer).
+            let (token_amount, shares_to_burn) = {
                 let lending = ctx.accounts.juplend_lending.load()?;
-                lending
-                    .expected_assets_for_redeem(shares_to_burn)
-                    .map_err(|_| error!(MarginfiError::MathError))?
+                let token_amount = lending
+                    .expected_assets_for_redeem(total_shares)
+                    .map_err(|_| error!(MarginfiError::MathError))?;
+                let shares_to_burn = lending
+                    .expected_shares_for_withdraw(token_amount)
+                    .map_err(|_| error!(MarginfiError::MathError))?;
+                (token_amount, shares_to_burn)
             };
+
+            // Sanity check: recalculated shares should never exceed what we have
+            require!(
+                shares_to_burn <= total_shares,
+                MarginfiError::MathError
+            );
 
             (token_amount, shares_to_burn)
         } else {
