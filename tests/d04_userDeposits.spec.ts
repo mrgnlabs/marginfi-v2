@@ -25,7 +25,6 @@ import { deriveSpotMarketPDA } from "./utils/pdas";
 import {
   getSpotMarketAccount,
   getUserPositions,
-  calculateUtilizationRate,
   calculateInterestRate,
   isDriftPositionBorrow,
   isDriftPositionDeposit,
@@ -34,6 +33,7 @@ import {
   DRIFT_UTILIZATION_PRECISION,
   TOKEN_A_SCALING_FACTOR,
   USDC_SCALING_FACTOR,
+  calculateUtilization,
 } from "./utils/drift-utils";
 
 describe("d04: Drift - User Deposits and Borrows", () => {
@@ -339,25 +339,23 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     assert.ok(isDriftPositionBorrow(usdcPosition));
     assert.ok(isDriftPositionDeposit(tokenAPosition));
 
-    const usdcUtilization = calculateUtilizationRate(
-      usdcMarketAfter.depositBalance,
-      usdcMarketAfter.borrowBalance
+    const usdcUtilization = calculateUtilization(
+      usdcMarketAfter
     );
     console.log(
       "USDC utilization: " +
-        (usdcUtilization / DRIFT_UTILIZATION_PRECISION) * 100 +
+        (usdcUtilization.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
         "%"
     ); // 10%
 
     const usdcInterestRate = calculateInterestRate(
-      usdcUtilization,
-      usdcMarketAfter.optimalUtilization,
-      usdcMarketAfter.optimalBorrowRate,
-      usdcMarketAfter.maxBorrowRate
+      usdcMarketAfter,
+      new BN(0),
+      usdcUtilization
     );
     console.log(
       "USDC InterestRate: " +
-        (usdcInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
+        (usdcInterestRate.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
         "%"
     ); // 1%
   });
@@ -453,25 +451,23 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     assert.ok(isDriftPositionDeposit(usdcPosition));
     assert.ok(isDriftPositionBorrow(tokenAPosition));
 
-    const tokenAUtilization = calculateUtilizationRate(
-      tokenAMarketAfter.depositBalance,
-      tokenAMarketAfter.borrowBalance
+    const tokenAUtilization = calculateUtilization(
+      tokenAMarketAfter
     );
     console.log(
       "Token A utilization: " +
-        (tokenAUtilization / DRIFT_UTILIZATION_PRECISION) * 100 +
+        (tokenAUtilization.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
         "%"
     ); // 10%
 
     const tokenAInterestRate = calculateInterestRate(
-      tokenAUtilization,
-      tokenAMarketAfter.optimalUtilization,
-      tokenAMarketAfter.optimalBorrowRate,
-      tokenAMarketAfter.maxBorrowRate
+      tokenAMarketAfter,
+      new BN(0),
+      tokenAUtilization
     );
     console.log(
       "Token A InterestRate: " +
-        (tokenAInterestRate / DRIFT_UTILIZATION_PRECISION) * 100 +
+        (tokenAInterestRate.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
         "%"
     ); // 400%
   });

@@ -524,7 +524,10 @@ describe("d12: Drift Harvest Reward", () => {
       false
     );
 
-    const userTokenBAfter = await getTokenBalance(bankRunProvider, destinationTokenAccount);
+    const userTokenBAfter = await getTokenBalance(
+      bankRunProvider,
+      destinationTokenAccount
+    );
     assertBNEqual(depositBAmount, userTokenBAfter);
   });
 
