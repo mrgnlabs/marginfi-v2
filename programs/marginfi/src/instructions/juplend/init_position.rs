@@ -7,8 +7,8 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
-use juplend_mocks::lending::cpi::accounts::Deposit;
-use juplend_mocks::lending::cpi::deposit;
+use juplend_mocks::juplend_earn::cpi::accounts::Deposit;
+use juplend_mocks::juplend_earn::cpi::deposit;
 use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use marginfi_type_crate::types::{Bank, BankOperationalState};

@@ -1,6 +1,6 @@
 # JupLend IDL Notes
 
-## Modified: lending.json
+## Modified: juplend_earn.json
 
 The following account types were removed from the original JupLend `lending.json` IDL to fix compilation errors:
 

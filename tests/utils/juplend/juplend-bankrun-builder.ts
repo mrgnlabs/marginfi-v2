@@ -18,7 +18,7 @@ import {
 } from "@solana/spl-token";
 
 import liquidityIdl from "../../../idls/liquidity.json";
-import lendingIdl from "../../../idls/lending.json";
+import lendingIdl from "../../../idls/juplend_earn.json";
 import rewardsIdl from "../../../idls/lending_reward_rate_model.json";
 
 import { bankRunProvider, bankrunContext } from "../../rootHooks";

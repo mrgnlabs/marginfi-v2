@@ -16,8 +16,8 @@ use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 use fixed::types::I80F48;
-use juplend_mocks::lending::cpi::accounts::{Deposit, UpdateRate};
-use juplend_mocks::lending::cpi::{deposit, update_rate};
+use juplend_mocks::juplend_earn::cpi::accounts::{Deposit, UpdateRate};
+use juplend_mocks::juplend_earn::cpi::{deposit, update_rate};
 use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use marginfi_type_crate::types::{

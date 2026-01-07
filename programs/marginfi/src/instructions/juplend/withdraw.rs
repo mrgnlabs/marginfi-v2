@@ -21,8 +21,8 @@ use anchor_spl::token_interface::{
 };
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use juplend_mocks::lending::cpi::accounts::{UpdateRate, Withdraw as WithdrawCpi};
-use juplend_mocks::lending::cpi::{update_rate, withdraw as cpi_withdraw};
+use juplend_mocks::juplend_earn::cpi::accounts::{UpdateRate, Withdraw as WithdrawCpi};
+use juplend_mocks::juplend_earn::cpi::{update_rate, withdraw as cpi_withdraw};
 use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
 use marginfi_type_crate::types::{

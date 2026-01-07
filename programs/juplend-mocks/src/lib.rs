@@ -7,8 +7,8 @@ declare_id!("jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9");
 
 // Declare the JupLend lending program for CPI.
 //
-// NOTE: This relies on the Anchor IDL located at `idls/lending.json` in the repo root.
-declare_program!(lending);
+// NOTE: This relies on the Anchor IDL located at `idls/juplend_earn.json` in the repo root.
+declare_program!(juplend_earn);
 
 #[program]
 pub mod juplend_mocks {}

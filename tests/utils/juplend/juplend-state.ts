@@ -8,14 +8,14 @@ export const EXCHANGE_PRICE_PRECISION = 1_000_000_000_000n; // 1e12
 let cachedCoder: BorshAccountsCoder | null = null;
 
 /**
- * Loads the Lending IDL from `idls/lending.json` and constructs a BorshAccountsCoder.
+ * Loads the Lending IDL from `idls/juplend_earn.json` and constructs a BorshAccountsCoder.
  *
  * We load from disk at runtime to avoid requiring TS `resolveJsonModule` in the test toolchain.
  */
 export function getJuplendLendingCoder(): BorshAccountsCoder {
   if (cachedCoder) return cachedCoder;
 
-  const idlPath = path.join(__dirname, "../../../idls/lending.json");
+  const idlPath = path.join(__dirname, "../../../idls/juplend_earn.json");
   const raw = fs.readFileSync(idlPath, "utf-8");
   const idl = JSON.parse(raw) as Idl;
 

@@ -12,7 +12,7 @@ use crate::{
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
 use drift_mocks::drift::client::args as drift;
-use juplend_mocks::lending::client::args as juplend;
+use juplend_mocks::juplend_earn::client::args as juplend;
 use kamino_mocks::kamino_lending::client::args as kamino;
 use marginfi_type_crate::{
     constants::ix_discriminators,
@@ -123,7 +123,7 @@ pub fn validate_instructions(
         id_crate::ID,
         kamino_mocks::kamino_lending::ID,
         DRIFT_PROGRAM_ID,
-        juplend_mocks::lending::ID,
+        juplend_mocks::juplend_earn::ID,
     ];
     let ixes = load_and_validate_instructions(sysvar, Some(allowed_program_ids))?;
     validate_ix_first(
@@ -145,7 +145,7 @@ pub fn validate_instructions(
                 drift::UpdateSpotMarketCumulativeInterest::DISCRIMINATOR,
             ),
             (
-                juplend_mocks::lending::ID,
+                juplend_mocks::juplend_earn::ID,
                 juplend::UpdateRate::DISCRIMINATOR,
             ),
         ],
