@@ -51,9 +51,6 @@ pub fn juplend_withdraw<'info>(
         return Ok(());
     }
 
-    // Enforce canonical fToken vault (ATA of liquidity_vault_authority for f_token_mint).
-    ctx.accounts.validate_f_token_vault_ata()?;
-
     // Refresh exchange pricing (interest/rewards) and require it is updated for this slot.
     ctx.accounts.cpi_update_rate()?;
 
@@ -167,7 +164,7 @@ pub fn juplend_withdraw<'info>(
     // Record balances to verify exact deltas.
     let pre_liquidity_vault_balance =
         accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
-    let pre_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
+    let pre_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
 
     // Handle potential dust case where remaining shares are worth less than 1 underlying unit.
     //
@@ -200,7 +197,7 @@ pub fn juplend_withdraw<'info>(
 
         let post_liquidity_vault_balance =
             accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
-        let post_f_token_balance = accessor::amount(&ctx.accounts.f_token_vault.to_account_info())?;
+        let post_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
 
         let received_underlying = post_liquidity_vault_balance
             .checked_sub(pre_liquidity_vault_balance)
@@ -302,6 +299,7 @@ pub struct JuplendWithdraw<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         has_one = juplend_lending @ MarginfiError::InvalidJuplendLending,
+        has_one = juplend_f_token_vault @ MarginfiError::InvalidJuplendFTokenVault,
         has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_juplend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForJuplendOperation,
@@ -351,9 +349,9 @@ pub struct JuplendWithdraw<'info> {
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Bank's fToken vault (ATA of liquidity_vault_authority for f_token_mint).
+    /// Bank's fToken vault (validated via has_one on bank).
     #[account(mut)]
-    pub f_token_vault: InterfaceAccount<'info, TokenAccount>,
+    pub juplend_f_token_vault: InterfaceAccount<'info, TokenAccount>,
 
     // ---- JupLend CPI accounts ----
     /// CHECK: validated by the JupLend program
@@ -412,20 +410,6 @@ pub struct JuplendWithdraw<'info> {
 }
 
 impl<'info> JuplendWithdraw<'info> {
-    pub fn validate_f_token_vault_ata(&self) -> MarginfiResult {
-        let expected = anchor_spl::associated_token::get_associated_token_address_with_program_id(
-            &self.liquidity_vault_authority.key(),
-            &self.f_token_mint.key(),
-            &self.token_program.key(),
-        );
-        require_keys_eq!(
-            self.f_token_vault.key(),
-            expected,
-            MarginfiError::InvalidJuplendFTokenVault
-        );
-        Ok(())
-    }
-
     pub fn cpi_update_rate(&self) -> MarginfiResult {
         let accounts = UpdateRate {
             lending: self.juplend_lending.to_account_info(),
@@ -442,7 +426,7 @@ impl<'info> JuplendWithdraw<'info> {
     pub fn cpi_juplend_withdraw(&self, amount: u64, authority_bump: u8) -> MarginfiResult {
         let accounts = WithdrawCpi {
             signer: self.liquidity_vault_authority.to_account_info(),
-            owner_token_account: self.f_token_vault.to_account_info(),
+            owner_token_account: self.juplend_f_token_vault.to_account_info(),
             recipient_token_account: self.liquidity_vault.to_account_info(),
             lending_admin: self.lending_admin.to_account_info(),
             lending: self.juplend_lending.to_account_info(),

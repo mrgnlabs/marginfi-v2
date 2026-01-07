@@ -239,7 +239,7 @@ export const makeAddJuplendBankIx = async (
       feeVaultAuthority,
       feeVault,
       fTokenMint: accounts.fTokenMint,
-      fTokenVault,
+      juplendFTokenVault: fTokenVault,
       tokenProgram,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
@@ -290,7 +290,7 @@ export const makeJuplendInitPositionIx = async (
       bank: accounts.bank,
       liquidityVaultAuthority: accounts.liquidityVaultAuthority,
       liquidityVault: accounts.liquidityVault,
-      fTokenVault: accounts.fTokenVault,
+      juplendFTokenVault: accounts.fTokenVault,
 
       mint: accounts.mint,
       lendingAdmin: accounts.pool.lendingAdmin,
@@ -353,7 +353,7 @@ export const makeJuplendDepositIx = async (
       bank: accounts.bank,
       liquidityVaultAuthority: accounts.liquidityVaultAuthority,
       liquidityVault: accounts.liquidityVault,
-      fTokenVault: accounts.fTokenVault,
+      juplendFTokenVault: accounts.fTokenVault,
 
       mint: accounts.mint,
       lendingAdmin: accounts.pool.lendingAdmin,
@@ -435,7 +435,7 @@ export const makeJuplendWithdrawIx = async (
       bank: accounts.bank,
       liquidityVaultAuthority: accounts.liquidityVaultAuthority,
       liquidityVault: accounts.liquidityVault,
-      fTokenVault: accounts.fTokenVault,
+      juplendFTokenVault: accounts.fTokenVault,
       claimAccount: accounts.claimAccount,
 
       mint: accounts.mint,

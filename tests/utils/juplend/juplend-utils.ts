@@ -8,6 +8,9 @@ import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
  * Compact bank config for the JupLend integration.
  *
  * Mirrors the Rust type: `JuplendConfigCompact`.
+ *
+ * Note: JupLend banks always start in `Paused` state. Only `juplend_init_position`
+ * can activate them to `Operational`.
  */
 export interface JuplendConfigCompact {
   oracle: PublicKey;
@@ -26,7 +29,6 @@ export interface JuplendConfigCompact {
    */
   oracleSetup: { juplendPythPull: {} } | { juplendSwitchboardPull: {} };
 
-  operationalState: { paused: {} } | { operational: {} } | { reduceOnly: {} };
   riskTier: { collateral: {} } | { isolated: {} };
   configFlags: number;
 
@@ -39,7 +41,7 @@ export interface JuplendConfigCompact {
  * Default JupLend bank config used in tests.
  *
  * Notes:
- * - We initialize JupLend banks as `paused` and activate them via `juplendInitPosition`.
+ * - JupLend banks always start `Paused` and are activated via `juplendInitPosition`.
  * - We use `juplendPythPull` oracle setup which expects:
  *   - oracleKeys[0] = Pyth PriceUpdateV2
  *   - oracleKeys[1] = JupLend `lending` state account
@@ -54,7 +56,6 @@ export const defaultJuplendBankConfig = (
     assetWeightMaint: bigNumberToWrappedI80F48(new BigNumber(0.9)),
     depositLimit: new BN(1_000_000).mul(new BN(10).pow(new BN(decimals))),
     oracleSetup: { juplendPythPull: {} },
-    operationalState: { paused: {} },
     riskTier: { collateral: {} },
     configFlags: 1,
     totalAssetValueInitLimit: new BN(1_000_000_000).mul(

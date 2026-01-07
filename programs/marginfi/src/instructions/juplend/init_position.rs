@@ -75,6 +75,7 @@ pub struct JuplendInitPosition<'info> {
         mut,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         has_one = juplend_lending @ MarginfiError::InvalidJuplendLending,
+        has_one = juplend_f_token_vault @ MarginfiError::InvalidJuplendFTokenVault,
         has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_juplend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForJuplendOperation
@@ -111,15 +112,9 @@ pub struct JuplendInitPosition<'info> {
     )]
     pub f_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Bank's fToken vault (ATA of liquidity_vault_authority for f_token_mint).
-    /// Created during add_pool, validated here.
-    #[account(
-        mut,
-        associated_token::mint = f_token_mint,
-        associated_token::authority = liquidity_vault_authority,
-        associated_token::token_program = token_program,
-    )]
-    pub f_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// Bank's fToken vault (validated via has_one on bank).
+    #[account(mut)]
+    pub juplend_f_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     // ---- JupLend CPI accounts ----
     /// CHECK: validated by the JupLend program
@@ -187,7 +182,7 @@ impl<'info> JuplendInitPosition<'info> {
         let accounts = Deposit {
             signer: self.liquidity_vault_authority.to_account_info(),
             depositor_token_account: self.liquidity_vault.to_account_info(),
-            recipient_token_account: self.f_token_vault.to_account_info(),
+            recipient_token_account: self.juplend_f_token_vault.to_account_info(),
             mint: self.mint.to_account_info(),
             lending_admin: self.lending_admin.to_account_info(),
             lending: self.juplend_lending.to_account_info(),

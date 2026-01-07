@@ -12,8 +12,8 @@ use marginfi_type_crate::{
 /// Used to configure JupLend banks. A simplified version of `BankConfigCompact` which omits most
 /// values related to interest since JupLend banks cannot earn interest or be borrowed against.
 ///
-/// Note: JupLend banks should generally start in `Paused` state and only be set to `Operational`
-/// once the bank has been activated via `juplend_init_position` (seed deposit + fToken ATA).
+/// Note: JupLend banks always start in `Paused` state and can only be set to `Operational`
+/// via `juplend_init_position` (seed deposit + fToken ATA).
 #[derive(AnchorDeserialize, AnchorSerialize, Debug, PartialEq, Eq)]
 pub struct JuplendConfigCompact {
     pub oracle: Pubkey,
@@ -22,8 +22,6 @@ pub struct JuplendConfigCompact {
     pub deposit_limit: u64,
     /// Either `JuplendPythPull` or `JuplendSwitchboardPull`
     pub oracle_setup: OracleSetup,
-    /// Bank operational state - allows starting banks in paused state
-    pub operational_state: BankOperationalState,
     /// Risk tier - determines if assets can be borrowed in isolation
     pub risk_tier: RiskTier,
     /// Config flags for future-proofing
@@ -44,7 +42,6 @@ impl JuplendConfigCompact {
         asset_weight_maint: WrappedI80F48,
         deposit_limit: u64,
         oracle_setup: OracleSetup,
-        operational_state: BankOperationalState,
         risk_tier: RiskTier,
         config_flags: u8,
         total_asset_value_init_limit: u64,
@@ -57,7 +54,6 @@ impl JuplendConfigCompact {
             asset_weight_maint,
             deposit_limit,
             oracle_setup,
-            operational_state,
             risk_tier,
             config_flags,
             total_asset_value_init_limit,
@@ -103,7 +99,8 @@ impl JuplendConfigCompact {
             liability_weight_maint: I80F48!(1.25).into(), // placeholder
             deposit_limit: self.deposit_limit,
             interest_rate_config: default_ir_config,
-            operational_state: self.operational_state,
+            // Always start Paused; only juplend_init_position can activate.
+            operational_state: BankOperationalState::Paused,
             oracle_setup: self.oracle_setup,
             oracle_keys: keys,
             _pad0: [0; 6],
@@ -130,8 +127,6 @@ impl Default for JuplendConfigCompact {
             asset_weight_maint: I80F48!(0.9).into(),
             deposit_limit: 1_000_000,
             oracle_setup: OracleSetup::JuplendPythPull,
-            // Start paused by default; activation will flip to operational.
-            operational_state: BankOperationalState::Paused,
             risk_tier: RiskTier::Collateral,
             config_flags: PYTH_PUSH_MIGRATED_DEPRECATED,
             total_asset_value_init_limit: 1_000_000,

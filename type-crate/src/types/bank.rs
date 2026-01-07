@@ -138,9 +138,11 @@ pub struct Bank {
 
     /// JupLend banks only, otherwise Pubkey default
     pub juplend_lending: Pubkey,
+    /// JupLend banks only: the fToken vault that holds minted fTokens
+    pub juplend_f_token_vault: Pubkey,
 
-    // Keep total Bank size unchanged: old padding was 80B, new is 32B + 48B = 80B
-    pub _padding_1: [[u64; 2]; 3], // 8 * 2 * 3 = 48B
+    // Keep total Bank size unchanged: old padding was 80B, new is 32B + 32B + 16B = 80B
+    pub _padding_1: [u64; 2], // 8 * 2 = 16B
 }
 
 impl Bank {

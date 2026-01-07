@@ -35,12 +35,14 @@ pub fn lending_pool_add_bank_juplend(
         bank_mint,
         bank: bank_loader,
         juplend_lending,
+        juplend_f_token_vault,
         ..
     } = ctx.accounts;
 
     let mut bank = bank_loader.load_init()?;
     let mut group = ctx.accounts.group.load_mut()?;
     let lending_key = juplend_lending.key();
+    let f_token_vault_key = juplend_f_token_vault.key();
 
     // Validate that we're using a supported Juplend oracle setup type
     require!(
@@ -83,6 +85,7 @@ pub fn lending_pool_add_bank_juplend(
 
     // Set JupLend-specific fields
     bank.juplend_lending = lending_key;
+    bank.juplend_f_token_vault = f_token_vault_key;
 
     log_pool_info(&bank);
 
@@ -234,7 +237,7 @@ pub struct LendingPoolAddBankJuplend<'info> {
         associated_token::authority = liquidity_vault_authority,
         associated_token::token_program = token_program,
     )]
-    pub f_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub juplend_f_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Token program for both underlying mint and fToken mint (SPL Token or Token-2022).
     /// JupLend creates fToken mints using the same token program as the underlying.
