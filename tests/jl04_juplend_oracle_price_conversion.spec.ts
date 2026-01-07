@@ -25,6 +25,7 @@ import {
 import { groupInitialize } from "./utils/group-instructions";
 import { accountInit, composeRemainingAccounts, healthPulse } from "./utils/user-instructions";
 import { bytesToF64, processBankrunTransaction } from "./utils/tools";
+import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 import {
@@ -509,6 +510,56 @@ describe("jl04: JupLend oracle price conversion tracks token_exchange_price", ()
       relErr,
       1e-6,
       "oracle conversion ratio should match token_exchange_price ratio"
+    );
+
+    // -------------------------------------------------
+    // 4) Verify exact dollar value of collateral
+    // -------------------------------------------------
+    // This proves the on-chain health calculation assigns the correct absolute
+    // dollar value to the user's JupLend collateral, including accrued interest.
+    //
+    // The health cache price already includes:
+    //   price = oracle_price × confidence_adj × token_exchange_price / 1e12
+    //
+    // So we can derive the confidence-adjusted oracle price from price2:
+    //   oracle_conf_adj = price2 × 1e12 / exchange2
+    //
+    // Formula: assetValue = deposit × (E2/E1) × oracle_conf_adj × asset_weight
+    const ASSET_WEIGHT_INIT = 0.8; // from defaultJuplendBankConfig
+    const DEPOSIT_IN_WHOLE_TOKENS = 100; // USER_DEPOSIT_AMOUNT = 100 USDC
+    const EXCHANGE_PRECISION = 1e12;
+
+    // Derive the confidence-adjusted oracle price from health cache
+    const oracleConfAdj = price2 * EXCHANGE_PRECISION / Number(exchange2);
+
+    // After interest, the underlying value has grown by the exchange rate ratio
+    const exchangeRatio = Number(exchange2) / Number(exchange1);
+    const underlyingValueAfterInterest = DEPOSIT_IN_WHOLE_TOKENS * exchangeRatio;
+
+    // Expected weighted collateral value including oracle confidence adjustment
+    const expectedAssetValue =
+      underlyingValueAfterInterest * oracleConfAdj * ASSET_WEIGHT_INIT;
+
+    const actualAssetValue = wrappedI80F48toBigNumber(
+      accAfterPulse2.healthCache.assetValue
+    ).toNumber();
+
+    if (verbose) {
+      console.log("oracleConfAdj:", oracleConfAdj);
+      console.log("exchangeRatio:", exchangeRatio);
+      console.log("underlyingValueAfterInterest:", underlyingValueAfterInterest);
+      console.log("expectedAssetValue:", expectedAssetValue);
+      console.log("actualAssetValue:", actualAssetValue);
+    }
+
+    // Tight tolerance - should match exactly (within floating point precision)
+    const tolerance = expectedAssetValue * 0.0001; // 0.01% tolerance
+    assert.approximately(
+      actualAssetValue,
+      expectedAssetValue,
+      tolerance,
+      `Collateral dollar value should be ~$${expectedAssetValue.toFixed(2)} ` +
+        `(100 USDC × ${exchangeRatio.toFixed(6)} yield × ${oracleConfAdj.toFixed(4)} oracle × 0.8 weight)`
     );
   });
 });

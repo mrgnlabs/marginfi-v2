@@ -600,6 +600,10 @@ impl MarginfiError {
                 | MarginfiError::PythPushInvalidWindowSize
                 | MarginfiError::OracleMaxConfidenceExceeded
                 | MarginfiError::ZeroSupplyInStakePool
+                // Lending protocol staleness errors - stale exchange rates mean unreliable prices
+                | MarginfiError::ReserveStale // Kamino
+                | MarginfiError::SolendReserveStale
+                | MarginfiError::DriftSpotMarketStale
                 | MarginfiError::JuplendLendingStale
         )
     }
