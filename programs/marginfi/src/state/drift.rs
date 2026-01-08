@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use drift_mocks::constants::DRIFT_PRECISION_EXP;
+use crate::{MarginfiError, MarginfiResult};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
@@ -16,7 +18,11 @@ pub struct DriftConfigCompact {
     pub oracle: Pubkey,
     pub asset_weight_init: WrappedI80F48,
     pub asset_weight_maint: WrappedI80F48,
-    pub deposit_limit: u64,
+    /// Deposit limit in **native token decimals** (e.g., for USDC with 6 decimals,
+    /// 1_000_000_000_000 = 1M USDC). This is automatically converted to 9-decimal
+    /// scaled balance units when creating the bank, since Drift uses fixed 9-decimal
+    /// precision for all spot market balances.
+    pub deposit_limit_native: u64,
     /// Either `DriftPythPull` or `DriftSwitchboardPull`
     pub oracle_setup: OracleSetup,
     /// Bank operational state - allows starting banks in paused state
@@ -38,7 +44,7 @@ impl DriftConfigCompact {
         oracle: Pubkey,
         asset_weight_init: WrappedI80F48,
         asset_weight_maint: WrappedI80F48,
-        deposit_limit: u64,
+        deposit_limit_native: u64,
         oracle_setup: OracleSetup,
         operational_state: BankOperationalState,
         risk_tier: RiskTier,
@@ -51,7 +57,7 @@ impl DriftConfigCompact {
             oracle,
             asset_weight_init,
             asset_weight_maint,
-            deposit_limit,
+            deposit_limit_native,
             oracle_setup,
             operational_state,
             risk_tier,
@@ -62,8 +68,34 @@ impl DriftConfigCompact {
         }
     }
 
-    /// Convert to BankConfig with the spot market key for Drift banks
-    pub fn to_bank_config(&self, spot_market_key: Pubkey) -> BankConfig {
+    /// Convert to BankConfig with the spot market key for Drift banks.
+    ///
+    /// # Arguments
+    /// * `spot_market_key` - The Drift spot market pubkey to store in oracle_keys
+    /// * `token_decimals` - The native decimals of the underlying token (e.g., 6 for USDC)
+    ///
+    /// # Deposit Limit Conversion
+    /// Converts `deposit_limit_native` from native token decimals to 9-decimal scaled balance
+    /// units, since Drift banks use a fixed 9-decimal precision for all spot market balances.
+    ///
+    /// Example for USDC (6 decimals):
+    /// - Input: deposit_limit_native = 1_000_000_000_000 (1M USDC in 6-decimal)
+    /// - Output: 1_000_000_000_000 * 10^3 = 1_000_000_000_000_000 (1M in 9-decimal)
+    pub fn to_bank_config(&self, spot_market_key: Pubkey, token_decimals: u8) -> MarginfiResult<BankConfig> {
+        require!(token_decimals <= DRIFT_PRECISION_EXP as u8, MarginfiError::MathError);
+
+        let deposit_limit = if token_decimals < 9 {
+            let decimal_adjustment = 10u64.pow((9 - token_decimals) as u32);
+            self.deposit_limit_native
+                .checked_mul(decimal_adjustment)
+                .ok_or_else(|| error!(MarginfiError::MathError))?
+        } else if token_decimals > 9 {
+            let decimal_adjustment = 10u64.pow((token_decimals - 9) as u32);
+            self.deposit_limit_native / decimal_adjustment
+        } else {
+            self.deposit_limit_native
+        };
+
         // These are placeholder values: Drift positions do not support borrowing and likely
         // never will, thus they will earn no interest.
         // Note: Some placeholder values are non-zero to handle downstream validation checks.
@@ -88,12 +120,12 @@ impl DriftConfigCompact {
             Pubkey::default(),
         ];
 
-        BankConfig {
+        Ok(BankConfig {
             asset_weight_init: self.asset_weight_init,
             asset_weight_maint: self.asset_weight_maint,
             liability_weight_init: I80F48!(1.5).into(), // placeholder
             liability_weight_maint: I80F48!(1.25).into(), // placeholder
-            deposit_limit: self.deposit_limit,
+            deposit_limit,
             interest_rate_config: default_ir_config,
             operational_state: self.operational_state,
             oracle_setup: self.oracle_setup,
@@ -110,7 +142,7 @@ impl DriftConfigCompact {
             oracle_max_confidence: self.oracle_max_confidence,
             fixed_price: I80F48::ZERO.into(),
             _padding1: [0; 16],
-        }
+        })
     }
 }
 
@@ -120,7 +152,7 @@ impl Default for DriftConfigCompact {
             oracle: Pubkey::default(),
             asset_weight_init: I80F48!(0.8).into(),
             asset_weight_maint: I80F48!(0.9).into(),
-            deposit_limit: 1_000_000,
+            deposit_limit_native: 1_000_000,
             oracle_setup: OracleSetup::DriftPythPull,
             operational_state: BankOperationalState::Operational,
             risk_tier: RiskTier::Collateral,

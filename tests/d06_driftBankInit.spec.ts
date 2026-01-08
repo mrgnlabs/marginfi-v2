@@ -143,10 +143,14 @@ describe("d06: Init Drift banks", () => {
 
     assertI80F48Equal(config.assetWeightInit, 1);
     assertI80F48Equal(config.assetWeightMaint, 1);
-    assertBNEqual(
-      config.depositLimit,
-      new BN(100_000_000 * 10 ** ecosystem.usdcDecimals)
-    ); // 100mil USDC because big interest needed
+    // deposit_limit is stored in 9-decimal scaled balance units (converted from native decimals)
+    // Input: 100M USDC in native decimals = 100_000_000 * 10^usdcDecimals
+    // Stored: input * 10^(9 - usdcDecimals) = 100M in 9-decimal
+    const inputDepositLimit = new BN(100_000_000).mul(new BN(10 ** ecosystem.usdcDecimals));
+    const scaledDepositLimit = inputDepositLimit.mul(
+      new BN(10 ** (DRIFT_SCALED_BALANCE_DECIMALS - ecosystem.usdcDecimals))
+    );
+    assertBNEqual(config.depositLimit, scaledDepositLimit);
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { driftPythPull: {} });

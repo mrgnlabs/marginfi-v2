@@ -51,7 +51,7 @@ pub fn lending_pool_add_bank_drift(
         MarginfiError::DriftInvalidOracleSetup
     );
 
-    let config = bank_config.to_bank_config(spot_market_key);
+    let config = bank_config.to_bank_config(spot_market_key, bank_mint.decimals)?;
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
