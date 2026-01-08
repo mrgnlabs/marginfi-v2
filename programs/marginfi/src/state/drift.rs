@@ -1,6 +1,6 @@
+use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use drift_mocks::constants::DRIFT_PRECISION_EXP;
-use crate::{MarginfiError, MarginfiResult};
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi_type_crate::{
@@ -81,8 +81,15 @@ impl DriftConfigCompact {
     /// Example for USDC (6 decimals):
     /// - Input: deposit_limit_native = 1_000_000_000_000 (1M USDC in 6-decimal)
     /// - Output: 1_000_000_000_000 * 10^3 = 1_000_000_000_000_000 (1M in 9-decimal)
-    pub fn to_bank_config(&self, spot_market_key: Pubkey, token_decimals: u8) -> MarginfiResult<BankConfig> {
-        require!(token_decimals <= DRIFT_PRECISION_EXP as u8, MarginfiError::MathError);
+    pub fn to_bank_config(
+        &self,
+        spot_market_key: Pubkey,
+        token_decimals: u8,
+    ) -> MarginfiResult<BankConfig> {
+        require!(
+            token_decimals <= DRIFT_PRECISION_EXP as u8,
+            MarginfiError::MathError
+        );
 
         let deposit_limit = if token_decimals < 9 {
             let decimal_adjustment = 10u64.pow((9 - token_decimals) as u32);
