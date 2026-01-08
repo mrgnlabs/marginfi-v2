@@ -2,7 +2,6 @@ import { BN } from "@coral-xyz/anchor";
 import {
   Keypair,
   PublicKey,
-  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 
@@ -19,12 +18,12 @@ import {
   groupAdmin,
   globalProgramAdmin,
   SOLEND_USDC_BANK,
-  SOLEND_TOKENA_BANK,
+  SOLEND_TOKEN_A_BANK,
   SOLEND_USDC_RESERVE,
-  SOLEND_TOKENA_RESERVE,
+  SOLEND_TOKEN_A_RESERVE,
   SOLEND_MARKET,
   SOLEND_USDC_COLLATERAL_MINT,
-  SOLEND_TOKENA_COLLATERAL_MINT,
+  SOLEND_TOKEN_A_COLLATERAL_MINT,
 } from "./rootHooks";
 import {
   makeAddSolendBankIx,
@@ -53,11 +52,10 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { accountInit } from "./utils/user-instructions";
-import { SOLEND_PROGRAM_ID } from "./utils/types";
 import { parseReserve } from "./utils/solend-sdk/state/reserve";
 
 const INIT_OBLIGATION_DEPOSIT_AMOUNT_USDC = 100;
-const INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKENA = 100;
+const INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKEN_A = 100;
 
 describe("sl05: Solend - MarginFi Integration", () => {
   let userA: MockUser;
@@ -189,7 +187,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
         group: solendGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.tokenAMint.publicKey,
-        solendReserve: solendAccounts.get(SOLEND_TOKENA_RESERVE)!,
+        solendReserve: solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!,
         solendMarket: solendAccounts.get(SOLEND_MARKET)!,
         oracle: oracles.tokenAOracle.publicKey,
       },
@@ -208,7 +206,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
       true
     );
 
-    solendAccounts.set(SOLEND_TOKENA_BANK, bankKey);
+    solendAccounts.set(SOLEND_TOKEN_A_BANK, bankKey);
     tokenABank = bankKey;
 
     const bank = await bankrunProgram.account.bank.fetch(bankKey);
@@ -216,7 +214,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
     assert.equal(bank.config.assetTag, ASSET_TAG_SOLEND);
     assertKeysEqual(bank.group, solendGroup.publicKey);
 
-    const tokenAReserve = solendAccounts.get(SOLEND_TOKENA_RESERVE)!;
+    const tokenAReserve = solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!;
     assert.equal(bank.mintDecimals, ecosystem.tokenADecimals);
     assertKeysEqual(bank.config.oracleKeys[0], oracles.tokenAOracle.publicKey);
     assertKeysEqual(bank.config.oracleKeys[1], tokenAReserve);
@@ -502,7 +500,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
       globalProgramAdmin.wallet,
     ]);
 
-    const tokenAReservePubkey = solendAccounts.get(SOLEND_TOKENA_RESERVE)!;
+    const tokenAReservePubkey = solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!;
     const reserveAccountBefore = await bankrunContext.banksClient.getAccount(
       tokenAReservePubkey
     );
@@ -513,7 +511,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
     const liquidityBefore =
       reserveBefore.info.liquidity.availableAmount.toNumber();
 
-    const collateralMint = solendAccounts.get(SOLEND_TOKENA_COLLATERAL_MINT)!;
+    const collateralMint = solendAccounts.get(SOLEND_TOKEN_A_COLLATERAL_MINT)!;
 
     const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
       bankrunProgram.programId,
@@ -544,7 +542,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
         pythPrice: oracles.tokenAOracleFeed.publicKey,
       },
       {
-        amount: new BN(INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKENA),
+        amount: new BN(INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKEN_A),
       }
     );
 
@@ -564,7 +562,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
     const expectedBalance =
       initialBalance +
       fundAmount.toNumber() -
-      INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKENA;
+      INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKEN_A;
     assert.equal(adminBalance.toString(), expectedBalance.toString());
 
     const bank = await bankrunProgram.account.bank.fetch(tokenABank);
@@ -589,7 +587,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
     assert.equal(obligationData.info.deposits.length, 1);
     assertKeysEqual(
       obligationData.info.deposits[0].depositReserve,
-      solendAccounts.get(SOLEND_TOKENA_RESERVE)!
+      solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!
     );
 
     const depositAmount =
@@ -611,7 +609,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
 
     assert.equal(
       liquidityAfter - liquidityBefore,
-      INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKENA
+      INIT_OBLIGATION_DEPOSIT_AMOUNT_TOKEN_A
     );
   });
 });

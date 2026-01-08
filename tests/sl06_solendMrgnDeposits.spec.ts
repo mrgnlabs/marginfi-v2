@@ -11,9 +11,9 @@ import {
   users,
   SOLEND_MARKET,
   SOLEND_USDC_BANK,
-  SOLEND_TOKENA_BANK,
+  SOLEND_TOKEN_A_BANK,
   SOLEND_USDC_RESERVE,
-  SOLEND_TOKENA_RESERVE,
+  SOLEND_TOKEN_A_RESERVE,
   bankRunProvider,
   ecosystem,
   oracles,
@@ -46,9 +46,9 @@ describe("sl06: Solend - Marginfi Deposits & Withdrawals", () => {
     userB = users[1];
 
     usdcBank = solendAccounts.get(SOLEND_USDC_BANK)!;
-    tokenABank = solendAccounts.get(SOLEND_TOKENA_BANK)!;
+    tokenABank = solendAccounts.get(SOLEND_TOKEN_A_BANK)!;
     usdcReserve = solendAccounts.get(SOLEND_USDC_RESERVE)!;
-    tokenAReserve = solendAccounts.get(SOLEND_TOKENA_RESERVE)!;
+    tokenAReserve = solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!;
   });
 
   describe("1. Instant Deposit/Withdraw Tests", () => {
