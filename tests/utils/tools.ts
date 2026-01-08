@@ -56,6 +56,7 @@ export const processBankrunTransaction = async (
     }
     return await bankrunContext.banksClient.processTransaction(tx);
   }
+
 };
 
 /**
@@ -225,6 +226,7 @@ export function dumpAccBalances(
 
   for (let b of balances) {
     if (b.active == 0) {
+
       activeBalances.push({
         "Bank PK": "empty",
         // Tag: "-",
