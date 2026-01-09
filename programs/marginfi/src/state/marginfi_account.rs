@@ -320,7 +320,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                 let value = calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
-                    bank.mint_decimals,
+                    bank.get_balance_decimals(),
                     Some(asset_weight),
                 )?;
 
@@ -355,7 +355,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let value = calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
-            bank.mint_decimals,
+            bank.get_balance_decimals(),
             Some(liability_weight),
         )?;
 
@@ -1306,7 +1306,7 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = calc_emissions(
                 period,
                 balance_amount,
-                self.bank.mint_decimals as usize,
+                self.bank.get_balance_decimals() as usize,
                 emissions_rate,
             )?;
 

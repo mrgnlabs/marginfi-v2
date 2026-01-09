@@ -1,4 +1,5 @@
 use super::marginfi_account_dup::RiskEngine2;
+use crate::utils::get_balance_decimals;
 use crate::utils::big_query::DATE_FORMAT_STR;
 use crate::utils::snapshot::{BankAccounts, OracleData, Snapshot};
 use anyhow::anyhow;
@@ -86,13 +87,14 @@ impl MarginfiGroupMetrics {
                     oralce.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low)),
                     oralce.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High)),
                 );
+                let balance_decimals = get_balance_decimals(&bank_accounts.bank);
 
                 let asset_value_usd = calc_value(
                     bank_accounts
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
                     real_price,
-                    bank_accounts.bank.mint_decimals,
+                    balance_decimals,
                     None,
                 )?
                 .to_num::<f64>();
@@ -101,7 +103,7 @@ impl MarginfiGroupMetrics {
                         .bank
                         .get_asset_amount(total_asset_share.into())?,
                     maint_asset_price,
-                    bank_accounts.bank.mint_decimals,
+                    balance_decimals,
                     Some(asset_weight),
                 )?
                 .to_num::<f64>();
@@ -110,7 +112,7 @@ impl MarginfiGroupMetrics {
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
                     real_price,
-                    bank_accounts.bank.mint_decimals,
+                    balance_decimals,
                     None,
                 )?
                 .to_num::<f64>();
@@ -119,7 +121,7 @@ impl MarginfiGroupMetrics {
                         .bank
                         .get_liability_amount(total_liability_share.into())?,
                     maint_liab_price,
-                    bank_accounts.bank.mint_decimals,
+                    balance_decimals,
                     Some(liability_weight),
                 )?
                 .to_num::<f64>();
@@ -256,6 +258,7 @@ impl LendingPoolBankMetrics {
         })?;
 
         let price = oracle.get_price_of_type(OraclePriceType::RealTime, None);
+        let balance_decimals = get_balance_decimals(&bank_accounts.bank);
 
         let deposit_limit_usd = calc_value(
             bank_accounts.bank.config.deposit_limit.into(),
@@ -276,7 +279,7 @@ impl LendingPoolBankMetrics {
             .bank
             .get_asset_amount(total_asset_share.into())?;
         let asset_value_usd =
-            calc_value(asset_amount, price, bank_accounts.bank.mint_decimals, None)?
+            calc_value(asset_amount, price, balance_decimals, None)?
                 .to_num::<f64>();
         let liability_amount = bank_accounts
             .bank
@@ -284,7 +287,7 @@ impl LendingPoolBankMetrics {
         let liability_value_usd = calc_value(
             liability_amount,
             price,
-            bank_accounts.bank.mint_decimals,
+            balance_decimals,
             None,
         )?
         .to_num::<f64>();
@@ -369,9 +372,9 @@ impl LendingPoolBankMetrics {
             group_fee: group_fee_apr.to_num::<f64>(),
             insurance_fee: insurance_fee_apr.to_num::<f64>(),
             total_assets_in_tokens: asset_amount.to_num::<f64>()
-                / (10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
+                / (10i64.pow(balance_decimals as u32) as f64),
             total_liabilities_in_tokens: liability_amount.to_num::<f64>()
-                / (10i64.pow(bank_accounts.bank.mint_decimals as u32) as f64),
+                / (10i64.pow(balance_decimals as u32) as f64),
             total_assets_in_usd: asset_value_usd,
             total_liabilities_in_usd: liability_value_usd,
             liquidity_vault_balance: (bank_accounts.liquidity_vault_token_account.amount as f64)
@@ -571,21 +574,22 @@ impl MarginfiAccountMetrics {
                         liability_weight_initial,
                     )
                 };
+                let balance_decimals = get_balance_decimals(bank);
 
-                let usd_value = calc_value(amount, real_price, bank.mint_decimals, None)
+                let usd_value = calc_value(amount, real_price, balance_decimals, None)
                     .unwrap()
                     .to_num::<f64>();
 
                 let usd_value_maintenance = calc_value(
                     amount,
                     maint_price,
-                    bank.mint_decimals,
+                    balance_decimals,
                     Some(weight_maintenance),
                 )
                 .unwrap()
                 .to_num::<f64>();
                 let usd_value_initial =
-                    calc_value(amount, init_price, bank.mint_decimals, Some(weight_initial))
+                    calc_value(amount, init_price, balance_decimals, Some(weight_initial))
                         .unwrap()
                         .to_num::<f64>();
 
@@ -593,7 +597,8 @@ impl MarginfiAccountMetrics {
                     bank: balance.bank_pk.to_string(),
                     mint: mint.to_string(),
                     is_asset,
-                    amount: amount.to_num::<f64>() / (10i64.pow(bank.mint_decimals as u32) as f64),
+                    amount: amount.to_num::<f64>()
+                        / (10i64.pow(balance_decimals as u32) as f64),
                     usd_value,
                     usd_value_maintenance,
                     usd_value_initial,

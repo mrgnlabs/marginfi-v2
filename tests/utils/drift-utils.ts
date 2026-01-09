@@ -613,7 +613,7 @@ export interface DriftConfigCompact {
   oracle: PublicKey;
   assetWeightInit: WrappedI80F48;
   assetWeightMaint: WrappedI80F48;
-  depositLimitNative: BN;
+  depositLimit: BN;
   oracleSetup: { driftPythPull: {} } | { driftSwitchboardPull: {} };
   operationalState: { operational: {} } | { paused: {} } | { reduceOnly: {} };
   riskTier: { collateral: {} } | { isolated: {} };
@@ -637,7 +637,7 @@ export const defaultDriftBankConfig = (
     assetWeightInit: I80F48_ONE, // 100% asset weight
     assetWeightMaint: I80F48_ONE, // 100% asset weight
     // 100 million tokens in native decimals (will be converted to 9-decimal scaled balance in program)
-    depositLimitNative: new BN(100_000_000_000_000),
+    depositLimit: new BN(100_000_000_000_000),
     oracleSetup: {
       driftPythPull: {}, // Use Pyth Pull oracle by default
     },

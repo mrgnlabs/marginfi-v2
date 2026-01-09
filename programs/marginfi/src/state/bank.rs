@@ -1,7 +1,9 @@
 #[cfg(not(feature = "client"))]
 use crate::events::{GroupEventHeader, LendingPoolBankAccrueInterestEvent};
 use crate::{
-    check, debug,
+    check,
+    constants::DRIFT_SCALED_BALANCE_DECIMALS,
+    debug,
     errors::MarginfiError,
     math_error,
     prelude::MarginfiResult,
@@ -31,10 +33,11 @@ use bytemuck::Zeroable;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
-        FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
-        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
-        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
+        ASSET_TAG_DRIFT, CLOSE_ENABLED_FLAG, EMISSION_FLAGS, EXP_10_I80F48,
+        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, FREEZE_SETTINGS, GROUP_FLAGS,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
+        LIQUIDITY_VAULT_SEED, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
+        TOKENLESS_REPAYMENTS_ALLOWED,
     },
     types::{
         Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
@@ -66,6 +69,7 @@ pub trait BankImpl {
     fn get_asset_amount(&self, shares: I80F48) -> MarginfiResult<I80F48>;
     fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
     fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
+    fn get_balance_decimals(&self) -> u8;
     fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64>;
     fn change_asset_shares(&mut self, shares: I80F48, bypass_deposit_limit: bool)
         -> MarginfiResult;
@@ -117,6 +121,24 @@ pub trait BankImpl {
     fn decrement_lending_position_count(&mut self);
     fn increment_borrowing_position_count(&mut self);
     fn decrement_borrowing_position_count(&mut self);
+}
+
+fn scale_drift_deposit_limit(deposit_limit: u64, mint_decimals: u8) -> MarginfiResult<I80F48> {
+    let limit = I80F48::from_num(deposit_limit);
+
+    if mint_decimals == DRIFT_SCALED_BALANCE_DECIMALS {
+        return Ok(limit);
+    }
+
+    if mint_decimals < DRIFT_SCALED_BALANCE_DECIMALS {
+        let diff = (DRIFT_SCALED_BALANCE_DECIMALS - mint_decimals) as usize;
+        let scale = *EXP_10_I80F48.get(diff).ok_or_else(math_error!())?;
+        return Ok(limit.checked_mul(scale).ok_or_else(math_error!())?);
+    }
+
+    let diff = (mint_decimals - DRIFT_SCALED_BALANCE_DECIMALS) as usize;
+    let scale = *EXP_10_I80F48.get(diff).ok_or_else(math_error!())?;
+    Ok(limit.checked_div(scale).ok_or_else(math_error!())?)
 }
 
 impl BankImpl for Bank {
@@ -201,6 +223,14 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?)
     }
 
+    fn get_balance_decimals(&self) -> u8 {
+        if self.config.asset_tag == ASSET_TAG_DRIFT {
+            DRIFT_SCALED_BALANCE_DECIMALS
+        } else {
+            self.mint_decimals
+        }
+    }
+
     fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64> {
         if !self.config.is_deposit_limit_active() {
             return Ok(u64::MAX);
@@ -239,7 +269,14 @@ impl BankImpl for Bank {
 
         if shares.is_positive() && self.config.is_deposit_limit_active() && !bypass_deposit_limit {
             let total_deposits_amount = self.get_asset_amount(self.total_asset_shares.into())?;
-            let deposit_limit = I80F48::from_num(self.config.deposit_limit);
+
+            // For Drift banks, deposit_limit is in native decimals but total_deposits_amount
+            // is in 9-decimal (DRIFT_SCALED_BALANCE_DECIMALS). We Scale deposit_limit to match.
+            let deposit_limit = if self.config.asset_tag == ASSET_TAG_DRIFT {
+                scale_drift_deposit_limit(self.config.deposit_limit, self.mint_decimals)?
+            } else {
+                I80F48::from_num(self.config.deposit_limit)
+            };
 
             if total_deposits_amount >= deposit_limit {
                 let deposits_num: f64 = total_deposits_amount.to_num();
@@ -260,7 +297,7 @@ impl BankImpl for Bank {
             let bank_total_assets_value = calc_value(
                 self.get_asset_amount(self.total_asset_shares.into())?,
                 price,
-                self.mint_decimals,
+                self.get_balance_decimals(),
                 None,
             )?;
 

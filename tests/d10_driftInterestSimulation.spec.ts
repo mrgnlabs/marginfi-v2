@@ -111,7 +111,7 @@ describe("d10: Drift Interest Simulation", () => {
     driftAccounts.set(NEW_DRIFT_TOKEN_A_BANK, newDriftTokenABank);
     const usdcConfig = defaultDriftBankConfig(oracles.usdcOracle.publicKey);
     // 10 million USDC in native 6-decimal units (will be converted to 9-decimal in program)
-    usdcConfig.depositLimitNative = new BN(10_000_000).mul(
+    usdcConfig.depositLimit = new BN(10_000_000).mul(
       new BN(10 ** ecosystem.usdcDecimals)
     );
 
@@ -132,7 +132,7 @@ describe("d10: Drift Interest Simulation", () => {
 
     const tokenAConfig = defaultDriftBankConfig(oracles.tokenAOracle.publicKey);
     // 10 million Token A in native decimals (will be converted to 9-decimal in program)
-    tokenAConfig.depositLimitNative = new BN(10_000_000).mul(
+    tokenAConfig.depositLimit = new BN(10_000_000).mul(
       new BN(10 ** ecosystem.tokenADecimals)
     );
 
