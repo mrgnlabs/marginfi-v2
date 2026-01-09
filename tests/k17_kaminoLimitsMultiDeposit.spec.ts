@@ -75,7 +75,6 @@ import {
   reserveCollateralMintPda,
   reserveCollateralSupplyPda,
   LendingMarket,
-  Reserve,
   MarketWithAddress,
   BorrowRateCurve,
   CurvePoint,

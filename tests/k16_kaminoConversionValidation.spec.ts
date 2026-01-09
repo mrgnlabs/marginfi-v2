@@ -2,7 +2,6 @@ import { BN, Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
-  SystemProgram,
   Keypair,
   AccountMeta,
   TransactionInstruction,
@@ -345,21 +344,6 @@ describe("k16: Kamino Conversion Validation", () => {
     );
 
     bankrunContext.setClock(newClock);
-
-    const dummyTx = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: globalProgramAdmin.wallet.publicKey,
-        toPubkey: globalProgramAdmin.wallet.publicKey,
-        lamports: 1,
-      })
-    );
-    await processBankrunTransaction(
-      bankrunContext,
-      dummyTx,
-      [globalProgramAdmin.wallet],
-      false,
-      true
-    );
 
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 

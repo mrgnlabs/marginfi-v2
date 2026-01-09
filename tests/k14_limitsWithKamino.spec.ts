@@ -17,7 +17,6 @@ import {
   TOKEN_A_RESERVE,
   kaminoAccounts,
   MARKET,
-  globalProgramAdmin,
   FARMS_PROGRAM_ID,
   A_FARM_STATE,
   farmAccounts,
@@ -39,11 +38,10 @@ import {
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   dumpAccBalances,
-  dumpBankrunLogs,
   processBankrunTransaction,
 } from "./utils/tools";
 import { assertBankrunTxFailed } from "./utils/genericTests";
-import { genericKaminoMultiBankTestSetup } from "./genericSetups";
+import { genericMultiBankTestSetup } from "./genericSetups";
 import {
   makeKaminoDepositIx,
   makeKaminoWithdrawIx,
@@ -57,7 +55,6 @@ import {
   deriveLiquidityVaultAuthority,
   deriveUserState,
 } from "./utils/pdas";
-import { refreshPullOracles } from "./utils/pyth-pull-mocks";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 const startingSeed: number = 499;
@@ -81,14 +78,15 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
   });
 
   it("init group, init banks, and fund banks", async () => {
-    const result = await genericKaminoMultiBankTestSetup(
+    const result = await genericMultiBankTestSetup(
       MAX_BALANCES,
       USER_ACCOUNT_THROWAWAY,
       groupBuff,
-      startingSeed
+      startingSeed,
+      MAX_BALANCES,
     );
     kaminoBanks = result.kaminoBanks;
-    regularBanks = result.regularBanks;
+    regularBanks = result.banks;
     throwawayGroup = result.throwawayGroup;
   });
 

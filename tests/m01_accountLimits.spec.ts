@@ -13,7 +13,6 @@ import {
   ecosystem,
   oracles,
   users,
-  globalProgramAdmin,
 } from "./rootHooks";
 import { configureBank, setFixedPrice } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
