@@ -204,16 +204,13 @@ pub fn lending_account_withdraw<'info>(
         )?;
         health_cache.program_version = PROGRAM_VERSION;
 
-        // Fetch unbiased price for cache update
-        let bank = bank_loader.load()?;
-        maybe_price =
-            fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();
-
         health_cache.set_engine_ok(true);
         marginfi_account.health_cache = health_cache;
-    } else {
-        // Note: the caller can simply omit risk accounts since the risk check is ignored here, in
-        // that case the cache doesn't update and this does nothing.
+    }
+
+    // Fetch unbiased price for cache update
+    // Note: during receivership, callers may omit oracle accounts; the cache simply won't update.
+    {
         let bank = bank_loader.load()?;
         maybe_price =
             fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();

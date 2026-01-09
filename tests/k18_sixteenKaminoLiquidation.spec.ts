@@ -3,10 +3,10 @@
  *
  * This test verifies that liquidations work correctly when accounts have
  * the maximum 16 positions with 15 of them being Kamino positions.
- * This became possible with the custom allocator heap reuse optimization
- * (see allocator.rs) which increased MAX_KAMINO_POSITIONS from 8 to 16.
+ * This is enabled by the custom forward allocating heap (see allocator.rs)
+ * which allows processing up to 16 positions without requestHeapFrame.
  *
- * Note: MAX_BALANCES = 16 total positions, so we test 15 Kamino deposits + 1 borrow.
+ * Note: MAX_LENDING_ACCOUNT_BALANCES = 16 total positions, so we test 15 Kamino deposits + 1 borrow.
  */
 
 import { BN } from "@coral-xyz/anchor";
@@ -59,7 +59,6 @@ import {
   reserveCollateralMintPda,
   reserveCollateralSupplyPda,
   LendingMarket,
-  Reserve,
   MarketWithAddress,
   BorrowRateCurve,
   CurvePoint,
@@ -75,8 +74,6 @@ import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
 
-/** Maximum Kamino positions per account - now 16 with custom allocator */
-const MAX_KAMINO_POSITIONS = 16;
 /** Number of Kamino banks to create for this test (16 total banks)
  * User will deposit into 15 Kamino banks + 1 USDC borrow = 16 total positions */
 const NUM_KAMINO_BANKS = 16;

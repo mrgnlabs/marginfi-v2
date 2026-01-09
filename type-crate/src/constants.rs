@@ -162,16 +162,6 @@ pub const ASSET_TAG_STAKED: u8 = 2;
 /// assets (`ASSET_TAG_DEFAULT`).
 pub const ASSET_TAG_KAMINO: u8 = 3;
 
-/// Maximum number of Kamino positions allowed per account.
-///
-/// This was previously limited to 8 due to CU/heap memory constraints in liquidation.
-/// With the custom allocator's heap reuse feature (heap_pos/heap_restore), we can now
-/// process up to 16 positions by recycling heap memory between oracle price loads.
-///
-/// See `programs/marginfi/src/allocator.rs` for the heap reuse implementation.
-/// See `get_health_components_with_heap_reuse()` for the heap-efficient health calculation.
-pub const MAX_KAMINO_POSITIONS: usize = 16;
-
 // WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
 // with that name, and prod will use that hash anyways. Don't change these hashes once a struct is
 // live in prod.

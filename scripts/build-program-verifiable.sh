@@ -17,7 +17,7 @@ if [ -z "$program_lib_name" ] || [ -z "$deployment" ]; then
 fi
 
 if [ "$deployment" = "mainnet" ]; then
-    features="--features mainnet-beta"
+    features="--features mainnet-beta,custom-heap"
 elif [ "$deployment" = "devnet" ]; then
     features="--features devnet,custom-heap --no-default-features"
 elif [ "$deployment" = "staging" ]; then

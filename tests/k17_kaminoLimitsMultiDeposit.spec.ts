@@ -1,30 +1,3 @@
-/**
- * # Kamino Position Limit Test Coverage
- *
- * ## Core Functionality
- *
- * ### Regular Account Operations
- * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
- * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
- * | Deposit into 8 Kamino banks       | Can user create maximum allowed positions?| ✅ All 8 deposits succeed                                | ✅ k14  |
- * | Try to deposit into 9th Kamino    | Does limit enforcement work?              | ❌ Fails with error 6212                                 | ✅ k14  |
- * | Withdraw & reopen position        | Can user close a position and open new?   | ✅ After withdrawing bank X, can deposit into bank Y     | ✅ k14  |
- *
- * ### Complex Multi-Asset Scenarios
- * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
- * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
- * | 8 Kamino + 7 regular banks        | Do regular banks count against limit?     | ✅ 15 total positions (only Kamino counted for limit)    | ✅ k17  |
- * | Liquidation with 15 positions     | Can we liquidate complex accounts?        | ✅ Liquidation succeeds despite high account count       | ✅ k17  |
- * | 8 Kamino + 8 regular              | How do the two limits interact?           | ✅ Can fill both limits, then can't add 9th of either    | ❌ TODO |
- *
- * ## Liquidation Edge Cases
- *
- * ### Liquidator Position Management
- * | Scenario                          | What We're Testing                        | Expected Result                                          | Status |
- * |-----------------------------------|-------------------------------------------|----------------------------------------------------------|--------|
- * | Liquidator has 8, gets NEW asset  | Can liquidator acquire 9th position?      | ❌ Liquidation fails (liquidator can't receive bank 0)   | ✅ k17  |
- */
-
 import { BN } from "@coral-xyz/anchor";
 import {
   AddressLookupTableAccount,
@@ -91,7 +64,7 @@ import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 
 
-const NUM_KAMINO_BANKS_FOR_TESTING = 17;
+const NUM_KAMINO_BANKS_FOR_TESTING = 15;
 const NUM_REGULAR_TOKEN_A_BANKS = 7;
 const USER_ACCOUNT = "user_account_k17";
 const STARTING_SEED = 17000;
@@ -980,7 +953,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
       state: lutState,
     });
 
-    // Add compute budget       
+    // Add compute budget
     const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
       units: 1_400_000,
     });

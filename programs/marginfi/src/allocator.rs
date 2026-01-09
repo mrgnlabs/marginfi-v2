@@ -210,7 +210,7 @@ Example of SAFE usage:
 let checkpoint = heap_pos();
 {
     let temp_vec: Vec<u8> = vec![1, 2, 3];          // Heap allocation
-    let sum: u64 = temp_vec.iter().sum();           // Copy to stack!
+    let sum: u64 = temp_vec.iter().sum();           // Result stored on stack
     // temp_vec goes out of scope here (but dealloc is no-op anyway)
 }
 heap_restore(checkpoint);

@@ -17,7 +17,6 @@ import {
   TOKEN_A_RESERVE,
   kaminoAccounts,
   MARKET,
-  globalProgramAdmin,
   FARMS_PROGRAM_ID,
   A_FARM_STATE,
   farmAccounts,
@@ -39,10 +38,8 @@ import {
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   dumpAccBalances,
-  dumpBankrunLogs,
   processBankrunTransaction,
 } from "./utils/tools";
-import { assertBankrunTxFailed } from "./utils/genericTests";
 import { genericKaminoMultiBankTestSetup } from "./genericSetups";
 import {
   makeKaminoDepositIx,
@@ -57,7 +54,6 @@ import {
   deriveLiquidityVaultAuthority,
   deriveUserState,
 } from "./utils/pdas";
-import { refreshPullOracles } from "./utils/pyth-pull-mocks";
 import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 
 const startingSeed: number = 499;
@@ -65,7 +61,7 @@ const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_123400000K14");
 
 /** This is the program-enforced maximum enforced number of balances per account. */
 const MAX_BALANCES = 16;
-const MAX_KAMINO_POSITIONS = 16;
+const KAMINO_POSITIONS = 8;
 const USER_ACCOUNT_THROWAWAY = "throwaway_account_k14";
 
 let kaminoBanks: PublicKey[] = [];
@@ -182,10 +178,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     // Note: Kamino deposits sans-LUT are severely limited.
     const depositsPerTx = 2;
 
-    // NOTE: We only deposit into 8 banks for this test suite since we don't use a LUT.
-    // Testing 16 positions requires a LUT (see k17 test suite).
-    const numDepositsForTest = 8;
-    for (let i = 0; i < numDepositsForTest; i += depositsPerTx) {
+    for (let i = 0; i < KAMINO_POSITIONS; i += depositsPerTx) {
       const chunk = kaminoBanks.slice(i, i + depositsPerTx);
       const depositTx: Transaction = new Transaction();
       for (const bank of chunk) {

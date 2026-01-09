@@ -234,8 +234,8 @@ pub enum MarginfiError {
     KaminoReserveValidationFailed, // 6210
     #[msg("Invalid oracle setup: only KaminoPythPush and KaminoSwitchboardPull are supported")]
     KaminoInvalidOracleSetup, // 6211
-    #[msg("Maximum Kamino positions limit exceeded (max 8 positions per account)")]
-    KaminoPositionLimitExceeded, // 6212
+    #[msg("Deprecated: Kamino position limit no longer enforced separately")]
+    KaminoPositionLimitExceeded, // 6212 - kept for error code stability
     #[msg("Invalid Kamino reserve: account constraint violated")]
     InvalidKaminoReserve, // 6213
     #[msg("Invalid Kamino obligation: account constraint violated")]
