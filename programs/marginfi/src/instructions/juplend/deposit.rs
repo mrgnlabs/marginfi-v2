@@ -66,13 +66,15 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
             .map_err(|_| error!(MarginfiError::MathError))?
     };
 
-    let pre_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
+    let pre_f_token_balance =
+        accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
 
     // Move underlying into the vault and deposit into JupLend.
     ctx.accounts.cpi_transfer_user_to_liquidity_vault(amount)?;
     ctx.accounts.cpi_juplend_deposit(amount, authority_bump)?;
 
-    let post_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
+    let post_f_token_balance =
+        accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
     let minted_shares = post_f_token_balance
         .checked_sub(pre_f_token_balance)
         .ok_or_else(|| error!(MarginfiError::MathError))?;
