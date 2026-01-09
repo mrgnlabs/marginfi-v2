@@ -30,14 +30,14 @@ use anchor_spl::{
     token_interface::Mint,
 };
 use bytemuck::Zeroable;
+use drift_mocks::constants::scale_drift_deposit_limit;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_DRIFT, CLOSE_ENABLED_FLAG, EMISSION_FLAGS, EXP_10_I80F48,
-        FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, FREEZE_SETTINGS, GROUP_FLAGS,
-        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-        LIQUIDITY_VAULT_SEED, PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG,
-        TOKENLESS_REPAYMENTS_ALLOWED,
+        ASSET_TAG_DRIFT, CLOSE_ENABLED_FLAG, EMISSION_FLAGS, FEE_VAULT_AUTHORITY_SEED,
+        FEE_VAULT_SEED, FREEZE_SETTINGS, GROUP_FLAGS, INSURANCE_VAULT_AUTHORITY_SEED,
+        INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
     },
     types::{
         Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
@@ -121,24 +121,6 @@ pub trait BankImpl {
     fn decrement_lending_position_count(&mut self);
     fn increment_borrowing_position_count(&mut self);
     fn decrement_borrowing_position_count(&mut self);
-}
-
-fn scale_drift_deposit_limit(deposit_limit: u64, mint_decimals: u8) -> MarginfiResult<I80F48> {
-    let limit = I80F48::from_num(deposit_limit);
-
-    if mint_decimals == DRIFT_SCALED_BALANCE_DECIMALS {
-        return Ok(limit);
-    }
-
-    if mint_decimals < DRIFT_SCALED_BALANCE_DECIMALS {
-        let diff = (DRIFT_SCALED_BALANCE_DECIMALS - mint_decimals) as usize;
-        let scale = *EXP_10_I80F48.get(diff).ok_or_else(math_error!())?;
-        return Ok(limit.checked_mul(scale).ok_or_else(math_error!())?);
-    }
-
-    let diff = (mint_decimals - DRIFT_SCALED_BALANCE_DECIMALS) as usize;
-    let scale = *EXP_10_I80F48.get(diff).ok_or_else(math_error!())?;
-    Ok(limit.checked_div(scale).ok_or_else(math_error!())?)
 }
 
 impl BankImpl for Bank {
