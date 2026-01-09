@@ -31,6 +31,12 @@ pub enum PriceBias {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub struct OraclePriceWithConfidence {
+    pub price: I80F48,
+    pub confidence: I80F48,
+}
+
+#[derive(Copy, Clone, Debug)]
 pub enum OraclePriceType {
     /// Time weighted price
     /// EMA for PythEma
@@ -41,6 +47,12 @@ pub enum OraclePriceType {
 
 #[enum_dispatch]
 pub trait PriceAdapter {
+    fn get_price_and_confidence_of_type(
+        &self,
+        oracle_price_type: OraclePriceType,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<OraclePriceWithConfidence>;
+
     fn get_price_of_type(
         &self,
         oracle_price_type: OraclePriceType,
@@ -149,6 +161,8 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let lst_mint = Account::<'info, Mint>::try_from(&ais[1]).unwrap();
+                let lst_supply = lst_mint.supply;
+                check!(lst_supply > 0, MarginfiError::ZeroSupplyInStakePool);
                 let stake_state = try_from_slice_unchecked::<StakeStateV2>(&ais[2].data.borrow())?;
                 let (_, stake) = match stake_state {
                     StakeStateV2::Stake(meta, stake, _) => (meta, stake),
@@ -187,9 +201,6 @@ impl OraclePriceFeedAdapter {
                 }
 
                 let mut feed = PythPushOraclePriceFeed::load_checked(account_info, clock, max_age)?;
-
-                let lst_supply = lst_mint.supply;
-                check!(lst_supply > 0, MarginfiError::ZeroSupplyInStakePool);
 
                 let adjusted_price = (feed.price.price as i128)
                     .checked_mul(sol_pool_adjusted_balance as i128)
@@ -843,6 +854,16 @@ impl PriceAdapter for FixedPriceFeed {
     ) -> MarginfiResult<I80F48> {
         Ok(self.price)
     }
+    fn get_price_and_confidence_of_type(
+        &self,
+        oracle_price_type: OraclePriceType,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        Ok(OraclePriceWithConfidence {
+            price: self.get_price_of_type(oracle_price_type, None, oracle_max_confidence)?,
+            confidence: I80F48::ZERO,
+        })
+    }
 }
 
 #[cfg_attr(feature = "client", derive(Clone, Debug))]
@@ -976,6 +997,20 @@ impl PriceAdapter for SwitchboardPullPriceFeed {
             }
             None => Ok(price),
         }
+    }
+
+    fn get_price_and_confidence_of_type(
+        &self,
+        price_type: OraclePriceType,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let confidence_interval = self.get_confidence_interval(oracle_max_confidence)?;
+        let price = self.get_price_of_type(price_type, None, oracle_max_confidence)?;
+
+        Ok(OraclePriceWithConfidence {
+            price,
+            confidence: confidence_interval,
+        })
     }
 }
 
@@ -1248,16 +1283,35 @@ impl PriceAdapter for PythPushOraclePriceFeed {
                     oracle_max_confidence,
                 )?;
 
-                match price_bias {
-                    PriceBias::Low => Ok(price
+                let biased_price = match price_bias {
+                    PriceBias::Low => price
                         .checked_sub(confidence_interval)
-                        .ok_or_else(math_error!())?),
-                    PriceBias::High => Ok(price
+                        .ok_or_else(math_error!())?,
+                    PriceBias::High => price
                         .checked_add(confidence_interval)
-                        .ok_or_else(math_error!())?),
-                }
+                        .ok_or_else(math_error!())?,
+                };
+
+                Ok(biased_price)
             }
         }
+    }
+
+    fn get_price_and_confidence_of_type(
+        &self,
+        price_type: OraclePriceType,
+        oracle_max_confidence: u32,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let confidence_interval = self.get_confidence_interval(
+            matches!(price_type, OraclePriceType::TimeWeighted),
+            oracle_max_confidence,
+        )?;
+        let price = self.get_price_of_type(price_type, None, oracle_max_confidence)?;
+
+        Ok(OraclePriceWithConfidence {
+            price,
+            confidence: confidence_interval,
+        })
     }
 }
 

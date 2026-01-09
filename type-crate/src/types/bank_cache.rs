@@ -35,11 +35,44 @@ pub struct BankCache {
     /// * in token, in native decimals, as I80F48
     pub accumulated_since_last_update: WrappedI80F48,
 
-    _reserved0: [u8; 128],
+    /// Oracle price used in the last instruction that consumed an oracle price
+    /// * Only updated when instruction uses an oracle price, not updated for operations that don't
+    ///   require prices (e.g., deposit, repay)
+    /// * Price in USD, with no price bias
+    /// * Zero if never updated
+    pub last_oracle_price: WrappedI80F48,
+
+    /// Unix timestamp (seconds) when last_oracle_price was last updated
+    /// * Used to determine staleness of cached price
+    /// * Zero if never updated
+    pub last_oracle_price_timestamp: i64,
+
+    /// Confidence interval reported by the oracle when last_oracle_price was fetched
+    /// * Always non-negative
+    /// * Zero if never updated
+    /// * Note: this value is the confidence reported by oracles, multiplied by `STD_DEV_MULTIPLE`
+    pub last_oracle_price_confidence: WrappedI80F48,
+    _padding: [u8; 24],
+    _reserved0: [u8; 64],
 }
 
 impl Default for BankCache {
     fn default() -> Self {
         Self::zeroed()
+    }
+}
+
+impl BankCache {
+    /// Reset cached rate metrics while preserving the last oracle price snapshot.
+    pub fn reset_preserving_oracle_price(&mut self) {
+        let last_oracle_price = self.last_oracle_price;
+        let last_oracle_price_timestamp = self.last_oracle_price_timestamp;
+        let last_oracle_price_confidence = self.last_oracle_price_confidence;
+
+        *self = Self::default();
+
+        self.last_oracle_price = last_oracle_price;
+        self.last_oracle_price_timestamp = last_oracle_price_timestamp;
+        self.last_oracle_price_confidence = last_oracle_price_confidence;
     }
 }
