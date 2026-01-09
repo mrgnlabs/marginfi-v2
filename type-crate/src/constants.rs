@@ -167,8 +167,11 @@ pub const ASSET_TAG_DRIFT: u8 = 4;
 /// Solend assets. Accounts with a SOLEND position can only deposit other SOLEND assets or regular
 /// assets (`ASSET_TAG_DEFAULT`).
 pub const ASSET_TAG_SOLEND: u8 = 5;
+/// JupLend assets. Accounts with a JUPLEND position can only deposit other JUPLEND assets or regular
+/// assets (`ASSET_TAG_DEFAULT`).
+pub const ASSET_TAG_JUPLEND: u8 = 6;
 
-/// Maximum number of integration positions (Kamino + Drift + Solend) allowed per account. Hardcoded
+/// Maximum number of integration positions (Kamino + Drift + Solend + JupLend) allowed per account. Hardcoded
 /// limit to prevent accounts from becoming unliquidatable due to CU/heap memory issues in
 /// liquidation. These integrations require 3 accounts per position for health checks (bank + oracle
 /// + reserve/spot-market), so they share the same limit.
@@ -196,6 +199,7 @@ pub mod ix_discriminators {
     pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
     pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
     pub const DRIFT_WITHDRAW: [u8; 8] = [86, 59, 186, 123, 183, 181, 234, 137];
+    pub const JUPLEND_WITHDRAW: [u8; 8] = [245, 164, 253, 202, 53, 77, 251, 221];
     pub const START_FLASHLOAN: [u8; 8] = [14, 131, 33, 220, 81, 186, 180, 107];
     pub const END_FLASHLOAN: [u8; 8] = [105, 124, 201, 106, 153, 2, 8, 156];
     pub const START_DELEVERAGE: [u8; 8] = [10, 138, 10, 57, 40, 232, 182, 193];

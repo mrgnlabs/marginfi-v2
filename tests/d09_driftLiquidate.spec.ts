@@ -405,7 +405,7 @@ describe("d09: Drift Liquidation", () => {
         true,
         false
       )) as BanksTransactionResultWithMeta;
-      if (result.result && result.meta.logMessages) {
+      if (result.result && result.meta && result.meta.logMessages) {
         const hasTooSevereError = result.meta.logMessages.some(
           (log) =>
             log.includes("custom program error: 0x17b7") ||
