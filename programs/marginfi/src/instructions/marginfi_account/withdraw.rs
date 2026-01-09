@@ -143,7 +143,7 @@ pub fn lending_account_withdraw<'info>(
             let withdrawn_equity = calc_value(
                 I80F48::from_num(amount_pre_fee),
                 price,
-                bank.mint_decimals,
+                bank.get_balance_decimals(),
                 None,
             )?;
             group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;

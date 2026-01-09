@@ -212,11 +212,11 @@ pub fn lending_account_liquidate<'info>(
             calc_value(
                 asset_amount,
                 asset_price,
-                asset_bank.mint_decimals,
+                asset_bank.get_balance_decimals(),
                 Some(liquidator_discount),
             )?,
             liab_price,
-            liab_bank.mint_decimals,
+            liab_bank.get_balance_decimals(),
         )?;
 
         // Quantity of liability to be received by liquidatee
@@ -224,11 +224,11 @@ pub fn lending_account_liquidate<'info>(
             calc_value(
                 asset_amount,
                 asset_price,
-                asset_bank.mint_decimals,
+                asset_bank.get_balance_decimals(),
                 Some(final_discount),
             )?,
             liab_price,
-            liab_bank.mint_decimals,
+            liab_bank.get_balance_decimals(),
         )?;
 
         // Insurance fund fee

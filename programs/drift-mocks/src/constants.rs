@@ -1,5 +1,6 @@
 use crate::DriftMocksError;
-use anchor_lang::Result;
+use anchor_lang::prelude::*;
+use fixed::types::I80F48;
 
 // Drift precision constants
 pub const SPOT_BALANCE_PRECISION: u128 = 1_000_000_000; // 10^9
@@ -64,4 +65,31 @@ pub fn get_precision_increase(token_decimals: u32) -> Result<u128> {
         return Err(DriftMocksError::MathError.into());
     }
     Ok(EXP_10[(DRIFT_PRECISION_EXP - token_decimals) as usize])
+}
+
+/// Scale a native deposit limit to Drift's fixed 9-decimal balance units.
+pub fn scale_drift_deposit_limit(deposit_limit: u64, mint_decimals: u8) -> Result<I80F48> {
+    let limit = I80F48::from_num(deposit_limit);
+
+    if mint_decimals == DRIFT_SCALED_BALANCE_DECIMALS {
+        return Ok(limit);
+    }
+
+    if mint_decimals < DRIFT_SCALED_BALANCE_DECIMALS {
+        let diff = (DRIFT_SCALED_BALANCE_DECIMALS - mint_decimals) as usize;
+        let scale = *EXP_10
+            .get(diff)
+            .ok_or_else(|| error!(DriftMocksError::MathError))?;
+        return limit
+            .checked_mul(I80F48::from_num(scale as i128))
+            .ok_or_else(|| error!(DriftMocksError::MathError));
+    }
+
+    let diff = (mint_decimals - DRIFT_SCALED_BALANCE_DECIMALS) as usize;
+    let scale = *EXP_10
+        .get(diff)
+        .ok_or_else(|| error!(DriftMocksError::MathError))?;
+    limit
+        .checked_div(I80F48::from_num(scale as i128))
+        .ok_or_else(|| error!(DriftMocksError::MathError))
 }

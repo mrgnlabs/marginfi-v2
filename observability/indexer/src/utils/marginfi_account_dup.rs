@@ -1,4 +1,5 @@
 use fixed::types::I80F48;
+use crate::utils::get_balance_decimals;
 use marginfi::state::{
     marginfi_account::{
         calc_value, Balance, BalanceSide, MarginfiAccount, RequirementType, RiskRequirementType,
@@ -94,7 +95,7 @@ impl BankAccountWithPriceFeed2 {
                 Ok(calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
-                    bank.mint_decimals,
+                    get_balance_decimals(bank),
                     Some(asset_weight),
                 )
                 .unwrap())
@@ -122,7 +123,7 @@ impl BankAccountWithPriceFeed2 {
         Ok(calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
-            bank.mint_decimals,
+            get_balance_decimals(bank),
             Some(liability_weight),
         )?)
     }
