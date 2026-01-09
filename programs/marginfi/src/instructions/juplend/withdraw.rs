@@ -1,5 +1,6 @@
 use crate::{
     bank_signer, check,
+    constants::PROGRAM_VERSION,
     events::{AccountEventHeader, LendingAccountWithdrawEvent},
     state::{
         bank::{BankImpl, BankVaultType},
@@ -45,10 +46,6 @@ pub fn juplend_withdraw<'info>(
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     let withdraw_all = withdraw_all.unwrap_or(false);
-    // Match marginfi withdraw semantics: withdrawing 0 is a no-op.
-    if amount == 0 && !withdraw_all {
-        return Ok(());
-    }
 
     // Refresh exchange pricing (interest/rewards) for this slot.
     ctx.accounts.cpi_update_rate()?;
@@ -116,10 +113,7 @@ pub fn juplend_withdraw<'info>(
             };
 
             // Sanity check: recalculated shares should never exceed what we have
-            require!(
-                shares_to_burn <= total_shares,
-                MarginfiError::MathError
-            );
+            require!(shares_to_burn <= total_shares, MarginfiError::MathError);
 
             (token_amount, shares_to_burn)
         } else {
@@ -153,7 +147,8 @@ pub fn juplend_withdraw<'info>(
     // Record balances to verify exact deltas.
     let pre_liquidity_vault_balance =
         accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
-    let pre_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
+    let pre_f_token_balance =
+        accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
 
     // Handle potential dust case where remaining shares are worth less than 1 underlying unit.
     //
@@ -176,7 +171,7 @@ pub fn juplend_withdraw<'info>(
     // - Socialized loss reducing JupLend's exchange price below 1e12
     // - Future protocol changes affecting share/price invariants
     //
-    // If we can guarantee that JupLend's price never drops below 1e12, this branch is dead code.
+    // If we can guarantee that JupLend's exchange price never drops below 1e12, this branch is dead code.
     let received_underlying = if withdraw_all && token_amount == 0 {
         0
     } else {
@@ -186,7 +181,8 @@ pub fn juplend_withdraw<'info>(
 
         let post_liquidity_vault_balance =
             accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
-        let post_f_token_balance = accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
+        let post_f_token_balance =
+            accessor::amount(&ctx.accounts.juplend_f_token_vault.to_account_info())?;
 
         let received_underlying = post_liquidity_vault_balance
             .checked_sub(pre_liquidity_vault_balance)
@@ -252,7 +248,7 @@ pub fn juplend_withdraw<'info>(
                 &mut Some(&mut health_cache),
             );
             risk_result?;
-            health_cache.program_version = crate::constants::PROGRAM_VERSION;
+            health_cache.program_version = PROGRAM_VERSION;
             health_cache.set_engine_ok(true);
             marginfi_account.health_cache = health_cache;
         }

@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { PublicKey, Transaction, SystemProgram } from "@solana/web3.js";
 import {
   getMint,
   TOKEN_2022_PROGRAM_ID,
@@ -534,7 +534,6 @@ async function main() {
           tokenProgram,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
-          rent: SYSVAR_RENT_PUBKEY,
         });
         console.log("  Accounts added, adding remaining accounts...");
 

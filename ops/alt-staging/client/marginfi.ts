@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/marginfi.json`.
  */
 export type Marginfi = {
-  "address": "",
+  "address": "5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY",
   "metadata": {
     "name": "marginfi",
     "version": "0.1.6",
@@ -4991,10 +4991,6 @@ export type Marginfi = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "rent",
-          "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
       "args": [

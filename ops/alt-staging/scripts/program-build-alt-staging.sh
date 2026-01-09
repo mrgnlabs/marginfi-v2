@@ -10,7 +10,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
 fi
 
-FEATURES="${ALT_STAGING_BUILD_FEATURES:-alt-staging}"
+FEATURES="${ALT_STAGING_BUILD_FEATURES:-stagingalt}"
 ANCHOR_EXTRA_ARGS="${ALT_STAGING_ANCHOR_BUILD_ARGS:-}"
 
 cd "$REPO_ROOT"
@@ -24,12 +24,13 @@ if ! command -v anchor >/dev/null 2>&1; then
   exit 1
 fi
 
-# Anchor passes anything after `--` to cargo.
+# IMPORTANT: Must use --no-default-features because default is mainnet-beta.
+# Without it, both mainnet-beta AND stagingalt would be enabled, causing the
+# wrong program ID to be compiled in.
 if [[ -n "$FEATURES" ]]; then
-  # If FEATURES contains commas, cargo is fine with it.
-  anchor build $ANCHOR_EXTRA_ARGS -- --features "$FEATURES"
+  anchor build -p marginfi -- --no-default-features --features "$FEATURES"
 else
-  anchor build $ANCHOR_EXTRA_ARGS
+  anchor build -p marginfi -- --no-default-features
 fi
 
 echo "==> Build complete"

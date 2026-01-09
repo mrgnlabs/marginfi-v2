@@ -49,11 +49,22 @@ bash ops/alt-staging/scripts/program-build-alt-staging.sh
 
 By default this runs:
 
-- `anchor build -- --features "$ALT_STAGING_BUILD_FEATURES"`
+```bash
+anchor build -p marginfi -- --no-default-features --features stagingalt
+```
 
-If your repo uses a different feature/tag name, set:
+**IMPORTANT**: The `--no-default-features` flag is required because:
+- Default feature is `mainnet-beta` (see `programs/marginfi/Cargo.toml`)
+- Without it, both `mainnet-beta` AND `stagingalt` would be enabled
+- This would compile in the wrong program ID
 
-- `ALT_STAGING_BUILD_FEATURES=...` in `ops/alt-staging/.env`.
+Valid feature values (see `id-crate/src/lib.rs`):
+- `mainnet-beta` → `MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA`
+- `staging` → `stag8sTKds2h4KzjUw3zKTsxbqvT4XKHdaR9X9E6Rct`
+- `stagingalt` → `5UDghkpgW1HfYSrmEj2iAApHShqU44H6PKTAar9LL9bY`
+- `devnet` → `neetcne3Ctrrud7vLdt2ypMm21gZHGN2mCmqWaMVcBQ`
+
+To use a different feature, set `ALT_STAGING_BUILD_FEATURES=...` in `ops/alt-staging/.env`.
 
 ---
 
