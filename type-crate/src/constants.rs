@@ -162,10 +162,6 @@ pub const ASSET_TAG_STAKED: u8 = 2;
 /// assets (`ASSET_TAG_DEFAULT`).
 pub const ASSET_TAG_KAMINO: u8 = 3;
 
-/// Maximum number of Kamino positions allowed per account. Hardcoded limit to prevent accounts from
-/// becoming unliquidatable due to CU/heap memory issues in liquidation instruction.
-pub const MAX_KAMINO_POSITIONS: usize = 8;
-
 // WARN: You can set anything here, including a discrim that's technically "wrong" for the struct
 // with that name, and prod will use that hash anyways. Don't change these hashes once a struct is
 // live in prod.

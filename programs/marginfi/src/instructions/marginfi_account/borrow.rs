@@ -7,12 +7,13 @@ use crate::{
     state::{
         bank::{BankImpl, BankVaultType},
         marginfi_account::{
-            BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
+            check_account_init_health, BankAccountWrapper, LendingAccountImpl, MarginfiAccountImpl,
         },
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        self, is_marginfi_asset_tag, validate_asset_tags, validate_bank_state, InstructionKind,
+        self, fetch_unbiased_price_for_bank, is_marginfi_asset_tag, validate_asset_tags,
+        validate_bank_state, InstructionKind,
     },
 };
 use anchor_lang::prelude::*;
@@ -189,18 +190,17 @@ pub fn lending_account_borrow<'info>(
 
     // Check account health, if below threshold fail transaction
     // Assuming `ctx.remaining_accounts` holds only oracle accounts
-    let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
+    check_account_init_health(
         &marginfi_account,
         ctx.remaining_accounts,
         &mut Some(&mut health_cache),
-    );
-    risk_result?;
+    )?;
     health_cache.program_version = PROGRAM_VERSION;
 
     let bank_pk = ctx.accounts.bank.key();
-    // Note: if engine none, skips price cache update.
-    let price =
-        risk_engine.and_then(|engine_ok| engine_ok.get_unbiased_price_for_bank(&bank_pk).ok());
+    let bank = ctx.accounts.bank.load()?;
+    let price = fetch_unbiased_price_for_bank(&bank_pk, &bank, &clock, ctx.remaining_accounts).ok();
+    drop(bank);
 
     let mut bank = ctx.accounts.bank.load_mut()?;
     bank.update_bank_cache(group)?;
