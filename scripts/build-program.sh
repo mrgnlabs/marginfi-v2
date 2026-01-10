@@ -11,7 +11,7 @@ if [ -z "$program_lib_name" ] || [ -z "$cluster" ]; then
 fi
 
 if [ "$cluster" = "mainnet" ]; then
-    features="--features,mainnet-beta,custom-heap"
+    features="--features mainnet-beta,custom-heap"
 elif [ "$cluster" = "devnet" ]; then
     features="--features devnet,custom-heap --no-default-features"
 elif [ "$cluster" = "staging" ]; then

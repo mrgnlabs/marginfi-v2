@@ -235,7 +235,7 @@ pub enum MarginfiError {
     #[msg("Invalid oracle setup: only KaminoPythPush and KaminoSwitchboardPull are supported")]
     KaminoInvalidOracleSetup, // 6211
     #[msg("Deprecated: Kamino position limit no longer enforced separately")]
-    KaminoPositionLimitExceeded, // 6212 - kept for error code stability
+    VacatedError1, // 6212
     #[msg("Invalid Kamino reserve: account constraint violated")]
     InvalidKaminoReserve, // 6213
     #[msg("Invalid Kamino obligation: account constraint violated")]
@@ -381,7 +381,7 @@ impl From<u32> for MarginfiError {
             6209 => MarginfiError::ObligationInitDepositInsufficient,
             6210 => MarginfiError::KaminoReserveValidationFailed,
             6211 => MarginfiError::KaminoInvalidOracleSetup,
-            6212 => MarginfiError::KaminoPositionLimitExceeded,
+            6212 => MarginfiError::VacatedError1,
             6213 => MarginfiError::InvalidKaminoReserve,
             6214 => MarginfiError::InvalidKaminoObligation,
             _ => MarginfiError::InternalLogicError,

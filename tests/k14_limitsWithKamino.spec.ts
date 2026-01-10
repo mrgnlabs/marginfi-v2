@@ -239,11 +239,11 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     const withdrawBank = kaminoBanks[0];
     // Use bank 8 (index 8) as replacement - this is the first unused bank
     // (we only deposited into banks 0-7)
-    const replacementBank = kaminoBanks[8];
+    const replacementBank = kaminoBanks[KAMINO_POSITIONS];
 
     // Remaining accounts exclude the bank being closed
     const remainingPositions = [];
-    for (let i = 1; i < 8; i++) {
+    for (let i = 1; i < KAMINO_POSITIONS; i++) {
       remainingPositions.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,
