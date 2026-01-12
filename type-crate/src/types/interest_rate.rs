@@ -115,6 +115,21 @@ pub fn centi_to_u32(value: I80F48) -> u32 {
     (ratio * I80F48::from_num(u32::MAX)).to_num::<u32>()
 }
 
+/// Useful when converting an I80F48 (e.g. leverage) into a value from 0-100. Clamps to 100 if
+/// exceeding that amount. Clamps to zero for negative inputs.
+pub fn basis_to_u32(value: I80F48) -> u32 {
+    let max_value: I80F48 = I80F48::from_num(100.0); // 0-100 range
+    let clamped: I80F48 = value.min(max_value).max(I80F48::ZERO);
+    let ratio: I80F48 = clamped / max_value;
+    (ratio * I80F48::from_num(u32::MAX)).to_num::<u32>()
+}
+
+/// Converts u32 back to leverage value (0-100 range)
+pub fn u32_to_basis(value: u32) -> I80F48 {
+    let ratio: I80F48 = I80F48::from_num(value) / I80F48::from_num(u32::MAX);
+    ratio * I80F48::from_num(100.0)
+}
+
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct InterestRateConfigOpt {

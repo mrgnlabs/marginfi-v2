@@ -173,7 +173,6 @@ describe("d09: Drift Liquidation", () => {
   });
 
   it("(user 0) Deposits Token A into Drift, borrows LST from bank [0]", async () => {
-
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY_D);
     const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
@@ -382,12 +381,12 @@ describe("d09: Drift Liquidation", () => {
     while (true) {
       const liquidateTx = new Transaction().add(
         ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
-      // dummy ix to trick bankrun
-      SystemProgram.transfer({
-        fromPubkey: liquidator.wallet.publicKey,
-        toPubkey: bankrunProgram.provider.publicKey,
-        lamports: 42 + liquidationCount,
-      }),
+        // dummy ix to trick bankrun
+        SystemProgram.transfer({
+          fromPubkey: liquidator.wallet.publicKey,
+          toPubkey: bankrunProgram.provider.publicKey,
+          lamports: 42 + liquidationCount,
+        }),
         await liquidateIx(liquidator.mrgnBankrunProgram, {
           assetBankKey: driftTokenABank,
           liabilityBankKey: regularLstBank,
@@ -461,12 +460,8 @@ describe("d09: Drift Liquidation", () => {
 
       liquidationCount++;
       totalLiquidated = totalLiquidated.add(smallLiquidationAmount);
-          console.log(
-            "\liquidationCount: ", liquidationCount
-          );
-          console.log(
-            "\ntotalLiquidated: ", totalLiquidated.toString()
-          );
+      console.log("liquidationCount: ", liquidationCount);
+      console.log("\ntotalLiquidated: ", totalLiquidated.toString());
 
       if (liquidationCount >= 50) {
         if (verbose) {
@@ -533,9 +528,9 @@ describe("d09: Drift Liquidation", () => {
 
     const tokenALowPrice = ecosystem.tokenAPrice * (1 - confidenceInterval);
     const lstHighPrice = ecosystem.lstAlphaPrice * (1 + confidenceInterval);
-    const totalLiquidatedLst = totalLiquidated.toNumber()
-       * tokenALowPrice
-       / lstHighPrice * 10 ** (ecosystem.lstAlphaDecimals - ecosystem.tokenADecimals);
+    const totalLiquidatedLst =
+      ((totalLiquidated.toNumber() * tokenALowPrice) / lstHighPrice) *
+      10 ** (ecosystem.lstAlphaDecimals - ecosystem.tokenADecimals);
 
     const liquidateeReceived = new BN(totalLiquidatedLst * 0.95);
     const liquidatorPaid = new BN(totalLiquidatedLst * 0.975);

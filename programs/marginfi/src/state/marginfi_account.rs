@@ -1,4 +1,6 @@
-use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use super::price::{
+    OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter, PriceBias,
+};
 use crate::{
     check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
@@ -15,8 +17,8 @@ use marginfi_type_crate::{
         MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
-        reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
-        LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
+        reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
+        HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
         ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
@@ -267,6 +269,16 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     ) -> MarginfiResult<(I80F48, I80F48, u32)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
+                // ReduceOnly banks should not be counted as collateral for new loans (Initial checks)
+                // but should maintain their value for existing positions (Maintenance checks)
+                if matches!(
+                    (bank.config.operational_state, requirement_type),
+                    (BankOperationalState::ReduceOnly, RequirementType::Initial)
+                ) {
+                    debug!("ReduceOnly bank assets worth 0 for Initial margin");
+                    return Ok((I80F48::ZERO, I80F48::ZERO, 0));
+                }
+
                 let (price_feed, err_code) = self.try_get_price_feed();
 
                 if matches!(
@@ -589,6 +601,28 @@ impl<'info> RiskEngine<'_, 'info> {
         }
 
         Ok((total_assets, total_liabilities))
+    }
+
+    pub fn get_unbiased_price_for_bank(
+        &self,
+        bank_pk: &Pubkey,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let bank_account = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|b| b.balance.bank_pk == *bank_pk)
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+        let bank = bank_account.bank.load()?;
+        let (price_feed_res, _) = bank_account.try_get_price_feed();
+        let price_feed = price_feed_res?;
+
+        let price = price_feed.get_price_and_confidence_of_type(
+            OraclePriceType::RealTime,
+            bank.config.oracle_max_confidence,
+        )?;
+
+        Ok(price)
     }
 
     /// Errors if risk account's liabilities exceed their assets.

@@ -4,7 +4,6 @@ import {
   Transaction,
   ComputeBudgetProgram,
   Keypair,
-  SystemProgram,
 } from "@solana/web3.js";
 import {
   createMintToInstruction,
@@ -20,11 +19,9 @@ import {
   ecosystem,
   globalProgramAdmin,
   bankrunContext,
-  bankRunProvider,
   users,
   solendAccounts,
   SOLEND_USDC_RESERVE,
-  SOLEND_TOKENA_RESERVE,
   SOLEND_MARKET,
   SOLEND_USDC_COLLATERAL_MINT,
   SOLEND_USDC_LIQUIDITY_SUPPLY,
@@ -45,19 +42,14 @@ import {
 import {
   deriveBankWithSeed,
   deriveLiquidityVaultAuthority,
-  deriveSolendObligation,
 } from "./utils/pdas";
 import { genericMultiBankTestSetup } from "./genericSetups";
-import { SOLEND_PROGRAM_ID, HEALTH_CACHE_HEALTHY } from "./utils/types";
+import { HEALTH_CACHE_HEALTHY } from "./utils/types";
 import { defaultSolendBankConfig } from "./utils/solend-utils";
 import {
   processBankrunTransaction as processBankrunTx,
   bytesToF64,
 } from "./utils/tools";
-import {
-  bigNumberToWrappedI80F48,
-  wrappedI80F48toBigNumber,
-} from "@mrgnlabs/mrgn-common";
 import { refreshPullOracles } from "./utils/pyth-pull-mocks";
 import { assert } from "chai";
 

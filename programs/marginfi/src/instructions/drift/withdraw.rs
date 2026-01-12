@@ -10,7 +10,10 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{fetch_asset_price_for_bank, is_drift_asset_tag, validate_bank_state, InstructionKind},
+    utils::{
+        fetch_asset_price_for_bank_low_bias, is_drift_asset_tag, validate_bank_state,
+        InstructionKind,
+    },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -70,8 +73,12 @@ pub fn drift_withdraw<'info>(
         // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
-            let price =
-                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+            let price = fetch_asset_price_for_bank_low_bias(
+                &bank_key,
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);

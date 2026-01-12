@@ -302,6 +302,8 @@ pub fn group_configure(
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
+            emode_max_init_leverage: None,
+            emode_max_maint_leverage: None,
         })
         .instructions()?;
 
@@ -1169,7 +1171,7 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
         let current_timestamp = current_timestamp.as_secs() as i64;
 
         bank.accrue_interest(current_timestamp, &group)?;
-        bank.update_bank_cache(&group)?;
+        bank.update_bank_cache(&group, None)?;
         println!(" Cranking interest at: {:?}", current_timestamp);
 
         print_bank(&address, &bank);

@@ -16,6 +16,7 @@ use crate::{
             InterestRateStateChanges,
         },
         marginfi_account::calc_value,
+        price::OraclePriceWithConfidence,
     },
 };
 use anchor_lang::prelude::*;
@@ -39,10 +40,7 @@ use marginfi_type_crate::{
         INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
         PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG, TOKENLESS_REPAYMENTS_ALLOWED,
     },
-    types::{
-        Bank, BankCache, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings,
-        MarginfiGroup,
-    },
+    types::{Bank, BankConfig, BankConfigOpt, BankOperationalState, EmodeSettings, MarginfiGroup},
 };
 
 pub trait BankImpl {
@@ -90,6 +88,10 @@ pub trait BankImpl {
         #[cfg(not(feature = "client"))] bank: Pubkey,
     ) -> MarginfiResult<()>;
     fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()>;
+    fn update_cache_price(
+        &mut self,
+        oracle_price: Option<OraclePriceWithConfidence>,
+    ) -> MarginfiResult<()>;
     fn deposit_spl_transfer<'info>(
         &self,
         amount: u64,
@@ -555,13 +557,16 @@ impl BankImpl for Bank {
     /// Updates bank cache with the actual values for interest/fee rates.
     ///
     /// Should be called in the end of each instruction calling `accrue_interest` to ensure the cache is up to date.
+    ///
+    /// # Arguments
+    /// * `group` - The marginfi group
     fn update_bank_cache(&mut self, group: &MarginfiGroup) -> MarginfiResult<()> {
-        let total_assets_amount = self.get_asset_amount(self.total_asset_shares.into())?;
-        let total_liabilities_amount =
+        let total_assets_amount: I80F48 = self.get_asset_amount(self.total_asset_shares.into())?;
+        let total_liabilities_amount: I80F48 =
             self.get_liability_amount(self.total_liability_shares.into())?;
 
         if (total_assets_amount == I80F48::ZERO) || (total_liabilities_amount == I80F48::ZERO) {
-            self.cache = BankCache::default();
+            self.cache.reset_preserving_oracle_price();
             return Ok(());
         }
 
@@ -570,7 +575,7 @@ impl BankImpl for Bank {
             .interest_rate_config
             .create_interest_rate_calculator(group);
 
-        let utilization_rate = total_liabilities_amount
+        let utilization_rate: I80F48 = total_liabilities_amount
             .checked_div(total_assets_amount)
             .ok_or_else(math_error!())?;
         let interest_rates = ir_calc
@@ -578,6 +583,31 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?;
 
         update_interest_rates(&mut self.cache, &interest_rates);
+
+        // Update banks last update timestamp
+        self.last_update = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
+    /// Updates bank cache with the last used oracle price.
+    ///
+    /// Should be called in instructions that consume a bank's price to record the last-used value.
+    ///
+    /// # Arguments
+    /// * `group` - The marginfi group
+    /// * `oracle_price` - Optional oracle price (with confidence) used in this instruction (if any)
+    fn update_cache_price(
+        &mut self,
+        oracle_price: Option<OraclePriceWithConfidence>,
+    ) -> MarginfiResult<()> {
+        if let Some(price_with_confidence) = oracle_price {
+            self.cache.last_oracle_price = price_with_confidence.price.into();
+            self.cache.last_oracle_price_confidence = price_with_confidence.confidence.into();
+            self.cache.last_oracle_price_timestamp = Clock::get()?.unix_timestamp;
+        } else {
+            // no cache update, nothing...
+        }
+
         Ok(())
     }
 

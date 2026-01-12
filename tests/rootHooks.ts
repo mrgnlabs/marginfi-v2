@@ -156,8 +156,11 @@ export const MAINNET_GROUP = new PublicKey(
 
 /** Banks in the emode test suite use this seed */
 export const EMODE_SEED = 44;
-export const EMODE_INIT_RATE_SOL_TO_LST = 0.9;
-export const EMODE_MAINT_RATE_SOL_TO_LST = 0.95;
+// Adjusted to avoid hitting exact leverage limits due to floating point precision
+// SOL_TO_LST: init ~9.5x, maint ~19x (vs limits of 15x/20x)
+export const EMODE_INIT_RATE_SOL_TO_LST = 0.8947; // ~9.5x leverage
+export const EMODE_MAINT_RATE_SOL_TO_LST = 0.9474; // ~19x leverage
+// LST_TO_LST: init ~5x, maint ~6.7x (well under limits)
 export const EMODE_INIT_RATE_LST_TO_LST = 0.8;
 export const EMODE_MAINT_RATE_LST_TO_LST = 0.85;
 
