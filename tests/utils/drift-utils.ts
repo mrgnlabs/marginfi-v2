@@ -7,20 +7,23 @@ import {
 import BN from "bn.js";
 import { Program, IdlAccounts, IdlTypes } from "@coral-xyz/anchor";
 import { Drift } from "tests/fixtures/drift_v2";
-import { bigNumberToWrappedI80F48, WrappedI80F48 } from "@mrgnlabs/mrgn-common";
+import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { I80F48_ONE, ORACLE_CONF_INTERVAL } from "../utils/types";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
 import { setPythPullOraclePrice } from "./bankrun-oracles";
 import { Oracles } from "./mocks";
-import { DRIFT_TOKENA_PULL_ORACLE, DRIFT_TOKENA_PULL_FEED } from "../rootHooks";
+import {
+  DRIFT_TOKEN_A_PULL_ORACLE,
+  DRIFT_TOKEN_A_PULL_FEED,
+  ecosystem,
+  bankrunProgram,
+} from "../rootHooks";
 
 // Import Drift account types using IdlAccounts - the clean Anchor-native way
 export type DriftState = IdlAccounts<Drift>["state"];
 export type DriftUser = IdlAccounts<Drift>["user"];
 export type DriftUserStats = IdlAccounts<Drift>["userStats"];
 export type DriftSpotMarket = IdlAccounts<Drift>["spotMarket"];
-
-// Access nested types using bracket notation
 export type DriftSpotPosition = IdlTypes<Drift>["SpotPosition"];
 
 /**
@@ -129,6 +132,18 @@ export const TOKEN_A_POOL3_MARKET_INDEX = 3;
 // Drift pool ID constants
 export const POOL2_ID = 2;
 export const POOL3_ID = 3;
+
+// The initial deposits for respective Drift banks. Used during Drift Users initialization.
+export const USDC_INIT_DEPOSIT_AMOUNT = new BN(100); // 100 smallest units (0.0001 USDC)
+export const TOKEN_A_INIT_DEPOSIT_AMOUNT = new BN(200); // 200 smallest units (0.000002 Token A)
+
+/// Drift utilization calculation uses 6 decimal precision (1000000 = 100%)
+export const DRIFT_UTILIZATION_PRECISION = new BN(1000000);
+export const DRIFT_PRECISION_EXP = 19;
+export const ZERO = new BN(0);
+export const ONE = new BN(1);
+export const TEN = new BN(10);
+export const ONE_YEAR = new BN(31536000);
 
 // Default spot market configuration
 export interface SpotMarketConfig {
@@ -284,55 +299,143 @@ export const formatSpotPosition = (
   };
 };
 
+// copied from Drift: https://github.com/drift-labs/protocol-v2/blob/1fed025269eed8ea5159dc56e2143fb904dbf14e/sdk/src/math/spotBalance.ts#L65
 /**
- * Calculates the utilization rate for a Drift spot market
- * @param totalDeposits - Total deposit balance in the market
- * @param totalBorrows - Total borrow balance in the market
- * @returns Utilization rate as a number (0-1000000 where 1000000 = 100%)
+ * Calculates the spot token amount including any accumulated interest.
+ *
+ * @param {BN} balanceAmount - The balance amount, typically from `SpotPosition.scaledBalance`
+ * @param {SpotMarketAccount} spotMarket - The spot market account details
+ * @param {SpotBalanceType} balanceType - The balance type to be used for calculation
+ * @returns {BN} The calculated token amount, scaled by `SpotMarketConfig.precision`
  */
-export const calculateUtilizationRate = (
-  totalDeposits: BN,
-  totalBorrows: BN
-): number => {
-  if (totalDeposits.isZero()) {
-    return 0;
-  }
+export function getTokenAmount(
+  balanceAmount: BN,
+  spotMarket: DriftSpotMarket,
+  isDeposit: boolean
+): BN {
+  const precisionDecrease = TEN.pow(
+    new BN(DRIFT_PRECISION_EXP - spotMarket.decimals)
+  );
 
-  // Utilization = borrows / deposits * DRIFT_UTILIZATION_PRECISION (for 6 decimal precision)
-  return totalBorrows
-    .mul(new BN(DRIFT_UTILIZATION_PRECISION))
-    .div(totalDeposits)
-    .toNumber();
-};
-
-/**
- * Calculates the interest rate based on utilization using Drift's kinked rate model
- * @param utilization - Current utilization rate (0-1000000)
- * @param optimalUtilization - Target utilization rate
- * @param optimalRate - Interest rate at optimal utilization
- * @param maxRate - Maximum interest rate at 100% utilization
- * @returns The calculated interest rate
- */
-export const calculateInterestRate = (
-  utilization: number,
-  optimalUtilization: number,
-  optimalRate: number,
-  maxRate: number
-): number => {
-  if (utilization <= optimalUtilization) {
-    // Below optimal: linear interpolation from 0 to optimal rate
-    return Math.floor((utilization * optimalRate) / optimalUtilization);
+  if (isDeposit) {
+    return balanceAmount
+      .mul(spotMarket.cumulativeDepositInterest)
+      .div(precisionDecrease);
   } else {
-    // Above optimal: linear interpolation from optimal rate to max rate
-    const excessUtilization = utilization - optimalUtilization;
-    const utilizationRange = DRIFT_UTILIZATION_PRECISION - optimalUtilization; // 100% - optimal
-    const rateRange = maxRate - optimalRate;
-
-    return (
-      optimalRate +
-      Math.floor((excessUtilization * rateRange) / utilizationRange)
+    return divCeil(
+      balanceAmount.mul(spotMarket.cumulativeBorrowInterest),
+      precisionDecrease
     );
   }
+}
+
+export const divCeil = (a: BN, b: BN): BN => {
+  const quotient = a.div(b);
+
+  const remainder = a.mod(b);
+
+  if (remainder.gt(ZERO)) {
+    return quotient.add(ONE);
+  } else {
+    return quotient;
+  }
+};
+
+// copied from Drift: https://github.com/drift-labs/protocol-v2/blob/1fed025269eed8ea5159dc56e2143fb904dbf14e/sdk/src/math/spotBalance.ts#L266
+export const calculateUtilization = (
+  spotMarket: DriftSpotMarket,
+  delta = ZERO
+): BN => {
+  let tokenDepositAmount = getTokenAmount(
+    spotMarket.depositBalance,
+    spotMarket,
+    true
+  );
+  let tokenBorrowAmount = getTokenAmount(
+    spotMarket.borrowBalance,
+    spotMarket,
+    false
+  );
+
+  if (delta.gt(ZERO)) {
+    tokenDepositAmount = tokenDepositAmount.add(delta);
+  } else if (delta.lt(ZERO)) {
+    tokenBorrowAmount = tokenBorrowAmount.add(delta.abs());
+  }
+
+  let utilization: BN;
+  if (tokenBorrowAmount.eq(ZERO) && tokenDepositAmount.eq(ZERO)) {
+    utilization = ZERO;
+  } else if (tokenDepositAmount.eq(ZERO)) {
+    utilization = DRIFT_UTILIZATION_PRECISION;
+  } else {
+    utilization = tokenBorrowAmount
+      .mul(DRIFT_UTILIZATION_PRECISION)
+      .div(tokenDepositAmount);
+  }
+
+  return utilization;
+};
+
+// copied from Drift: https://github.com/drift-labs/protocol-v2/blob/1fed025269eed8ea5159dc56e2143fb904dbf14e/sdk/src/math/spotBalance.ts#L381
+export const calculateInterestRate = (
+  spotMarket: DriftSpotMarket,
+  delta = ZERO,
+  currentUtilization: BN = null
+): BN => {
+  const utilization =
+    currentUtilization || calculateUtilization(spotMarket, delta);
+
+  const optimalUtil = new BN(spotMarket.optimalUtilization);
+  const optimalRate = new BN(spotMarket.optimalBorrowRate);
+  const maxRate = new BN(spotMarket.maxBorrowRate);
+  const minRate = new BN(spotMarket.minBorrowRate).mul(
+    DRIFT_UTILIZATION_PRECISION.divn(200)
+  );
+
+  const weightsDivisor = new BN(1000);
+  const segments: [BN, BN][] = [
+    [new BN(850_000), new BN(50)],
+    [new BN(900_000), new BN(100)],
+    [new BN(950_000), new BN(150)],
+    [new BN(990_000), new BN(200)],
+    [new BN(995_000), new BN(250)],
+    [DRIFT_UTILIZATION_PRECISION, new BN(250)],
+  ];
+
+  let rate: BN;
+  if (utilization.lte(optimalUtil)) {
+    // below optimal: linear ramp from 0 to optimalRate
+    const slope = optimalRate.mul(DRIFT_UTILIZATION_PRECISION).div(optimalUtil);
+    rate = utilization.mul(slope).div(DRIFT_UTILIZATION_PRECISION);
+  } else {
+    // above optimal: piecewise segments
+    const totalExtraRate = maxRate.sub(optimalRate);
+
+    rate = optimalRate.clone();
+    let prevUtil = optimalUtil.clone();
+
+    for (const [bp, weight] of segments) {
+      const segmentEnd = bp.gt(DRIFT_UTILIZATION_PRECISION)
+        ? DRIFT_UTILIZATION_PRECISION
+        : bp;
+      const segmentRange = segmentEnd.sub(prevUtil);
+
+      const segmentRateTotal = totalExtraRate.mul(weight).div(weightsDivisor);
+
+      if (utilization.lte(segmentEnd)) {
+        const partialUtil = utilization.sub(prevUtil);
+        const partialRate = segmentRateTotal.mul(partialUtil).div(segmentRange);
+        rate = rate.add(partialRate);
+        break;
+      } else {
+        rate = rate.add(segmentRateTotal);
+        prevUtil = segmentEnd;
+      }
+    }
+  }
+
+  return BN.max(minRate, rate);
 };
 
 /**
@@ -378,6 +481,16 @@ const DRIFT_DISPLAY_DECIMALS = 9;
 
 // Export the scaled balance decimals constant from drift-mocks
 export const DRIFT_SCALED_BALANCE_DECIMALS = 9;
+
+export const USDC_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.usdcDecimals
+); // 10^3 = 1,000
+export const TOKEN_A_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.tokenADecimals
+); // 10^1 = 10
+export const TOKEN_B_SCALING_FACTOR = getDriftScalingFactor(
+  ecosystem.tokenBDecimals
+); // 10^3 = 1000
 
 /**
  * Formats Drift internal deposit amounts with consistent 9-decimal precision
@@ -442,12 +555,6 @@ export const getUserPositions = async (
     .map((pos) => formatSpotPosition(pos));
 };
 
-// Drift asset tag constant
-export const ASSET_TAG_DRIFT = 4;
-
-// Drift utilization calculation uses 6 decimal precision (1000000 = 100%)
-export const DRIFT_UTILIZATION_PRECISION = 1000000;
-
 /**
  * Convert token amount to scaled balance for Drift liquidations
  *
@@ -492,22 +599,16 @@ export const scaledBalanceToTokenAmount = (
   const cumulativeInterest = isDeposit
     ? new BN(spotMarket.cumulativeDepositInterest.toString())
     : new BN(spotMarket.cumulativeBorrowInterest.toString());
+  if (decimals > DRIFT_PRECISION_EXP) {
+    console.error("decimals > drift precision, likely invalid");
+  }
 
-  // Calculate precision increase: 10^(19 - decimals)
-  const precisionIncrease = new BN(10).pow(new BN(19 - decimals));
-
-  // Calculate product: scaled_balance * cumulative_interest
+  const precisionIncrease = TEN.pow(new BN(DRIFT_PRECISION_EXP - decimals));
   const product = scaledBalance.mul(cumulativeInterest);
-
-  // Divide and get remainder for ceiling division
   const quotient = product.div(precisionIncrease);
-
-  // We sub 1 unit which maybe isn't totally accurate
-  // but it means that we get to safely withdraw every time.
-  return quotient.sub(new BN(1));
+  return quotient;
 };
 
-// Define DriftConfigCompact interface to match the Rust struct
 export interface DriftConfigCompact {
   oracle: PublicKey;
   assetWeightInit: WrappedI80F48;
@@ -540,9 +641,9 @@ export const defaultDriftBankConfig = (
       driftPythPull: {}, // Use Pyth Pull oracle by default
     },
     operationalState: { operational: {} }, // Start operational by default
-    riskTier: { collateral: {} }, // Collateral-only by default
-    configFlags: 1, // Modern bank flag (PYTH_PUSH_MIGRATED_DEPRECATED)
-    totalAssetValueInitLimit: new BN(10_000_000_000_000), // 10 million USD equivalent (increased from 1 million)
+    riskTier: { collateral: {} }, // Collateral by default
+    configFlags: 1, // (PYTH_PUSH_MIGRATED_DEPRECATED)
+    totalAssetValueInitLimit: new BN(10_000_000_000_000), // 10 million USD equivalent
     oracleMaxAge: 100, // 100 seconds max oracle age
     oracleMaxConfidence: 0, // Use default 10% confidence
   };
@@ -564,8 +665,8 @@ export const getDriftUserAccount = async (
 };
 
 /**
- * Refresh Drift-specific oracles that use mainnet Pyth program ID.
- * This is needed after time warping to prevent oracle staleness.
+ * Refresh Drift-specific oracles that use mainnet Pyth program ID. This is needed after time
+ * warping to prevent oracle staleness.
  *
  * @param oracles The oracles object containing Token A price data
  * @param driftAccounts Map containing Drift-specific oracle accounts
@@ -579,8 +680,8 @@ export async function refreshDriftOracles(
   banksClient: BanksClient
 ) {
   // Get the Drift Token A oracle and feed from the map
-  const tokenAOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
-  const tokenAFeed = driftAccounts.get(DRIFT_TOKENA_PULL_FEED);
+  const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+  const tokenAFeed = driftAccounts.get(DRIFT_TOKEN_A_PULL_FEED);
 
   if (tokenAOracle && tokenAFeed) {
     // Update Drift's Token A oracle with mainnet Pyth program ID
@@ -628,6 +729,9 @@ export interface DriftAccountValuation {
 import { decodePriceUpdateV2 } from "./pyth-pull-mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { Marginfi } from "../../target/types/marginfi";
+import { assert } from "chai";
+import { assertBNEqual } from "./genericTests";
+import BigNumber from "bignumber.js";
 
 // Constants for Drift
 export const DRIFT_SCALED_BALANCE_PRECISION = new BN(1_000_000_000); // 10^9
@@ -1127,3 +1231,38 @@ export const getDriftUser = async (
 
   return await driftProgram.account.user.fetch(userPDA);
 };
+
+export async function assertBankBalance(
+  marginfiAccount: PublicKey,
+  bankPubkey: PublicKey,
+  expectedBalance: BN | number | null,
+  isLiability: boolean = false
+) {
+  const userAcc = await bankrunProgram.account.marginfiAccount.fetch(
+    marginfiAccount
+  );
+
+  const balance = userAcc.lendingAccount.balances.find(
+    (b) => b.bankPk.equals(bankPubkey) && b.active === 1
+  );
+
+  if (expectedBalance === null) {
+    assert(balance === undefined);
+    return;
+  }
+
+  assert(balance);
+
+  let shares: BigNumber;
+  if (isLiability) {
+    shares = wrappedI80F48toBigNumber(balance.liabilityShares);
+  } else {
+    shares = wrappedI80F48toBigNumber(balance.assetShares);
+  }
+
+  if (typeof expectedBalance === "number") {
+    assert.approximately(shares.toNumber(), expectedBalance, 1);
+  } else {
+    assert.equal(shares.toString(), expectedBalance.toString());
+  }
+}

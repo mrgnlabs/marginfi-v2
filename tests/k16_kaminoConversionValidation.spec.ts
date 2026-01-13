@@ -25,7 +25,7 @@ import {
   // Keys
   MARKET,
   KAMINO_USDC_BANK,
-  KAMINO_TOKENA_BANK,
+  KAMINO_TOKEN_A_BANK,
   USDC_RESERVE,
   TOKEN_A_RESERVE,
   A_FARM_STATE,
@@ -133,7 +133,7 @@ describe("k16: Kamino Conversion Validation", () => {
 
   before(async () => {
     usdcBank = kaminoAccounts.get(KAMINO_USDC_BANK)!;
-    tokenABank = kaminoAccounts.get(KAMINO_TOKENA_BANK)!;
+    tokenABank = kaminoAccounts.get(KAMINO_TOKEN_A_BANK)!;
     usdcReserve = kaminoAccounts.get(USDC_RESERVE)!;
     tokenAReserve = kaminoAccounts.get(TOKEN_A_RESERVE)!;
     usdcObligation = kaminoAccounts.get(`${usdcBank.toString()}_OBLIGATION`)!;

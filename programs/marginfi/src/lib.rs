@@ -101,6 +101,8 @@ pub mod marginfi {
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         is_arena_group: bool,
+        emode_max_init_leverage: Option<WrappedI80F48>,
+        emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> MarginfiResult {
         marginfi_group::configure(
             ctx,
@@ -112,6 +114,8 @@ pub mod marginfi {
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
         )
     }
 
@@ -434,6 +438,13 @@ pub mod marginfi {
         ctx: Context<'_, '_, 'info, 'info, PulseHealth<'info>>,
     ) -> MarginfiResult {
         marginfi_account::lending_account_pulse_health(ctx)
+    }
+
+    /// (Permissionless) Refresh the cached oracle price for a bank.
+    pub fn lending_pool_pulse_bank_price_cache<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolPulseBankPriceCache<'info>>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_pulse_bank_price_cache(ctx)
     }
 
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees

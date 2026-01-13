@@ -42,7 +42,6 @@ export interface InitDriftUserAccounts {
   bank: PublicKey;
   signerTokenAccount: PublicKey;
   driftOracle?: PublicKey; // Oracle account for the asset (not needed if using oracle type QuoteAsset)
-  referrer?: PublicKey;
   tokenProgram?: PublicKey;
 }
 
@@ -117,33 +116,21 @@ export const makeInitDriftUserIx = async (
   // Derive the drift state PDA using helper function
   const [driftState] = deriveDriftStatePDA(DRIFT_PROGRAM_ID);
 
-  // Get the bank to find the drift spot market
-  const bank = await program.account.bank.fetch(accounts.bank);
-  const driftSpotMarket = bank.driftSpotMarket;
-
   // Derive the spot market vault PDA using the market index
   const [driftSpotMarketVault] = deriveSpotMarketVaultPDA(
     DRIFT_PROGRAM_ID,
     marketIndex
   );
 
-  // Derive the drift signer PDA
-  const [driftSigner] = PublicKey.findProgramAddressSync(
-    [Buffer.from("drift_signer")],
-    DRIFT_PROGRAM_ID
-  );
-
   const ix = program.methods
     .driftInitUser(args.amount)
     .accounts({
       feePayer: accounts.feePayer,
-      bank: accounts.bank,
       signerTokenAccount: accounts.signerTokenAccount,
+      bank: accounts.bank,
       driftState,
       driftSpotMarketVault,
-      driftSigner,
       driftOracle: accounts.driftOracle || null,
-      referrer: accounts.referrer || null,
       tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
     })
     .instruction();
@@ -209,11 +196,13 @@ export interface DriftWithdrawAccounts {
   marginfiAccount: PublicKey;
   bank: PublicKey;
   destinationTokenAccount: PublicKey;
-  driftOracle?: PublicKey; // Oracle account for the asset (not needed if using oracle type QuoteAsset)
-  driftRewardOracle?: PublicKey; // Oracle for first reward asset (only needed if rewards exist)
-  driftRewardSpotMarket?: PublicKey; // Spot market for first reward asset (only needed if rewards exist)
-  driftRewardOracle2?: PublicKey; // Oracle for second reward asset (backup in case multiple rewards)
-  driftRewardSpotMarket2?: PublicKey; // Spot market for second reward asset (backup in case multiple rewards)
+  driftOracle?: PublicKey; // not needed if using oracle type QuoteAsset
+  driftRewardOracle?: PublicKey; // only needed if rewards exist
+  driftRewardSpotMarket?: PublicKey; // only needed if rewards exist
+  driftRewardMint?: PublicKey; // only needed if rewards exist
+  driftRewardOracle2?: PublicKey; // backup in case multiple rewards
+  driftRewardSpotMarket2?: PublicKey; // backup in case multiple rewards
+  driftRewardMint2?: PublicKey; // backup in case multiple rewards
   tokenProgram?: PublicKey;
 }
 
@@ -335,7 +324,6 @@ export const makeDriftHarvestRewardIx = async (
   accounts: DriftHarvestRewardAccounts,
   remainingAccounts: AccountMeta[] = []
 ): Promise<TransactionInstruction> => {
-  // 1. Derive all PDAs
   const [driftState] = deriveDriftStatePDA(DRIFT_PROGRAM_ID);
 
   const [driftSigner] = PublicKey.findProgramAddressSync(
@@ -343,21 +331,17 @@ export const makeDriftHarvestRewardIx = async (
     DRIFT_PROGRAM_ID
   );
 
-  // 2. Fetch the harvest spot market to get the market index and mint
   const harvestSpotMarket = await driftProgram.account.spotMarket.fetch(
     accounts.harvestDriftSpotMarket
   );
 
-  // 3. Get the reward mint from the harvest spot market
   const rewardMint = harvestSpotMarket.mint;
 
-  // 4. Derive the harvest spot market vault
   const [harvestDriftSpotMarketVault] = deriveSpotMarketVaultPDA(
     DRIFT_PROGRAM_ID,
     harvestSpotMarket.marketIndex
   );
 
-  // 5. Derive the ATA of the fee state's global fee wallet for the reward mint
   const expectedDestinationTokenAccount = getAssociatedTokenAddressSync(
     rewardMint,
     globalFeeWallet,
@@ -365,21 +349,26 @@ export const makeDriftHarvestRewardIx = async (
   );
 
   // 6. Build instruction
-  return program.methods
-    .driftHarvestReward()
-    .accounts({
-      bank: accounts.bank,
-      // feeState is auto-derived via seeds constraint
-      driftState,
-      // drift_user and drift_user_stats are auto-included via has_one constraint
-      harvestDriftSpotMarket: accounts.harvestDriftSpotMarket,
-      harvestDriftSpotMarketVault,
-      driftSigner,
-      rewardMint,
-      destinationTokenAccount: expectedDestinationTokenAccount,
-      // destinationTokenAccount is auto-derived via associated_token constraint
-      tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
-    })
-    .remainingAccounts(remainingAccounts)
-    .instruction();
+  return (
+    program.methods
+      .driftHarvestReward()
+      .accounts({
+        bank: accounts.bank,
+        // feeState is auto-derived via seeds constraint
+        driftState,
+        // drift_user and drift_user_stats are auto-included via has_one constraint
+        harvestDriftSpotMarket: accounts.harvestDriftSpotMarket,
+        harvestDriftSpotMarketVault,
+        driftSigner,
+        rewardMint,
+        tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
+      })
+      // Explicit ATA required: authority is fee_state.global_fee_wallet (on-chain data),
+      // which Anchor TS cannot use for auto account resolution.
+      .accountsPartial({
+        destinationTokenAccount: expectedDestinationTokenAccount,
+      })
+      .remainingAccounts(remainingAccounts)
+      .instruction()
+  );
 };

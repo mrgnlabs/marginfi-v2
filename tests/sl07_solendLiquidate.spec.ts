@@ -46,10 +46,9 @@ import {
 import {
   deriveBankWithSeed,
   deriveLiquidityVaultAuthority,
-  deriveSolendObligation,
 } from "./utils/pdas";
 import { genericMultiBankTestSetup } from "./genericSetups";
-import { blankBankConfigOptRaw, SOLEND_PROGRAM_ID } from "./utils/types";
+import { blankBankConfigOptRaw } from "./utils/types";
 import { defaultSolendBankConfig } from "./utils/solend-utils";
 import { composeRemainingAccounts } from "./utils/user-instructions";
 import { processBankrunTransaction as processBankrunTx } from "./utils/tools";
@@ -599,6 +598,12 @@ describe("sl07: Solend Liquidation", () => {
     await processBankrunTx(bankrunContext, tx, [groupAdmin.wallet]);
 
     tx = new Transaction().add(
+      // dummy ix to trick bankrun
+      SystemProgram.transfer({
+        fromPubkey: user.wallet.publicKey,
+        toPubkey: groupAdmin.wallet.publicKey,
+        lamports: 42,
+      }),
       await healthPulse(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         remaining: composeRemainingAccounts([

@@ -6,8 +6,6 @@ import {
   Transaction,
   AccountMeta,
   ComputeBudgetProgram,
-  SystemProgram,
-  SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
 import BN from "bn.js";
 import {
@@ -21,13 +19,9 @@ import {
   users,
   kaminoAccounts,
   MARKET,
-  USDC_RESERVE,
   TOKEN_A_RESERVE,
   A_FARM_STATE,
-  A_OBLIGATION_USER_STATE,
   farmAccounts,
-  bankRunProvider,
-  klendBankrunProgram,
   FARMS_PROGRAM_ID,
 } from "./rootHooks";
 import { addBankWithSeed, groupInitialize } from "./utils/group-instructions";
@@ -47,16 +41,12 @@ import {
 } from "./utils/types";
 import {
   defaultKaminoBankConfig,
-  ORACLE_SETUP_KAMINO_PYTH_PUSH,
 } from "./utils/kamino-utils";
 import {
   makeAddKaminoBankIx,
   makeInitObligationIx,
 } from "./utils/kamino-instructions";
 import { processBankrunTransaction } from "./utils/tools";
-import { Farms } from "./fixtures/kamino_farms";
-import farmsIdl from "../idls/kamino_farms.json";
-import { lendingMarketAuthPda } from "@kamino-finance/klend-sdk";
 
 /**
  * Initialize a group, create N banks, fund everyone, and init accounts.

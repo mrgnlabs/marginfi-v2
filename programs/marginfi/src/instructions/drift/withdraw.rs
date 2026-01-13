@@ -10,7 +10,10 @@ use crate::{
         },
         marginfi_group::MarginfiGroupImpl,
     },
-    utils::{fetch_asset_price_for_bank, is_drift_asset_tag, validate_bank_state, InstructionKind},
+    utils::{
+        fetch_asset_price_for_bank_low_bias, is_drift_asset_tag, validate_bank_state,
+        InstructionKind,
+    },
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -70,8 +73,12 @@ pub fn drift_withdraw<'info>(
         // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
         let price = if in_receivership {
-            let price =
-                fetch_asset_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
+            let price = fetch_asset_price_for_bank_low_bias(
+                &bank_key,
+                &bank,
+                &clock,
+                ctx.remaining_accounts,
+            )?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
             check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
@@ -93,18 +100,28 @@ pub fn drift_withdraw<'info>(
         let (token_amount, expected_scaled_balance_change) = if withdraw_all {
             let scaled_balance = bank_account.withdraw_all()?;
 
-            let token_amount = drift_spot_market.get_withdraw_token_amount(scaled_balance)?;
-            let actual_scaled_balance_decrememt =
+            let mut token_amount = drift_spot_market.get_withdraw_token_amount(scaled_balance)?;
+            let mut expected_scaled_balance_change =
                 drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+
+            // If rounding would require more scaled balance than we have, reduce the withdraw
+            // amount by 1 base unit to keep the init deposit buffer intact. In practice, this means
+            // if you deposit and immediately withdraw_all, you will lose one lamport, which will be
+            // trapped in the Drift init buffer forever.
+            if expected_scaled_balance_change == scaled_balance + 1 && token_amount > 0 {
+                token_amount = token_amount.saturating_sub(1);
+                expected_scaled_balance_change =
+                    drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+            }
 
             // Sanity check
             require_gte!(
                 scaled_balance,
-                actual_scaled_balance_decrememt,
+                expected_scaled_balance_change,
                 MarginfiError::MathError
             );
 
-            (token_amount, actual_scaled_balance_decrememt)
+            (token_amount, expected_scaled_balance_change)
         } else {
             let mut scaled_decrement = drift_spot_market.get_scaled_balance_decrement(amount)?;
             let mut token_amount = amount;
@@ -112,10 +129,22 @@ pub fn drift_withdraw<'info>(
             let asset_shares_i80f48: I80F48 = bank_account.balance.asset_shares.into();
             let asset_shares = asset_shares_i80f48.to_num::<u64>();
 
-            // Handle edge case where scaled_decrement is exactly 1 more than asset_shares
-            // This happens when depositing and immediately withdrawing with no interest earned
-            // due to Drift rounding up the scaled decrement. We round down manually.
-            if scaled_decrement == asset_shares + 1 {
+            // In some edge cases (such as when depositing and immediately withdrawing), the
+            // requested token amount rounds up to a scaled decrement that exceeds the user's actual
+            // scaled balance. In this case, we recompute the actual amounts from shares.
+            //
+            // ## Additional Notes:
+            // * Bear in mind that one scaled-balance-unit is not neccessarily equal to one lamport.
+            // * This is distinct from a true over-withdraw (>1 scaled unit), which still fails.
+            // * A user can request up to ~1 scaled-unit over the true max; we will round down and
+            //   withdraw only what they actually have, so the instruction input amount may not
+            //   match the transfer. This is especially relevant for accounting systems that use the
+            //   `amount` input to track funds: these may be slightly off.
+            // * We cannot just `token_amount = token_amount.saturating_sub(1)` here because unlike
+            //   withdraw_all, the token amount wasn’t derived from `asset_shares`.
+            if scaled_decrement > asset_shares + 1 {
+                return Err(error!(MarginfiError::OperationWithdrawOnly));
+            } else if scaled_decrement == asset_shares + 1 {
                 token_amount = drift_spot_market.get_withdraw_token_amount(asset_shares)?;
                 scaled_decrement = drift_spot_market.get_scaled_balance_decrement(token_amount)?;
             }
@@ -126,6 +155,7 @@ pub fn drift_withdraw<'info>(
         };
 
         // Track withdrawal limit for risk admin during deleverage
+        // TODO update this to use the deleverage flag instead
         if ctx.accounts.authority.key() == group.risk_admin {
             let withdrawn_equity = calc_value(
                 I80F48::from_num(expected_scaled_balance_change),
@@ -139,9 +169,9 @@ pub fn drift_withdraw<'info>(
         (token_amount, expected_scaled_balance_change)
     };
 
-    // When calling withdraw_all, it's possible that the remaining scaled
-    // balance is worth less than 1 unit of token. In this case we skip the
-    // withdrawal process and leave the dust inside of drift.
+    // When calling withdraw_all, it's possible that the remaining scaled balance is worth less than
+    // 1 unit of token. In this case we skip the withdrawal process and leave the dust inside of
+    // drift.
     let actual_amount_received = if withdraw_all && token_amount == 0 {
         // No actual withdrawal occurs, so no tokens received
         0
@@ -166,7 +196,6 @@ pub fn drift_withdraw<'info>(
         let actual_amount_received = post_transfer_vault_balance - pre_transfer_vault_balance;
         let actual_scaled_balance_change = initial_scaled_balance - final_scaled_balance;
 
-        // We replicate drift math exactly so the numbers should match 1:1
         require_eq!(
             actual_amount_received,
             token_amount,

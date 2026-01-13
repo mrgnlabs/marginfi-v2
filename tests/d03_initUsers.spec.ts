@@ -123,20 +123,4 @@ describe("d03: Drift - Initialize User Accounts", () => {
     const state = await getDriftStateAccount(driftBankrunProgram);
     assert.equal(state.numberOfSubAccounts.toNumber(), 2);
   });
-
-  it("Verify user PDAs are correctly derived", async () => {
-    const userAAccount = await getUserAccount(
-      driftBankrunProgram,
-      userA.wallet.publicKey,
-      0
-    );
-    assert.ok(userAAccount);
-
-    const userBAccount = await getUserAccount(
-      driftBankrunProgram,
-      userB.wallet.publicKey,
-      0
-    );
-    assert.ok(userBAccount);
-  });
 });

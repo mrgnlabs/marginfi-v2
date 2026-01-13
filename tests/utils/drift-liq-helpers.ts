@@ -14,8 +14,8 @@ import {
   bankrunProgram,
   banksClient,
   driftAccounts,
-  DRIFT_TOKENA_PULL_ORACLE,
-  DRIFT_TOKENA_SPOT_MARKET,
+  DRIFT_TOKEN_A_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
   ecosystem,
   globalProgramAdmin,
   groupAdmin,
@@ -121,8 +121,8 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
   const ctx = bankrunContext;
   const mrgnID = bankrunProgram.programId;
   const throwawayGroup = Keypair.fromSeed(THROWAWAY_GROUP_SEED_D14);
-  const driftSpotMarket = driftAccounts.get(DRIFT_TOKENA_SPOT_MARKET);
-  const driftOracle = driftAccounts.get(DRIFT_TOKENA_PULL_ORACLE);
+  const driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
+  const driftOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
 
   const driftBanks: PublicKey[] = [];
   const regularBanks: PublicKey[] = [];
@@ -174,7 +174,7 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
   // 3. Initialize drift user for each drift bank
   for (let i = 0; i < PASSING_DRIFT_COUNT + 1; i++) {
     const driftBank = driftBanks[i];
-    const initUserAmount = new BN(100);
+    const initUserAmount = new BN(100 + i);
 
     const fundTx = new Transaction().add(
       createMintToInstruction(
@@ -640,8 +640,8 @@ async function attemptLiquidation(
   )) as BanksTransactionResultWithMeta;
 
   // Transaction succeeded
-  const cuUsed = result.computeUnitsConsumed
-    ? Number(result.computeUnitsConsumed)
+  const cuUsed = result.meta?.computeUnitsConsumed
+    ? Number(result.meta.computeUnitsConsumed)
     : undefined;
 
   return { success: true, cuUsed };
