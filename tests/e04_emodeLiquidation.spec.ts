@@ -46,6 +46,7 @@ import { configBankEmode } from "./utils/group-instructions";
 import { logHealthCache } from "./utils/tools";
 import { assert } from "chai";
 import { bytesToF64 } from "./utils/tools";
+import { dummyTx } from "./utils/bankrunConnection";
 
 // Banks are listed here in the sorted-by-public-keys order - the same used in the lending account balances
 const seed = new BN(EMODE_SEED);
@@ -537,7 +538,7 @@ describe("Emode liquidation", () => {
       SystemProgram.transfer({
         fromPubkey: liquidator.wallet.publicKey,
         toPubkey: bankrunProgram.provider.publicKey,
-        lamports: 5678,
+        lamports: 5538,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,
@@ -603,6 +604,7 @@ describe("Emode liquidation", () => {
     remaining: Array<PublicKey>
   ) => {
     const tx = new Transaction().add(
+      dummyTx(user.wallet.publicKey, users[1].wallet.publicKey),
       await healthPulse(user.mrgnBankrunProgram, {
         marginfiAccount: userAccount,
         remaining,

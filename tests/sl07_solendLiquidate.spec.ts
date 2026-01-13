@@ -1,4 +1,4 @@
-import { workspace, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
@@ -20,6 +20,7 @@ import {
   ecosystem,
   globalProgramAdmin,
   bankrunContext,
+  bankrunProgram,
   bankRunProvider,
   users,
   solendAccounts,
@@ -60,7 +61,11 @@ import { BanksTransactionResultWithMeta } from "solana-bankrun";
 import { assert } from "chai";
 
 describe("sl07: Solend Liquidation", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  let program: Program<Marginfi>;
+
+  before(() => {
+    program = bankrunProgram;
+  });
 
   const startingSeed = 7;
   const USER_ACCOUNT_THROWAWAY = "throwaway_account_sl07";
