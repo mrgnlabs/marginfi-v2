@@ -1,6 +1,6 @@
 import { BN, Program } from "@coral-xyz/anchor";
 import { configureBank } from "./utils/group-instructions";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Keypair, SystemProgram, Transaction } from "@solana/web3.js";
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairA,
@@ -30,6 +30,7 @@ import {
 } from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
+import { dummyTx } from "./utils/bankrunConnection";
 
 describe("Reduce-Only Bank Tests", () => {
   let program: Program<Marginfi>;
@@ -108,6 +109,7 @@ describe("Reduce-Only Bank Tests", () => {
       // Ensure cleanup even if test fails
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
+          dummyTx(groupAdmin.wallet.publicKey, users[1].wallet.publicKey),
           await configureBank(groupAdmin.mrgnProgram, {
             bank: bankKey,
             bankConfigOpt: {

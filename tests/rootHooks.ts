@@ -392,10 +392,10 @@ function loadJsonFixture(filepath: string): AddedAccount {
   return {
     address: new PublicKey(json.pubkey),
     info: {
-      lamports: BigInt(json.account.lamports),
+      lamports: Number(json.account.lamports),
       owner: new PublicKey(json.account.owner),
       executable: json.account.executable,
-      rentEpoch: BigInt(json.account.rentEpoch ?? 0),
+      rentEpoch: Number(json.account.rentEpoch ?? 0),
       data: Buffer.from(json.account.data[0], json.account.data[1]),
     },
   };
