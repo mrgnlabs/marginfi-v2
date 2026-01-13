@@ -1,20 +1,44 @@
-import { BN, Program, workspace } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { configureBank } from "./utils/group-instructions";
 import { Keypair, Transaction } from "@solana/web3.js";
-import { Marginfi } from "../target/types/marginfi"; 
-import { bankKeypairA, bankKeypairSol, bankKeypairUsdc, ecosystem, groupAdmin, marginfiGroup, oracles, users } from "./rootHooks";
+import { Marginfi } from "../target/types/marginfi";
+import {
+  bankKeypairA,
+  bankKeypairSol,
+  bankKeypairUsdc,
+  bankrunProgram,
+  ecosystem,
+  groupAdmin,
+  marginfiGroup,
+  oracles,
+  users,
+} from "./rootHooks";
 import { expectFailedTxWithError } from "./utils/genericTests";
 import { assert } from "chai";
-import { CONF_INTERVAL_MULTIPLE, defaultBankConfigOptRaw, ORACLE_CONF_INTERVAL } from "./utils/types";
-import { accountInit, borrowIx, composeRemainingAccounts, depositIx, healthPulse, withdrawIx } from "./utils/user-instructions";
+import {
+  CONF_INTERVAL_MULTIPLE,
+  defaultBankConfigOptRaw,
+  ORACLE_CONF_INTERVAL,
+} from "./utils/types";
+import {
+  accountInit,
+  borrowIx,
+  composeRemainingAccounts,
+  depositIx,
+  healthPulse,
+  withdrawIx,
+} from "./utils/user-instructions";
 import { USER_ACCOUNT } from "./utils/mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 describe("Reduce-Only Bank Tests", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  let program: Program<Marginfi>;
+
+  before(() => {
+    program = bankrunProgram;
+  });
 
   before("Initialize user accounts", async () => {
-
     const user0AccountKeypair = Keypair.generate();
     users[0].accounts.set(USER_ACCOUNT, user0AccountKeypair.publicKey);
     await users[0].mrgnProgram.provider.sendAndConfirm(
@@ -47,7 +71,6 @@ describe("Reduce-Only Bank Tests", () => {
   it("(admin) Set bank to ReduceOnly, then restore to Operational - verifies state changes", async () => {
     const bankKey = bankKeypairSol.publicKey;
 
-    
     try {
       // Set SOL bank to ReduceOnly
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -81,8 +104,6 @@ describe("Reduce-Only Bank Tests", () => {
           })
         )
       );
-
-
     } finally {
       // Ensure cleanup even if test fails
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
@@ -105,14 +126,12 @@ describe("Reduce-Only Bank Tests", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
-
     const depositAmountTokenA = 0.5;
     const depositAmountTokenA_native = new BN(
       depositAmountTokenA * 10 ** ecosystem.tokenADecimals
     );
 
     try {
-
       await user.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await depositIx(user.mrgnProgram, {
@@ -137,17 +156,23 @@ describe("Reduce-Only Bank Tests", () => {
         )
       );
 
-      const accBefore = await program.account.marginfiAccount.fetch(userAccount);
+      const accBefore = await program.account.marginfiAccount.fetch(
+        userAccount
+      );
       const cacheBefore = accBefore.healthCache;
       const assetValueBefore = wrappedI80F48toBigNumber(cacheBefore.assetValue);
-      const assetValueMaintBefore = wrappedI80F48toBigNumber(cacheBefore.assetValueMaint);
-
+      const assetValueMaintBefore = wrappedI80F48toBigNumber(
+        cacheBefore.assetValueMaint
+      );
 
       const confidence = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
       const adjustedAssetPrice = oracles.tokenAPrice * (1.0 - confidence);
       const bankA = await program.account.bank.fetch(bankKeypairA.publicKey);
-      const assetWeightInit = wrappedI80F48toBigNumber(bankA.config.assetWeightInit).toNumber();
-      const expectedAssetValue = depositAmountTokenA * adjustedAssetPrice * assetWeightInit;
+      const assetWeightInit = wrappedI80F48toBigNumber(
+        bankA.config.assetWeightInit
+      ).toNumber();
+      const expectedAssetValue =
+        depositAmountTokenA * adjustedAssetPrice * assetWeightInit;
 
       // Verify assetValue matches expected calculation before ReduceOnly
       assert.approximately(
@@ -186,10 +211,16 @@ describe("Reduce-Only Bank Tests", () => {
       const accAfter = await program.account.marginfiAccount.fetch(userAccount);
       const cacheAfter = accAfter.healthCache;
       const assetValueAfter = wrappedI80F48toBigNumber(cacheAfter.assetValue);
-      const assetValueMaintAfter = wrappedI80F48toBigNumber(cacheAfter.assetValueMaint);
+      const assetValueMaintAfter = wrappedI80F48toBigNumber(
+        cacheAfter.assetValueMaint
+      );
 
       // Verify assetValue drops to 0 after ReduceOnly
-      assert.equal(assetValueAfter.toNumber(), 0, "Asset value should be 0 after ReduceOnly");
+      assert.equal(
+        assetValueAfter.toNumber(),
+        0,
+        "Asset value should be 0 after ReduceOnly"
+      );
 
       // Verify assetValueMaint is unchanged
       assert.equal(
@@ -197,7 +228,6 @@ describe("Reduce-Only Bank Tests", () => {
         assetValueMaintAfter.toNumber(),
         "Asset value (maint) should remain unchanged"
       );
-
 
       // User tries to borrow USDC using ReduceOnly Token A as collateral
       const borrowAmountUsdc = 10;
@@ -225,9 +255,8 @@ describe("Reduce-Only Bank Tests", () => {
         "RiskEngineInitRejected",
         6006
       );
-
     } finally {
-      // Restore Token A bank to Operational for cleanup 
+      // Restore Token A bank to Operational for cleanup
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBank(groupAdmin.mrgnProgram, {
@@ -242,7 +271,7 @@ describe("Reduce-Only Bank Tests", () => {
         )
       );
 
-      // Withdraw all Token A 
+      // Withdraw all Token A
       try {
         await user.mrgnProgram.provider.sendAndConfirm!(
           new Transaction().add(
@@ -257,7 +286,6 @@ describe("Reduce-Only Bank Tests", () => {
           )
         );
       } catch (e) {
-
         console.log("Cleanup withdrawal failed: ", e);
       }
     }
@@ -305,7 +333,6 @@ describe("Reduce-Only Bank Tests", () => {
         )
       );
 
-      
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
           await configureBank(groupAdmin.mrgnProgram, {
@@ -319,7 +346,6 @@ describe("Reduce-Only Bank Tests", () => {
           })
         )
       );
-
 
       await expectFailedTxWithError(
         async () => {
@@ -342,21 +368,30 @@ describe("Reduce-Only Bank Tests", () => {
         6006
       );
 
-
-      const userAccData = await program.account.marginfiAccount.fetch(userAccount);
+      const userAccData = await program.account.marginfiAccount.fetch(
+        userAccount
+      );
       const balances = userAccData.lendingAccount.balances;
 
       const tokenABalanceIdx = balances.findIndex((b) =>
         b.bankPk.equals(bankKeypairA.publicKey)
       );
       assert.notEqual(tokenABalanceIdx, -1, "Token A balance should exist");
-      assert.equal(balances[tokenABalanceIdx].active, 1, "Token A balance should be active");
+      assert.equal(
+        balances[tokenABalanceIdx].active,
+        1,
+        "Token A balance should be active"
+      );
 
       const usdcBalanceIdx = balances.findIndex((b) =>
         b.bankPk.equals(bankKeypairUsdc.publicKey)
       );
       assert.notEqual(usdcBalanceIdx, -1, "USDC balance should exist");
-      assert.equal(balances[usdcBalanceIdx].active, 1, "USDC balance should be active");
+      assert.equal(
+        balances[usdcBalanceIdx].active,
+        1,
+        "USDC balance should be active"
+      );
     } finally {
       await groupAdmin.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
@@ -378,12 +413,11 @@ describe("Reduce-Only Bank Tests", () => {
     const user = users[0];
     const userAccount = user.accounts.get(USER_ACCOUNT);
 
-
-    const depositAmountSol = 0.05;  // 0.05 SOL * $150 = $7.50
+    const depositAmountSol = 0.05; // 0.05 SOL * $150 = $7.50
     const depositAmountSol_native = new BN(
       depositAmountSol * 10 ** ecosystem.wsolDecimals
     );
-    const depositAmountTokenA = 0.2;  // 0.2 Token A * $10 = $2
+    const depositAmountTokenA = 0.2; // 0.2 Token A * $10 = $2
     const depositAmountTokenA_native = new BN(
       depositAmountTokenA * 10 ** ecosystem.tokenADecimals
     );
@@ -427,7 +461,6 @@ describe("Reduce-Only Bank Tests", () => {
         )
       );
 
-   
       const borrowAmountUsdc = 5;
       const borrowAmountUsdc_native = new BN(
         borrowAmountUsdc * 10 ** ecosystem.usdcDecimals
@@ -456,7 +489,9 @@ describe("Reduce-Only Bank Tests", () => {
       );
 
       // Verify account has both balances
-      const userAccData = await program.account.marginfiAccount.fetch(userAccount);
+      const userAccData = await program.account.marginfiAccount.fetch(
+        userAccount
+      );
       const balances = userAccData.lendingAccount.balances;
 
       // Should have SOL (ReduceOnly) and Token A (Operational)
