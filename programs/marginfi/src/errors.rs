@@ -295,6 +295,8 @@ pub enum MarginfiError {
     InvalidDriftUser, // 6324
     #[msg("Invalid Drift user stats: account constraint violated")]
     InvalidDriftUserStats, // 6325
+    #[msg("Drift cannot support tokens with more than 19 decimals")]
+    DriftUnsupportedTokenDecimals, // 6326
     // **************END DRIFT ERRORS
 
     // ************** BEGIN SOLEND ERRORS (starting at 6400)
@@ -504,6 +506,7 @@ impl From<u32> for MarginfiError {
             6323 => MarginfiError::InvalidDriftSpotMarket,
             6324 => MarginfiError::InvalidDriftUser,
             6325 => MarginfiError::InvalidDriftUserStats,
+            6326 => MarginfiError::DriftUnsupportedTokenDecimals,
 
             // Solend-specific errors (starting at 6400)
             6400 => MarginfiError::SolendInvalidOracleSetup,

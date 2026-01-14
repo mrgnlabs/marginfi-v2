@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
-use drift_mocks::state::MinimalSpotMarket;
+use drift_mocks::{constants::DRIFT_PRECISION_EXP, state::MinimalSpotMarket};
 use marginfi_type_crate::constants::{
     FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
     LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -47,6 +47,11 @@ pub fn lending_pool_add_bank_drift(
             OracleSetup::DriftPythPull | OracleSetup::DriftSwitchboardPull
         ),
         MarginfiError::DriftInvalidOracleSetup
+    );
+
+    require!(
+        (bank_mint.decimals as u32) <= DRIFT_PRECISION_EXP,
+        MarginfiError::DriftUnsupportedTokenDecimals
     );
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;

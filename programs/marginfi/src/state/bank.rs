@@ -221,7 +221,12 @@ impl BankImpl for Bank {
         }
 
         let current_assets = self.get_asset_amount(self.total_asset_shares.into())?;
-        let limit = I80F48::from_num(self.config.deposit_limit);
+
+        let limit = if self.config.asset_tag == ASSET_TAG_DRIFT {
+            scale_drift_deposit_limit(self.config.deposit_limit, self.mint_decimals)?
+        } else {
+            I80F48::from_num(self.config.deposit_limit)
+        };
 
         if current_assets >= limit {
             return Ok(0);
