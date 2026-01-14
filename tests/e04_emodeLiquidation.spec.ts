@@ -538,7 +538,7 @@ describe("Emode liquidation", () => {
       SystemProgram.transfer({
         fromPubkey: liquidator.wallet.publicKey,
         toPubkey: bankrunProgram.provider.publicKey,
-        lamports: 5538,
+        lamports: 5678,
       }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
         assetBankKey,

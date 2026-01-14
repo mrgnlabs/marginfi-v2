@@ -29,7 +29,8 @@ pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 
 /// Due to real-world constraints, oracles using an age less than this value are typically too
 /// unreliable, and we want to restrict pools from picking an oracle that is effectively unusable
-pub const ORACLE_MIN_AGE: u16 = 30;
+/// Switchboard oracles are cranked on demand, so we can use a lower value (10 seconds)
+pub const ORACLE_MIN_AGE: u16 = 10;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
 pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 

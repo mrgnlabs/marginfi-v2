@@ -305,7 +305,7 @@ export const formatSpotPosition = (
  *
  * @param {BN} balanceAmount - The balance amount, typically from `SpotPosition.scaledBalance`
  * @param {SpotMarketAccount} spotMarket - The spot market account details
- * @param {SpotBalanceType} balanceType - The balance type to be used for calculation
+ * @param {boolean} isDeposit - The balance type to be used for calculation: deposit or borrow
  * @returns {BN} The calculated token amount, scaled by `SpotMarketConfig.precision`
  */
 export function getTokenAmount(
@@ -730,15 +730,11 @@ import { decodePriceUpdateV2 } from "./pyth-pull-mocks";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { Marginfi } from "../../target/types/marginfi";
 import { assert } from "chai";
-import { assertBNEqual } from "./genericTests";
 import BigNumber from "bignumber.js";
 
 // Constants for Drift
 export const DRIFT_SCALED_BALANCE_PRECISION = new BN(1_000_000_000); // 10^9
 export const DRIFT_SPOT_CUMULATIVE_INTEREST_PRECISION = new BN(10_000_000_000); // 10^10
-export const DRIFT_SPOT_CUMULATIVE_INTEREST_DECIMALS = 10; // 10 decimals
-export const SPOT_BALANCE_TYPE_DEPOSIT = 0;
-export const SPOT_BALANCE_TYPE_BORROW = 1;
 
 // Calculate comprehensive valuation for a Drift position
 export const calculateDriftPositionValuation = async (
@@ -759,8 +755,8 @@ export const calculateDriftPositionValuation = async (
   const balanceType = isDeposit ? "deposit" : "borrow";
 
   const cumulativeInterest = isDeposit
-    ? new BN(spotMarket.cumulativeDepositInterest.toString())
-    : new BN(spotMarket.cumulativeBorrowInterest.toString());
+    ? spotMarket.cumulativeDepositInterest
+    : spotMarket.cumulativeBorrowInterest;
 
   // Calculate actual token amount
   const tokenAmount = scaledBalanceToTokenAmount(
