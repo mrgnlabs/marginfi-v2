@@ -1,9 +1,7 @@
 // Adds a Drift type bank to a group with sane defaults. Used to integrate with Drift
 // allowing users to interact with Drift spot markets through marginfi
 use crate::{
-    constants::{
-        DRIFT_PROGRAM_ID, DRIFT_SCALED_BALANCE_DECIMALS, DRIFT_USER_SEED, DRIFT_USER_STATS_SEED,
-    },
+    constants::{DRIFT_PROGRAM_ID, DRIFT_USER_SEED, DRIFT_USER_STATS_SEED},
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
     state::{
@@ -14,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::*;
-use drift_mocks::state::MinimalSpotMarket;
+use drift_mocks::{constants::DRIFT_PRECISION_EXP, state::MinimalSpotMarket};
 use marginfi_type_crate::constants::{
     FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED,
     LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
@@ -51,7 +49,10 @@ pub fn lending_pool_add_bank_drift(
         MarginfiError::DriftInvalidOracleSetup
     );
 
-    let config = bank_config.to_bank_config(spot_market_key);
+    require!(
+        (bank_mint.decimals as u32) <= DRIFT_PRECISION_EXP,
+        MarginfiError::DriftUnsupportedTokenDecimals
+    );
 
     let liquidity_vault_bump = ctx.bumps.liquidity_vault;
     let liquidity_vault_authority_bump = ctx.bumps.liquidity_vault_authority;
@@ -60,11 +61,13 @@ pub fn lending_pool_add_bank_drift(
     let fee_vault_bump = ctx.bumps.fee_vault;
     let fee_vault_authority_bump = ctx.bumps.fee_vault_authority;
 
+    let config = bank_config.to_bank_config(spot_market_key);
+
     *bank = Bank::new(
         ctx.accounts.group.key(),
         config, // Use the modified BankConfig directly instead of converting from BankConfigCompact
         bank_mint.key(),
-        DRIFT_SCALED_BALANCE_DECIMALS, // Use fixed 9 decimals for all Drift banks
+        bank_mint.decimals,
         ctx.accounts.liquidity_vault.key(),
         ctx.accounts.insurance_vault.key(),
         ctx.accounts.fee_vault.key(),

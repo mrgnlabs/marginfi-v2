@@ -34,9 +34,12 @@ use kamino_mocks::{
     },
     state::{MinimalObligation, MinimalReserve},
 };
-use marginfi_type_crate::constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED};
 use marginfi_type_crate::types::{
     Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+};
+use marginfi_type_crate::{
+    constants::{LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED},
+    types::ACCOUNT_IN_DELEVERAGE,
 };
 
 /// Withdraw from a Kamino reserve through a marginfi account
@@ -126,11 +129,11 @@ pub fn kamino_withdraw<'info>(
             amount
         };
         // Note: we only care about the withdraw limit in case of deleverage
-        if ctx.accounts.authority.key() == group.risk_admin {
+        if marginfi_account.get_flag(ACCOUNT_IN_DELEVERAGE) {
             let withdrawn_equity = calc_value(
                 I80F48::from_num(collateral_amount),
                 price,
-                bank.mint_decimals,
+                bank.get_balance_decimals(),
                 None,
             )?;
             group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;

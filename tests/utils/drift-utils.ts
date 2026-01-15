@@ -660,7 +660,8 @@ export const defaultDriftBankConfig = (
     oracle: oracle,
     assetWeightInit: I80F48_ONE, // 100% asset weight
     assetWeightMaint: I80F48_ONE, // 100% asset weight
-    depositLimit: new BN(100_000_000_000_000), // 100 million tokens (increased from 10 million)
+    // 100 million tokens in native decimals (will be converted to 9-decimal scaled balance in program)
+    depositLimit: new BN(100_000_000_000_000),
     oracleSetup: {
       driftPythPull: {}, // Use Pyth Pull oracle by default
     },
@@ -673,7 +674,6 @@ export const defaultDriftBankConfig = (
   };
   return config;
 };
-
 /**
  * Get Drift user account from a marginfi bank's drift_user field
  *

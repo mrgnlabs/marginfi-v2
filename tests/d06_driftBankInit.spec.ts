@@ -135,7 +135,7 @@ describe("d06: Init Drift banks", () => {
     const config = bank.config;
 
     assertKeysEqual(bank.mint, ecosystem.usdcMint.publicKey);
-    assert.equal(bank.mintDecimals, DRIFT_SCALED_BALANCE_DECIMALS);
+    assert.equal(bank.mintDecimals, ecosystem.usdcDecimals);
     assertKeysEqual(bank.group, driftGroup.publicKey);
 
     assertKeysEqual(config.oracleKeys[0], oracles.usdcOracle.publicKey);
@@ -144,10 +144,10 @@ describe("d06: Init Drift banks", () => {
 
     assertI80F48Equal(config.assetWeightInit, 1);
     assertI80F48Equal(config.assetWeightMaint, 1);
-    assertBNEqual(
-      config.depositLimit,
-      new BN(100_000_000 * 10 ** ecosystem.usdcDecimals)
-    ); // 100mil USDC because big interest needed
+    // deposit_limit is stored in native decimals for Drift banks
+    // Input: 100M USDC in native decimals = 100_000_000 * 10^usdcDecimals
+    const inputDepositLimit = new BN(100_000_000).mul(new BN(10 ** ecosystem.usdcDecimals));
+    assertBNEqual(config.depositLimit, inputDepositLimit);
 
     assert.deepEqual(config.operationalState, { operational: {} });
     assert.deepEqual(config.oracleSetup, { driftPythPull: {} });
@@ -233,7 +233,7 @@ describe("d06: Init Drift banks", () => {
     driftAccounts.set(DRIFT_TOKEN_A_BANK, tokenABankKey);
 
     const bank = await bankrunProgram.account.bank.fetch(tokenABankKey);
-    assert.equal(bank.mintDecimals, DRIFT_SCALED_BALANCE_DECIMALS);
+    assert.equal(bank.mintDecimals, ecosystem.tokenADecimals);
   });
 
   it("(admin) Configure wrong asset tag for Token A bank - happy path (but all Drift operations will now fail on it)", async () => {

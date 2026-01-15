@@ -16,8 +16,9 @@ use anchor_lang::solana_program::clock::Clock;
 use anchor_lang::solana_program::sysvar::Sysvar;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use fixed::types::I80F48;
-use marginfi_type_crate::types::{
-    Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
+use marginfi_type_crate::{
+    constants::TOKENLESS_REPAYMENTS_ALLOWED,
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP},
 };
 
 /// 1. Accrue interest
@@ -151,7 +152,9 @@ pub struct LendingAccountDeposit<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
         constraint = is_marginfi_asset_tag(bank.load()?.config.asset_tag)
-            @ MarginfiError::WrongAssetTagForStandardInstructions
+            @ MarginfiError::WrongAssetTagForStandardInstructions,
+        constraint = !(bank.load()?.get_flag(TOKENLESS_REPAYMENTS_ALLOWED))
+            @ MarginfiError::BankReduceOnly
     )]
     pub bank: AccountLoader<'info, Bank>,
 
