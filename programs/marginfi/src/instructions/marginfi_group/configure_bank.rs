@@ -4,6 +4,7 @@ use crate::events::{
 use crate::prelude::MarginfiError;
 use crate::state::bank::BankImpl;
 use crate::state::bank_config::BankConfigImpl;
+use crate::state::emode::EmodeSettingsImpl;
 use crate::MarginfiResult;
 use crate::{check, math_error, utils};
 use anchor_lang::prelude::*;
@@ -45,6 +46,13 @@ pub fn lending_pool_configure_bank(
         if bank_config.oracle_max_age.is_some() {
             bank.config.validate_oracle_age()?;
         }
+
+        let group = ctx.accounts.group.load()?;
+        bank.emode.validate_entries_with_liability_weights(
+            &bank.config,
+            group.emode_max_init_leverage,
+            group.emode_max_maint_leverage,
+        )?;
 
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {

@@ -1308,6 +1308,70 @@ async fn configure_bank_emode_invalid_excessive_leverage(
 #[test_case(BankMint::PyUSD)]
 #[test_case(BankMint::SolSwbPull)]
 #[tokio::test]
+async fn configure_bank_rejects_invalid_emode_leverage_on_weight_update(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+
+    let liab_init_w = I80F48::from_num(1.5);
+    let liab_maint_w = I80F48::from_num(1.5);
+    bank.update_config(
+        BankConfigOpt {
+            liability_weight_init: Some(liab_init_w.into()),
+            liability_weight_maint: Some(liab_maint_w.into()),
+            ..BankConfigOpt::default()
+        },
+        None,
+    )
+    .await?;
+
+    let asset_init_w = liab_init_w * I80F48::from_num(0.9);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Tighten base weights to push emode leverage above max while remaining a valid bank config.
+    let new_liab_init_w = asset_init_w / I80F48::from_num(0.96);
+    let new_liab_maint_w = asset_maint_w / I80F48::from_num(0.96);
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &bank,
+            BankConfigOpt {
+                liability_weight_init: Some(new_liab_init_w.into()),
+                liability_weight_maint: Some(new_liab_maint_w.into()),
+                ..BankConfigOpt::default()
+            },
+        )
+        .await;
+
+    assert!(
+        res.is_err(),
+        "Updating base weights that push emode leverage above limits should fail"
+    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadEmodeConfig);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
 async fn configure_bank_emode_max_leverage_boundary(bank_mint: BankMint) -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
     let bank = test_f.get_bank(&bank_mint);
