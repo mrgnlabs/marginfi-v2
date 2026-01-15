@@ -37,6 +37,7 @@ import {
   assertBankrunTxFailed,
   assertBNEqual,
   assertBNGreaterThan,
+  assertI80F48Equal,
   assertKeysEqual,
   getTokenBalance,
 } from "./utils/genericTests";
@@ -44,10 +45,7 @@ import {
   ORACLE_CONF_INTERVAL,
   DRIFT_ORACLE_RECEIVER_PROGRAM_ID,
 } from "./utils/types";
-import {
-  makeInitializeSpotMarketIx,
-  makeAdminDepositIx,
-} from "./utils/drift-sdk";
+import { makeInitializeSpotMarketIx } from "./utils/drift-sdk";
 import { createBankrunPythOracleAccount } from "./utils/bankrun-oracles";
 import { deriveBankWithSeed, deriveSpotMarketPDA } from "./utils/pdas";
 import {
@@ -55,31 +53,38 @@ import {
   getDriftStateAccount,
   defaultDriftBankConfig,
   defaultSpotMarketConfig,
+  createDriftSpotMarketWithOracle,
+  createGlobalFeeWalletTokenAccount,
+  createIntermediaryTokenAccountIfNeeded,
+  createThrowawayMarginfiAccount,
   DriftOracleSourceValues,
+  fundAndDepositAdminReward,
   TOKEN_A_MARKET_INDEX,
   getDriftUserAccount,
   scaledBalanceToTokenAmount,
   TOKEN_B_SCALING_FACTOR,
 } from "./utils/drift-utils";
 import { setPythPullOraclePrice } from "./utils/bankrun-oracles";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-  createMintToInstruction,
-} from "@solana/spl-token";
+import { createMintToInstruction } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
-import {
-  composeRemainingAccounts,
-  accountInit,
-} from "./utils/user-instructions";
+import { composeRemainingAccounts, healthPulse } from "./utils/user-instructions";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 
 const DRIFT_TOKEN_B_SPOT_MARKET = "drift_token_b_spot_market";
 const DRIFT_TOKEN_B_PULL_ORACLE = "drift_token_b_pull_oracle";
 const DRIFT_TOKEN_B_PULL_FEED = "drift_token_b_pull_feed";
+const DRIFT_TOKEN_C_SPOT_MARKET = "drift_token_c_spot_market";
+const DRIFT_TOKEN_C_PULL_ORACLE = "drift_token_c_pull_oracle";
+const DRIFT_TOKEN_D_SPOT_MARKET = "drift_token_d_spot_market";
+const DRIFT_TOKEN_D_PULL_ORACLE = "drift_token_d_pull_oracle";
+const DRIFT_TOKEN_C_SYMBOL = "token_c";
+const DRIFT_TOKEN_D_SYMBOL = "token_d";
 const depositBAmount = new BN(50 * 10 ** ecosystem.tokenBDecimals);
 const sameMintDepositAmount = new BN(10 * 10 ** ecosystem.tokenBDecimals);
 const sameMintRewardAmount = new BN(5 * 10 ** ecosystem.tokenBDecimals);
+const tokenAWithdrawAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
+const tokenCRewardAmount = new BN(50 * 10 ** ecosystem.wsolDecimals);
+const tokenDRewardAmount = new BN(50 * 10 ** ecosystem.lstAlphaDecimals);
 
 describe("d12: Drift Harvest Reward", () => {
   let driftTokenABank: PublicKey;
@@ -91,6 +96,8 @@ describe("d12: Drift Harvest Reward", () => {
   let driftTokenBPullOracle: Keypair;
   let driftTokenBPullFeed: Keypair;
   let TOKEN_B_MARKET_INDEX: number;
+  let driftTokenCSpotMarket: PublicKey;
+  let driftTokenCPullOracle: PublicKey;
 
   before(async () => {
     driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
@@ -191,79 +198,20 @@ describe("d12: Drift Harvest Reward", () => {
   });
 
   it("Admin: Add deposits to Token A bank's drift user", async () => {
-    const tokenABank = await bankrunProgram.account.bank.fetch(driftTokenABank);
-    const driftUser = tokenABank.driftUser;
-
     const driftAdmin = groupAdmin.wallet;
 
-    const adminTokenBAccount = getAssociatedTokenAddressSync(
+    await fundAndDepositAdminReward(
+      driftAdmin,
+      driftTokenABank,
       ecosystem.tokenBMint.publicKey,
-      driftAdmin.publicKey
+      TOKEN_B_MARKET_INDEX,
+      depositBAmount
     );
 
-    const createAdminAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-      globalProgramAdmin.wallet.publicKey,
-      adminTokenBAccount,
-      driftAdmin.publicKey,
-      ecosystem.tokenBMint.publicKey
-    );
-
-    const mintAmount = new BN(100 * 10 ** ecosystem.tokenBDecimals);
-    const mintToAdminIx = createMintToInstruction(
-      ecosystem.tokenBMint.publicKey,
-      adminTokenBAccount,
-      globalProgramAdmin.wallet.publicKey,
-      mintAmount.toNumber()
-    );
-
-    const fundTx = new Transaction().add(createAdminAtaIx).add(mintToAdminIx);
-
-    await processBankrunTransaction(
-      bankrunContext,
-      fundTx,
-      [globalProgramAdmin.wallet],
-      false,
-      true
-    );
-
-    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
-    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
-
-    const remainingAccounts: PublicKey[] = [];
-    if (tokenBOracle) {
-      remainingAccounts.push(tokenBOracle);
-    }
-    if (tokenBSpotMarket) {
-      remainingAccounts.push(tokenBSpotMarket);
-    }
-
-    const adminDepositIx = await makeAdminDepositIx(
-      driftBankrunProgram,
-      {
-        admin: driftAdmin.publicKey,
-        driftUser: driftUser,
-        adminTokenAccount: adminTokenBAccount,
-      },
-      {
-        marketIndex: TOKEN_B_MARKET_INDEX,
-        amount: depositBAmount,
-        remainingAccounts,
-      }
-    );
-
-    const depositTx = new Transaction().add(adminDepositIx);
-
-    await processBankrunTransaction(
-      bankrunContext,
-      depositTx,
-      [driftAdmin],
-      false,
-      true
-    );
-
+    const tokenABank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const driftUserAccount = await getDriftUserAccount(
       driftBankrunProgram,
-      driftUser
+      tokenABank.driftUser
     );
     const tokenBPosition = driftUserAccount.spotPositions[2];
     assertBNEqual(
@@ -276,22 +224,9 @@ describe("d12: Drift Harvest Reward", () => {
   it("User: Can deposit and withdraw normally after admin deposit", async () => {
     const user = users[0];
 
-    const throwawayAccount = Keypair.generate();
-
-    const initAccountIx = await accountInit(user.mrgnBankrunProgram, {
-      marginfiGroup: driftGroup.publicKey,
-      marginfiAccount: throwawayAccount.publicKey,
-      authority: user.wallet.publicKey,
-      feePayer: user.wallet.publicKey,
-    });
-
-    const initTx = new Transaction().add(initAccountIx);
-    await processBankrunTransaction(
-      bankrunContext,
-      initTx,
-      [user.wallet, throwawayAccount],
-      false,
-      true
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
     );
 
     const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
@@ -310,7 +245,7 @@ describe("d12: Drift Harvest Reward", () => {
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: throwawayAccount.publicKey,
+        marginfiAccount,
         bank: driftTokenABank,
         signerTokenAccount: user.tokenAAccount,
         driftOracle: tokenAOracle,
@@ -342,7 +277,7 @@ describe("d12: Drift Harvest Reward", () => {
     const withdrawWithoutRewardsIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: throwawayAccount.publicKey,
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: tokenAOracle,
@@ -376,7 +311,7 @@ describe("d12: Drift Harvest Reward", () => {
     const withdrawAllIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: throwawayAccount.publicKey,
+        marginfiAccount,
         bank: driftTokenABank,
         destinationTokenAccount: user.tokenAAccount,
         driftOracle: tokenAOracle,
@@ -681,21 +616,9 @@ describe("d12: Drift Harvest Reward", () => {
   it("Same-mint rewards via admin_deposit stay in the buffer", async () => {
     const user = users[0];
 
-    const accountKeypair = Keypair.generate();
-    const initAccountIx = await accountInit(user.mrgnBankrunProgram, {
-      marginfiGroup: driftGroup.publicKey,
-      marginfiAccount: accountKeypair.publicKey,
-      authority: user.wallet.publicKey,
-      feePayer: user.wallet.publicKey,
-    });
-
-    const initTx = new Transaction().add(initAccountIx);
-    await processBankrunTransaction(
-      bankrunContext,
-      initTx,
-      [user.wallet, accountKeypair],
-      false,
-      true
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
     );
 
     const fundUserTx = new Transaction().add(
@@ -717,7 +640,7 @@ describe("d12: Drift Harvest Reward", () => {
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: accountKeypair.publicKey,
+        marginfiAccount,
         bank: driftTokenBBank,
         signerTokenAccount: user.tokenBAccount,
         driftOracle: driftTokenBPullOracle.publicKey,
@@ -735,17 +658,35 @@ describe("d12: Drift Harvest Reward", () => {
       true
     );
 
-    const marginfiAccountBefore = await bankrunProgram.account.marginfiAccount.fetch(
-      accountKeypair.publicKey
+    const healthRemaining = composeRemainingAccounts([
+      [
+        driftTokenBBank,
+        oracles.tokenBOracle.publicKey,
+        driftTokenBSpotMarket,
+      ],
+    ]);
+    const healthBeforeTx = new Transaction().add(
+      await healthPulse(user.mrgnBankrunProgram, {
+        marginfiAccount,
+        remaining: healthRemaining,
+      })
     );
+    await processBankrunTransaction(
+      bankrunContext,
+      healthBeforeTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const marginfiAccountBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
     const balanceBefore =
       marginfiAccountBefore.lendingAccount.balances.find(
         (b) => b.bankPk.equals(driftTokenBBank) && b.active === 1
       );
     assert(balanceBefore);
-    const assetSharesBefore = new BN(
-      wrappedI80F48toBigNumber(balanceBefore.assetShares).toString()
-    );
+    const assetValueBefore = marginfiAccountBefore.healthCache.assetValue;
 
     const bank = await bankrunProgram.account.bank.fetch(driftTokenBBank);
     const driftUserBefore = await getDriftUserAccount(
@@ -764,47 +705,24 @@ describe("d12: Drift Harvest Reward", () => {
       await getTokenBalance(bankRunProvider, spotMarketBefore.vault)
     );
 
-    const fundAdminTx = new Transaction().add(
-      createMintToInstruction(
-        ecosystem.tokenBMint.publicKey,
-        groupAdmin.tokenBAccount,
-        globalProgramAdmin.wallet.publicKey,
-        sameMintRewardAmount.toNumber()
-      )
+    await fundAndDepositAdminReward(
+      groupAdmin.wallet,
+      driftTokenBBank,
+      ecosystem.tokenBMint.publicKey,
+      TOKEN_B_MARKET_INDEX,
+      sameMintRewardAmount
+    );
+
+    const healthAfterTx = new Transaction().add(
+      await healthPulse(user.mrgnBankrunProgram, {
+        marginfiAccount,
+        remaining: healthRemaining,
+      })
     );
     await processBankrunTransaction(
       bankrunContext,
-      fundAdminTx,
-      [globalProgramAdmin.wallet],
-      false,
-      true
-    );
-
-    const remainingAccounts: PublicKey[] = [];
-    if (driftTokenBPullOracle) {
-      remainingAccounts.push(driftTokenBPullOracle.publicKey);
-    }
-    remainingAccounts.push(driftTokenBSpotMarket);
-
-    const adminDepositIx = await makeAdminDepositIx(
-      driftBankrunProgram,
-      {
-        admin: groupAdmin.wallet.publicKey,
-        driftUser: bank.driftUser,
-        adminTokenAccount: groupAdmin.tokenBAccount,
-      },
-      {
-        marketIndex: TOKEN_B_MARKET_INDEX,
-        amount: sameMintRewardAmount,
-        remainingAccounts,
-      }
-    );
-
-    const adminDepositTx = new Transaction().add(adminDepositIx);
-    await processBankrunTransaction(
-      bankrunContext,
-      adminDepositTx,
-      [groupAdmin.wallet],
+      healthAfterTx,
+      [user.wallet],
       false,
       true
     );
@@ -836,37 +754,22 @@ describe("d12: Drift Harvest Reward", () => {
     );
     assertBNEqual(vaultBalanceAfter.sub(vaultBalanceBefore), sameMintRewardAmount);
 
-    const marginfiAccountAfter = await bankrunProgram.account.marginfiAccount.fetch(
-      accountKeypair.publicKey
-    );
+    const marginfiAccountAfter =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
+    assertI80F48Equal(marginfiAccountAfter.healthCache.assetValue, assetValueBefore);
     const balanceAfter = marginfiAccountAfter.lendingAccount.balances.find(
       (b) => b.bankPk.equals(driftTokenBBank) && b.active === 1
     );
     assert(balanceAfter);
-    const assetSharesAfter = new BN(
-      wrappedI80F48toBigNumber(balanceAfter.assetShares).toString()
-    );
-    assertBNEqual(assetSharesAfter, assetSharesBefore);
   });
 
   it("Same-mint rewards via deposit_into_spot_market_vault increase user value", async () => {
     const user = users[1];
+    const vaultTopUpAmount = sameMintRewardAmount.muln(10);
 
-    const accountKeypair = Keypair.generate();
-    const initAccountIx = await accountInit(user.mrgnBankrunProgram, {
-      marginfiGroup: driftGroup.publicKey,
-      marginfiAccount: accountKeypair.publicKey,
-      authority: user.wallet.publicKey,
-      feePayer: user.wallet.publicKey,
-    });
-
-    const initTx = new Transaction().add(initAccountIx);
-    await processBankrunTransaction(
-      bankrunContext,
-      initTx,
-      [user.wallet, accountKeypair],
-      false,
-      true
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
     );
 
     const fundUserTx = new Transaction().add(
@@ -888,7 +791,7 @@ describe("d12: Drift Harvest Reward", () => {
     const depositIx = await makeDriftDepositIx(
       user.mrgnBankrunProgram,
       {
-        marginfiAccount: accountKeypair.publicKey,
+        marginfiAccount,
         bank: driftTokenBBank,
         signerTokenAccount: user.tokenBAccount,
         driftOracle: driftTokenBPullOracle.publicKey,
@@ -906,16 +809,36 @@ describe("d12: Drift Harvest Reward", () => {
       true
     );
 
-    const marginfiAccountBefore = await bankrunProgram.account.marginfiAccount.fetch(
-      accountKeypair.publicKey
+    const healthRemaining = composeRemainingAccounts([
+      [
+        driftTokenBBank,
+        oracles.tokenBOracle.publicKey,
+        driftTokenBSpotMarket,
+      ],
+    ]);
+    const healthBeforeTx = new Transaction().add(
+      await healthPulse(user.mrgnBankrunProgram, {
+        marginfiAccount,
+        remaining: healthRemaining,
+      })
     );
+    await processBankrunTransaction(
+      bankrunContext,
+      healthBeforeTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const marginfiAccountBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
     const balanceBefore =
       marginfiAccountBefore.lendingAccount.balances.find(
         (b) => b.bankPk.equals(driftTokenBBank) && b.active === 1
       );
     assert(balanceBefore);
-    const assetSharesBefore = new BN(
-      wrappedI80F48toBigNumber(balanceBefore.assetShares).toString()
+    const assetValueBefore = wrappedI80F48toBigNumber(
+      marginfiAccountBefore.healthCache.assetValue
     );
 
     const bank = await bankrunProgram.account.bank.fetch(driftTokenBBank);
@@ -937,7 +860,7 @@ describe("d12: Drift Harvest Reward", () => {
       await getTokenBalance(bankRunProvider, spotMarketBefore.vault)
     );
     const tokenAmountBefore = scaledBalanceToTokenAmount(
-      assetSharesBefore,
+      new BN(wrappedI80F48toBigNumber(balanceBefore.assetShares).toString()),
       spotMarketBefore,
       true
     );
@@ -947,7 +870,7 @@ describe("d12: Drift Harvest Reward", () => {
         ecosystem.tokenBMint.publicKey,
         groupAdmin.tokenBAccount,
         globalProgramAdmin.wallet.publicKey,
-        sameMintRewardAmount.toNumber()
+        vaultTopUpAmount.toNumber()
       )
     );
     await processBankrunTransaction(
@@ -968,7 +891,7 @@ describe("d12: Drift Harvest Reward", () => {
         spotMarketVault: spotMarketBefore.vault,
       },
       {
-        amount: sameMintRewardAmount,
+        amount: vaultTopUpAmount,
         remainingAccounts: [ecosystem.tokenBMint.publicKey],
       }
     );
@@ -978,6 +901,20 @@ describe("d12: Drift Harvest Reward", () => {
       bankrunContext,
       depositVaultTx,
       [groupAdmin.wallet],
+      false,
+      true
+    );
+
+    const healthAfterTx = new Transaction().add(
+      await healthPulse(user.mrgnBankrunProgram, {
+        marginfiAccount,
+        remaining: healthRemaining,
+      })
+    );
+    await processBankrunTransaction(
+      bankrunContext,
+      healthAfterTx,
+      [user.wallet],
       false,
       true
     );
@@ -995,7 +932,7 @@ describe("d12: Drift Harvest Reward", () => {
     const vaultBalanceAfter = new BN(
       await getTokenBalance(bankRunProvider, spotMarketAfter.vault)
     );
-    assertBNEqual(vaultBalanceAfter.sub(vaultBalanceBefore), sameMintRewardAmount);
+    assertBNEqual(vaultBalanceAfter.sub(vaultBalanceBefore), vaultTopUpAmount);
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
@@ -1007,80 +944,352 @@ describe("d12: Drift Harvest Reward", () => {
     ).scaledBalance;
     assertBNEqual(scaledBalanceAfter, scaledBalanceBefore);
 
-    const marginfiAccountAfter = await bankrunProgram.account.marginfiAccount.fetch(
-      accountKeypair.publicKey
+    const marginfiAccountAfter =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
+    const assetValueAfter = wrappedI80F48toBigNumber(
+      marginfiAccountAfter.healthCache.assetValue
+    );
+    assert.ok(
+      assetValueAfter.gt(assetValueBefore),
+      "expected health pulse asset value to increase"
     );
     const balanceAfter =
       marginfiAccountAfter.lendingAccount.balances.find(
         (b) => b.bankPk.equals(driftTokenBBank) && b.active === 1
       );
     assert(balanceAfter);
-    const assetSharesAfter = new BN(
-      wrappedI80F48toBigNumber(balanceAfter.assetShares).toString()
-    );
-    assertBNEqual(assetSharesAfter, assetSharesBefore);
 
     const tokenAmountAfter = scaledBalanceToTokenAmount(
-      assetSharesAfter,
+      new BN(wrappedI80F48toBigNumber(balanceAfter.assetShares).toString()),
       spotMarketAfter,
       true
     );
     assertBNGreaterThan(tokenAmountAfter, tokenAmountBefore);
   });
+
+  it("User: Cannot withdraw with 3 active deposits without second reward accounts", async () => {
+    const user = users[2];
+
+    const driftState = await getDriftStateAccount(driftBankrunProgram);
+    const tokenCMarketIndex = driftState.numberOfSpotMarkets;
+
+    await createDriftSpotMarketWithOracle(
+      ecosystem.wsolMint.publicKey,
+      DRIFT_TOKEN_C_SYMBOL,
+      tokenCMarketIndex,
+      ecosystem.wsolPrice,
+      ecosystem.wsolDecimals
+    );
+    driftTokenCSpotMarket = driftAccounts.get(DRIFT_TOKEN_C_SPOT_MARKET);
+    driftTokenCPullOracle = driftAccounts.get(DRIFT_TOKEN_C_PULL_ORACLE);
+
+    await fundAndDepositAdminReward(
+      groupAdmin.wallet,
+      driftTokenABank,
+      ecosystem.tokenBMint.publicKey,
+      TOKEN_B_MARKET_INDEX,
+      depositBAmount
+    );
+
+    await fundAndDepositAdminReward(
+      groupAdmin.wallet,
+      driftTokenABank,
+      ecosystem.wsolMint.publicKey,
+      tokenCMarketIndex,
+      tokenCRewardAmount
+    );
+
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
+    );
+
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
+    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
+
+    const fundUserTx = new Transaction().add(
+      createMintToInstruction(
+        ecosystem.tokenAMint.publicKey,
+        user.tokenAAccount,
+        globalProgramAdmin.wallet.publicKey,
+        tokenAWithdrawAmount.toNumber()
+      )
+    );
+    await processBankrunTransaction(
+      bankrunContext,
+      fundUserTx,
+      [globalProgramAdmin.wallet],
+      false,
+      true
+    );
+
+    const depositIx = await makeDriftDepositIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        signerTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+      },
+      tokenAWithdrawAmount,
+      TOKEN_A_MARKET_INDEX
+    );
+
+    const depositTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(depositIx);
+
+    await processBankrunTransaction(
+      bankrunContext,
+      depositTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const withdrawIx = await makeDriftWithdrawIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        destinationTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+        driftRewardOracle: tokenBOracle,
+        driftRewardSpotMarket: tokenBSpotMarket,
+      },
+      {
+        amount: new BN(0),
+        withdraw_all: true,
+        remaining: composeRemainingAccounts([
+          [driftTokenABank, tokenAOracle, tokenASpotMarket],
+        ]),
+      },
+      driftBankrunProgram
+    );
+
+    const withdrawTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(withdrawIx);
+
+    const result = await processBankrunTransaction(
+      bankrunContext,
+      withdrawTx,
+      [user.wallet],
+      true,
+      false
+    );
+
+    assertBankrunTxFailed(result, 0x18b1); // DriftMissingRewardAccounts
+  });
+
+  it("User: Can withdraw with 3 active deposits with both reward accounts", async () => {
+    const user = users[3];
+    assert(driftTokenCSpotMarket);
+    assert(driftTokenCPullOracle);
+
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
+    );
+
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
+    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
+
+    const fundUserTx = new Transaction().add(
+      createMintToInstruction(
+        ecosystem.tokenAMint.publicKey,
+        user.tokenAAccount,
+        globalProgramAdmin.wallet.publicKey,
+        tokenAWithdrawAmount.toNumber()
+      )
+    );
+    await processBankrunTransaction(
+      bankrunContext,
+      fundUserTx,
+      [globalProgramAdmin.wallet],
+      false,
+      true
+    );
+
+    const depositIx = await makeDriftDepositIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        signerTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+      },
+      tokenAWithdrawAmount,
+      TOKEN_A_MARKET_INDEX
+    );
+
+    const depositTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(depositIx);
+
+    await processBankrunTransaction(
+      bankrunContext,
+      depositTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const balanceAfterDeposit = await getTokenBalance(
+      bankRunProvider,
+      user.tokenAAccount
+    );
+
+    const withdrawIx = await makeDriftWithdrawIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        destinationTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+        driftRewardOracle: tokenBOracle,
+        driftRewardSpotMarket: tokenBSpotMarket,
+        driftRewardOracle2: driftTokenCPullOracle,
+        driftRewardSpotMarket2: driftTokenCSpotMarket,
+      },
+      {
+        amount: new BN(0),
+        withdraw_all: true,
+        remaining: composeRemainingAccounts([
+          [driftTokenABank, tokenAOracle, tokenASpotMarket],
+        ]),
+      },
+      driftBankrunProgram
+    );
+
+    const withdrawTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(withdrawIx);
+
+    await processBankrunTransaction(
+      bankrunContext,
+      withdrawTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const balanceAfter = await getTokenBalance(
+      bankRunProvider,
+      user.tokenAAccount
+    );
+    const withdrawn = new BN(balanceAfter - balanceAfterDeposit);
+    const expectedWithdrawn = tokenAWithdrawAmount.sub(new BN(1));
+    assertBNEqual(withdrawn, expectedWithdrawn);
+  });
+
+  it("User: Account bricked with 4 active deposits", async () => {
+    const user = users[0];
+
+    const driftState = await getDriftStateAccount(driftBankrunProgram);
+    const tokenDMarketIndex = driftState.numberOfSpotMarkets;
+
+    await createDriftSpotMarketWithOracle(
+      ecosystem.lstAlphaMint.publicKey,
+      DRIFT_TOKEN_D_SYMBOL,
+      tokenDMarketIndex,
+      ecosystem.lstAlphaPrice,
+      ecosystem.lstAlphaDecimals
+    );
+    assert(driftAccounts.get(DRIFT_TOKEN_D_PULL_ORACLE));
+    assert(driftAccounts.get(DRIFT_TOKEN_D_SPOT_MARKET));
+
+    await fundAndDepositAdminReward(
+      groupAdmin.wallet,
+      driftTokenABank,
+      ecosystem.tokenBMint.publicKey,
+      TOKEN_B_MARKET_INDEX,
+      depositBAmount
+    );
+
+    await fundAndDepositAdminReward(
+      groupAdmin.wallet,
+      driftTokenABank,
+      ecosystem.lstAlphaMint.publicKey,
+      tokenDMarketIndex,
+      tokenDRewardAmount
+    );
+
+    const marginfiAccount = await createThrowawayMarginfiAccount(
+      user,
+      driftGroup.publicKey
+    );
+
+    const tokenAOracle = driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE);
+    const tokenASpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
+    const tokenBOracle = driftAccounts.get(DRIFT_TOKEN_B_PULL_ORACLE);
+    const tokenBSpotMarket = driftAccounts.get(DRIFT_TOKEN_B_SPOT_MARKET);
+
+    const depositIx = await makeDriftDepositIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        signerTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+      },
+      tokenAWithdrawAmount,
+      TOKEN_A_MARKET_INDEX
+    );
+
+    const depositTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(depositIx);
+
+    await processBankrunTransaction(
+      bankrunContext,
+      depositTx,
+      [user.wallet],
+      false,
+      true
+    );
+
+    const withdrawIx = await makeDriftWithdrawIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount,
+        bank: driftTokenABank,
+        destinationTokenAccount: user.tokenAAccount,
+        driftOracle: tokenAOracle,
+        driftRewardOracle: tokenBOracle,
+        driftRewardSpotMarket: tokenBSpotMarket,
+        driftRewardOracle2: driftTokenCPullOracle,
+        driftRewardSpotMarket2: driftTokenCSpotMarket,
+      },
+      {
+        amount: new BN(0),
+        withdraw_all: true,
+        remaining: composeRemainingAccounts([
+          [driftTokenABank, tokenAOracle, tokenASpotMarket],
+        ]),
+      },
+      driftBankrunProgram
+    );
+
+    const withdrawTx = new Transaction()
+      .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }))
+      .add(withdrawIx);
+
+    const result = await processBankrunTransaction(
+      bankrunContext,
+      withdrawTx,
+      [user.wallet],
+      true,
+      false
+    );
+
+    assertBankrunTxFailed(result, 0x18ae); // DriftBrickedAccount
+  });
 });
-
-const createIntermediaryTokenAccountIfNeeded = async (
-  bank: PublicKey,
-  mint: PublicKey
-) => {
-  const [liquidityVaultAuthority] = PublicKey.findProgramAddressSync(
-    [Buffer.from("liquidity_vault_auth"), bank.toBuffer()],
-    bankrunProgram.programId
-  );
-
-  const intermediaryTokenAccount = getAssociatedTokenAddressSync(
-    mint,
-    liquidityVaultAuthority,
-    true
-  );
-
-  const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-    groupAdmin.wallet.publicKey,
-    intermediaryTokenAccount,
-    liquidityVaultAuthority,
-    mint
-  );
-
-  const tx = new Transaction().add(createAtaIx);
-  await processBankrunTransaction(
-    bankrunContext,
-    tx,
-    [groupAdmin.wallet],
-    false,
-    true
-  );
-};
-
-const createGlobalFeeWalletTokenAccount = async (mint: PublicKey) => {
-  const destinationAta = getAssociatedTokenAddressSync(mint, globalFeeWallet);
-
-  const tx = new Transaction().add(
-    createAssociatedTokenAccountIdempotentInstruction(
-      groupAdmin.wallet.publicKey,
-      destinationAta,
-      globalFeeWallet,
-      mint
-    )
-  );
-
-  await processBankrunTransaction(
-    bankrunContext,
-    tx,
-    [groupAdmin.wallet],
-    false,
-    true
-  );
-};
 
 const getSpotPositionByMarket = (driftUser: any, marketIndex: number) => {
   const position = driftUser.spotPositions.find(
@@ -1089,45 +1298,3 @@ const getSpotPositionByMarket = (driftUser: any, marketIndex: number) => {
   assert(position, `missing drift spot position for market ${marketIndex}`);
   return position;
 };
-
-/*
-TODO: Add tests for second reward account and bricked account scenarios
-
-Helper Functions to Create:
-1. createDriftSpotMarketWithOracle(tokenMint, tokenSymbol, marketIndex, price, decimals)
-   - Create oracle keypairs
-   - Set up Pyth pull oracle with price
-   - Initialize spot market with default config
-   - Store oracle/market in driftAccounts map
-   - Return spot market pubkey
-
-2. fundAndDepositAdminReward(driftAdmin, tokenMint, marketIndex, amount)
-   - Create/get admin's token account
-   - Mint tokens to admin
-   - Build remaining accounts (oracle + spot market)
-   - Execute admin deposit
-   - Return success
-
-3. createThrowawayMarginfiAccount(user, group)
-   - Generate new keypair
-   - Initialize marginfi account
-   - Return account pubkey
-
-Tests to Add:
-1. "User: Cannot withdraw with 3 active deposits without second reward accounts"
-   - Setup Token C as second admin deposit
-   - Try withdraw with only first reward accounts
-   - Should fail with DriftMissingRewardAccounts (0x18b1)
-
-2. "User: Can withdraw with 3 active deposits with both reward accounts"
-   - Withdraw with both sets of reward accounts provided
-   - Should succeed with N-1 tokens due to rounding
-
-3. "User: Account bricked with 4 active deposits"
-   - Setup Token D as third admin deposit
-   - Try withdraw even with both reward accounts
-   - Should fail with DriftBrickedAccount (0x18b2)
-
-This would reduce setup from ~90 lines per token to ~10 lines using helpers.
-Current setup is sufficient for main use case (2 active deposits).
-*/
