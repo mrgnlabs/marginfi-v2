@@ -33,12 +33,8 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
     }
 }
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
-fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
-    get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
-}
-
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
+/// for Kamino (bank, oracle, reserve), 1 for Fixed
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
@@ -50,7 +46,6 @@ fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> 
 
 pub trait MarginfiAccountImpl {
     fn initialize(&mut self, group: Pubkey, authority: Pubkey, current_timestamp: u64);
-    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize>;
     fn set_flag(&mut self, flag: u64, msg: bool);
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
@@ -66,22 +61,6 @@ impl MarginfiAccountImpl for MarginfiAccount {
         self.migrated_from = Pubkey::default();
         self.last_update = current_timestamp;
         self.migrated_to = Pubkey::default();
-    }
-
-    /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
-    /// key, oracle, and optional accounts like lst mint/pool, etc.
-    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {
-        let mut total = 0usize;
-        for balance in self
-            .lending_account
-            .balances
-            .iter()
-            .filter(|b| b.is_active())
-        {
-            let num_accounts = get_remaining_accounts_per_balance(balance)?;
-            total += num_accounts;
-        }
-        Ok(total)
     }
 
     fn set_flag(&mut self, flag: u64, msg: bool) {

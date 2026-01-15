@@ -138,7 +138,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
 
     fn get_group_bank_config(&self) -> GroupBankConfig {
         GroupBankConfig {
-            program_fees: self.group_flags == PROGRAM_FEES_ENABLED,
+            program_fees: self.program_fees_enabled(),
         }
     }
 

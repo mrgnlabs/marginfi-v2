@@ -109,7 +109,7 @@ pub fn milli_to_u32(value: I80F48) -> u32 {
 /// Useful when converting an I80F48 (e.g. utilization rate) into a percentage from 0-100. Clamps to
 /// 100% if exceeding that amount. Clamps to zero for negative inputs.
 pub fn centi_to_u32(value: I80F48) -> u32 {
-    let max_percent: I80F48 = I80F48::from_num(1.0); // 1000%
+    let max_percent: I80F48 = I80F48::from_num(1.0); // 100%
     let clamped: I80F48 = value.min(max_percent).max(I80F48::ZERO);
     let ratio: I80F48 = clamped / max_percent;
     (ratio * I80F48::from_num(u32::MAX)).to_num::<u32>()
