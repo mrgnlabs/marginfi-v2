@@ -28,7 +28,7 @@ use drift_mocks::drift::cpi::accounts::{UpdateSpotMarketCumulativeInterest, With
 use drift_mocks::drift::cpi::{update_spot_market_cumulative_interest, withdraw};
 use drift_mocks::state::MinimalUser;
 use fixed::types::I80F48;
-use marginfi_type_crate::constants::LIQUIDITY_VAULT_AUTHORITY_SEED;
+use marginfi_type_crate::{constants::LIQUIDITY_VAULT_AUTHORITY_SEED, types::ACCOUNT_IN_DELEVERAGE};
 use marginfi_type_crate::types::{
     Bank, HealthCache, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_RECEIVERSHIP,
 };
@@ -155,8 +155,7 @@ pub fn drift_withdraw<'info>(
         };
 
         // Track withdrawal limit for risk admin during deleverage
-        // TODO update this to use the deleverage flag instead
-        if ctx.accounts.authority.key() == group.risk_admin {
+        if marginfi_account.get_flag(ACCOUNT_IN_DELEVERAGE) {
             let withdrawn_equity = calc_value(
                 I80F48::from_num(expected_scaled_balance_change),
                 price,

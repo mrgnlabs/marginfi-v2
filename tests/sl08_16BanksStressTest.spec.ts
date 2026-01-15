@@ -1,4 +1,4 @@
-import { workspace, Program } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import {
   PublicKey,
   Transaction,
@@ -19,6 +19,8 @@ import {
   ecosystem,
   globalProgramAdmin,
   bankrunContext,
+  bankrunProgram,
+  bankRunProvider,
   users,
   solendAccounts,
   SOLEND_USDC_RESERVE,
@@ -50,11 +52,19 @@ import {
   processBankrunTransaction as processBankrunTx,
   bytesToF64,
 } from "./utils/tools";
-import { refreshPullOracles } from "./utils/pyth-pull-mocks";
+import {
+  bigNumberToWrappedI80F48,
+  wrappedI80F48toBigNumber,
+} from "@mrgnlabs/mrgn-common";
+import { refreshPullOraclesBankrun } from "./utils/bankrun-oracles";
 import { assert } from "chai";
 
 describe("sl08: 16 Banks Stress Test", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
+  let program: Program<Marginfi>;
+
+  before(() => {
+    program = bankrunProgram;
+  });
 
   const startingSeed = 800;
   const REGULAR_BANKS_COUNT = 15;
@@ -282,14 +292,10 @@ describe("sl08: 16 Banks Stress Test", () => {
   });
 
   it("refresh oracles before operations", async () => {
-    const clock = await bankrunContext.banksClient.getClock();
-    await refreshPullOracles(
+    await refreshPullOraclesBankrun(
       oracles,
-      globalProgramAdmin.wallet,
-      new BN(Number(clock.slot)),
-      Number(clock.unixTimestamp),
       bankrunContext,
-      false
+      bankrunContext.banksClient
     );
   });
 

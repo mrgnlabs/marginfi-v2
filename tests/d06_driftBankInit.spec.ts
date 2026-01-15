@@ -40,7 +40,7 @@ import {
   blankBankConfigOptRaw,
 } from "./utils/types";
 import { assert } from "chai";
-import { processBankrunTransaction } from "./utils/tools";
+import { processBankrunTransaction, safeGetAccountInfo, getBankrunTime } from "./utils/tools";
 import { ProgramTestContext } from "solana-bankrun";
 import {
   makeAddDriftBankIx,
@@ -76,6 +76,7 @@ describe("d06: Init Drift banks", () => {
 
   it("(admin) Add Drift bank (drift USDC) and init user - happy path", async () => {
     let defaultConfig = defaultDriftBankConfig(oracles.usdcOracle.publicKey);
+    const now = await getBankrunTime(ctx);
 
     const [bankKey] = deriveBankWithSeed(
       mrgnID,

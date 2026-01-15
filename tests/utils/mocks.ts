@@ -313,6 +313,165 @@ export const setupTestUser = async (
 };
 
 /**
+ * Bankrun-native version of setupTestUser.
+ * Creates and funds a user using bankrun transactions (no local validator needed).
+ */
+export interface SetupTestUserBankrunOptions {
+  wsolMint?: PublicKey;
+  tokenAMint?: PublicKey;
+  tokenBMint?: PublicKey;
+  usdcMint?: PublicKey;
+  lstAlphaMint?: PublicKey;
+  forceWallet?: Keypair;
+}
+
+export const setupTestUserBankrun = async (
+  bankrunContext: ProgramTestContext,
+  payer: Keypair,
+  options?: SetupTestUserBankrunOptions
+): Promise<MockUser> => {
+  const userWalletKeypair = options?.forceWallet || Keypair.generate();
+  const userWallet = userWalletKeypair.publicKey;
+  const tx: Transaction = new Transaction();
+
+  // Fund user wallet with SOL
+  tx.add(
+    SystemProgram.transfer({
+      fromPubkey: payer.publicKey,
+      toPubkey: userWallet,
+      lamports: 1000 * LAMPORTS_PER_SOL,
+    })
+  );
+
+  let wsolAccount: PublicKey = PublicKey.default;
+  if (options?.wsolMint) {
+    wsolAccount = getAssociatedTokenAddressSync(options.wsolMint, userWallet);
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        wsolAccount,
+        userWallet,
+        options.wsolMint
+      )
+    );
+  }
+
+  let usdcAccount: PublicKey = PublicKey.default;
+  if (options?.usdcMint) {
+    usdcAccount = getAssociatedTokenAddressSync(options.usdcMint, userWallet);
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        usdcAccount,
+        userWallet,
+        options.usdcMint
+      )
+    );
+  }
+
+  let tokenAAccount: PublicKey = PublicKey.default;
+  if (options?.tokenAMint) {
+    tokenAAccount = getAssociatedTokenAddressSync(
+      options.tokenAMint,
+      userWallet
+    );
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        tokenAAccount,
+        userWallet,
+        options.tokenAMint
+      )
+    );
+  }
+
+  let tokenBAccount: PublicKey = PublicKey.default;
+  if (options?.tokenBMint) {
+    tokenBAccount = getAssociatedTokenAddressSync(
+      options.tokenBMint,
+      userWallet
+    );
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        tokenBAccount,
+        userWallet,
+        options.tokenBMint
+      )
+    );
+  }
+
+  let alphaAccount: PublicKey = PublicKey.default;
+  if (options?.lstAlphaMint) {
+    alphaAccount = getAssociatedTokenAddressSync(
+      options.lstAlphaMint,
+      userWallet
+    );
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        alphaAccount,
+        userWallet,
+        options.lstAlphaMint
+      )
+    );
+  }
+
+  // Process via bankrun
+  await processBankrunTransaction(bankrunContext, tx, [payer]);
+
+  const user: MockUser = {
+    wallet: userWalletKeypair,
+    wsolAccount: wsolAccount,
+    tokenAAccount: tokenAAccount,
+    tokenBAccount: tokenBAccount,
+    usdcAccount: usdcAccount,
+    lstAlphaAccount: alphaAccount,
+    mrgnProgram: undefined,
+    mrgnBankrunProgram: undefined,
+    klendBankrunProgram: undefined,
+    accounts: new Map<string, PublicKey>(),
+  };
+  return user;
+};
+
+/**
+ * Bankrun-native mint creation.
+ * Creates a mint using bankrun's rent sysvar for proper rent exemption calculation.
+ */
+export const createMintBankrun = async (
+  bankrunContext: ProgramTestContext,
+  payer: Keypair,
+  decimals: number,
+  mintKeypair: Keypair
+): Promise<void> => {
+  const rent = await bankrunContext.banksClient.getRent();
+  const mintRentExemption = rent.minimumBalance(BigInt(MintLayout.span));
+
+  const tx = new Transaction();
+  tx.add(
+    SystemProgram.createAccount({
+      fromPubkey: payer.publicKey,
+      newAccountPubkey: mintKeypair.publicKey,
+      space: MintLayout.span,
+      lamports: Number(mintRentExemption),
+      programId: TOKEN_PROGRAM_ID,
+    })
+  );
+  tx.add(
+    createInitializeMintInstruction(
+      mintKeypair.publicKey,
+      decimals,
+      payer.publicKey,
+      payer.publicKey,
+      TOKEN_PROGRAM_ID
+    )
+  );
+
+  await processBankrunTransaction(bankrunContext, tx, [payer, mintKeypair]);
+};
+
+/**
  * Generates a mock program that can sign transactions as the user's wallet
  * @param program
  * @param userWallet

@@ -23,10 +23,10 @@ use marginfi_type_crate::{
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::signer::Signer;
 use solana_sdk::{
     clock::Clock, instruction::Instruction, pubkey::Pubkey, transaction::Transaction,
 };
+use solana_sdk::{signature::Keypair, signer::Signer};
 use test_case::test_case;
 
 #[tokio::test]
@@ -870,6 +870,142 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
             0
         );
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_clone_emode_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank_admin = test_f.get_bank(&BankMint::Sol);
+    let copy_to_bank_emode_admin = test_f.get_bank(&BankMint::PyUSD);
+
+    let copy_to_before = copy_to_bank_admin.load().await;
+    assert_eq!(copy_to_before.emode.flags, 0);
+    assert_eq!(copy_to_before.emode.emode_tag, 0);
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Admin can clone emode settings.
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode(&copy_from_bank, &copy_to_bank_admin)
+        .await?;
+
+    let copy_from_after = copy_from_bank.load().await;
+    let copy_to_after = copy_to_bank_admin.load().await;
+
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
+
+    // A dedicated emode admin can also clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_emode_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            new_emode_admin.pubkey(),
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(
+            &new_emode_admin,
+            &copy_from_bank,
+            &copy_to_bank_emode_admin,
+        )
+        .await?;
+
+    let copy_to_after = copy_to_bank_emode_admin.load().await;
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_clone_emode_unauthorized_fails() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank = test_f.get_bank(&BankMint::Sol);
+
+    let copy_to_before = copy_to_bank.load().await;
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Other group roles must not be able to clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_risk_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            new_risk_admin.pubkey(),
+            false,
+        )
+        .await?;
+
+    let err = test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(&new_risk_admin, &copy_from_bank, &copy_to_bank)
+        .await
+        .unwrap_err();
+    assert_custom_error!(err, MarginfiError::Unauthorized);
+
+    let copy_to_after = copy_to_bank.load().await;
+    assert_eq!(copy_to_after.emode, copy_to_before.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
 
     Ok(())
 }
