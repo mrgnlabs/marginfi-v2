@@ -81,12 +81,14 @@ use marginfi_type_crate::types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_I
 ///    liquidatee_observation_ais...,
 ///  ]
 ///
-/// For Kamino positions:
-/// The `q_a` (asset quantity) represents the number of collateral tokens to liquidate,
-/// NOT the underlying dollar value or liquidity tokens. Collateral tokens are Kamino's
-/// representation of a user's share in the pool. Liquidators must understand they are
-/// specifying how many of these position tokens to take, rather than a specific amount
-/// of the underlying asset.
+/// For external protocol positions (Kamino, Drift, and Solend):
+/// The `q_a` (asset quantity) represents the number of protocol-specific position tokens
+/// to liquidate, NOT the underlying dollar value or liquidity tokens:
+/// - Kamino: collateral tokens (user's share in the pool)
+/// - Drift: scaled balance (Drift's internal position representation)
+/// - Solend: cTokens (collateral tokens)
+/// Liquidators must understand they are specifying how many of these position tokens
+/// to take, rather than a specific amount of the underlying asset.
 
 pub fn lending_account_liquidate<'info>(
     mut ctx: Context<'_, '_, 'info, 'info, LendingAccountLiquidate<'info>>,

@@ -97,6 +97,7 @@ pub enum GroupCommand {
         new_emissions_admin: Pubkey,
         #[clap(long)]
         new_metadata_admin: Pubkey,
+        #[clap(long)]
         new_risk_admin: Pubkey,
         #[clap(long)]
         is_arena_group: bool,
