@@ -183,6 +183,15 @@ pub mod marginfi {
         )
     }
 
+    /// (risk_admin only) - Signals all of a bank's liability have been deleveraged. Used if a bank
+    /// still has liability dust after the risk admin has completed deleveraging all debts. The
+    /// risk admin is trusted not to execute this until all non-dust debts have been deleveraged.
+    pub fn lending_pool_force_tokenless_repay_complete(
+        ctx: Context<LendingPoolForceTokenlessRepayComplete>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_force_tokenless_repay_complete(ctx)
+    }
+
     /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
@@ -207,6 +216,12 @@ pub mod marginfi {
         entries: [EmodeEntry; MAX_EMODE_ENTRIES],
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
+    }
+
+    /// (admin or emode_admin) Copies emode settings from one bank to another. Useful when applying
+    /// emode settings from e.g. one LST to another.
+    pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_emode(ctx)
     }
 
     /// (delegate_emissions_admin only)
