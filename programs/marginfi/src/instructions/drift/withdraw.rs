@@ -159,7 +159,7 @@ pub fn drift_withdraw<'info>(
             let withdrawn_equity = calc_value(
                 I80F48::from_num(expected_scaled_balance_change),
                 price,
-                bank.mint_decimals,
+                bank.get_balance_decimals(),
                 None,
             )?;
             group.update_withdrawn_equity(withdrawn_equity, clock.unix_timestamp)?;
