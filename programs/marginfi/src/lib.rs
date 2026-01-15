@@ -434,6 +434,13 @@ pub mod marginfi {
         marginfi_account::transfer_to_new_account_pda(ctx, account_index, third_party_id)
     }
 
+    pub fn marginfi_account_set_freeze(
+        ctx: Context<SetAccountFreeze>,
+        frozen: bool,
+    ) -> MarginfiResult {
+        marginfi_account::set_account_freeze(ctx, frozen)
+    }
+
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
         marginfi_account::close_account(ctx)
     }

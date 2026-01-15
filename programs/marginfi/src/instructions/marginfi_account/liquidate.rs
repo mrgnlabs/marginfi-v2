@@ -1,8 +1,8 @@
 use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
 use crate::state::bank::{BankImpl, BankVaultType};
 use crate::state::marginfi_account::{
-    calc_amount, calc_value, get_remaining_accounts_per_bank, LendingAccountImpl,
-    MarginfiAccountImpl, RiskEngine,
+    account_not_frozen_for_authority, calc_amount, calc_value, get_remaining_accounts_per_bank,
+    is_signer_authorized, LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
 };
 use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::state::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
@@ -493,11 +493,19 @@ pub struct LendingAccountLiquidate<'info> {
     #[account(
         mut,
         has_one = group @ MarginfiError::InvalidGroup,
-        has_one = authority @ MarginfiError::Unauthorized,
         constraint = {
             let a = liquidator_marginfi_account.load()?;
             !a.get_flag(ACCOUNT_IN_RECEIVERSHIP)
-        } @MarginfiError::ForbiddenIx
+        } @ MarginfiError::ForbiddenIx,
+        constraint = {
+            let a = liquidator_marginfi_account.load()?;
+            account_not_frozen_for_authority(&a, authority.key())
+        } @ MarginfiError::AccountFrozen,
+        constraint = {
+            let a = liquidator_marginfi_account.load()?;
+            let g = group.load()?;
+            is_signer_authorized(&a, g.admin, authority.key(), false)
+        } @ MarginfiError::Unauthorized
     )]
     pub liquidator_marginfi_account: AccountLoader<'info, MarginfiAccount>,
 
