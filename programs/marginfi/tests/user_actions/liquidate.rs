@@ -1234,7 +1234,6 @@ async fn marginfi_account_liquidation_emode(
             admin,
             admin,
             admin,
-            false,
             Some(I80F48!(99).into()), // init must be < maint
             Some(I80F48!(100).into()),
         )

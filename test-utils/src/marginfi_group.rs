@@ -763,7 +763,6 @@ impl MarginfiGroupFixture {
             new_emissions_admin,
             new_metadata_admin,
             new_risk_admin,
-            is_arena_group,
             None,
             None,
         )
@@ -779,7 +778,6 @@ impl MarginfiGroupFixture {
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
-        is_arena_group: bool,
         emode_max_init_leverage: Option<WrappedI80F48>,
         emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> Result<(), BanksClientError> {

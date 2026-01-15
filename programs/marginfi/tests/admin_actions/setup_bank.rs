@@ -790,7 +790,6 @@ async fn lending_pool_clone_emode_success() -> anyhow::Result<()> {
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
         )
         .await?;
 
@@ -851,7 +850,6 @@ async fn lending_pool_clone_emode_unauthorized_fails() -> anyhow::Result<()> {
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             new_risk_admin.pubkey(),
-            false,
         )
         .await?;
 
@@ -944,7 +942,6 @@ async fn configure_bank_emode_valid_leverage(bank_mint: BankMint) -> anyhow::Res
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(max_init_leverage.into()),
             Some(max_maint_leverage.into()),
         )
@@ -1009,7 +1006,6 @@ async fn configure_bank_emode_invalid_cw_exceeds_lw_init(
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(max_init_leverage.into()),
             Some(max_maint_leverage.into()),
         )
@@ -1069,7 +1065,6 @@ async fn configure_bank_emode_invalid_cw_exceeds_lw_maint(
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(max_init_leverage.into()),
             Some(max_maint_leverage.into()),
         )
@@ -1128,7 +1123,6 @@ async fn configure_bank_emode_invalid_excessive_leverage(
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(max_init_leverage.into()),
             Some(max_maint_leverage.into()),
         )
@@ -1185,7 +1179,6 @@ async fn configure_bank_emode_max_leverage_boundary(bank_mint: BankMint) -> anyh
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(max_init_leverage.into()),
             Some(max_maint_leverage.into()),
         )
@@ -1454,7 +1447,6 @@ async fn configure_group_max_emode_leverage_propagates_to_bank_cache(
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             Some(custom_max_init_leverage.into()),
             Some(custom_max_maint_leverage.into()),
         )
@@ -1497,7 +1489,6 @@ async fn configure_group_max_emode_leverage_propagates_to_bank_cache(
             group_before.delegate_emissions_admin,
             group_before.metadata_admin,
             group_before.risk_admin,
-            false,
             None, // Should default to 15
             None, // Should default to 20
         )
