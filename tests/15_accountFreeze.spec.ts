@@ -1,17 +1,15 @@
-import {
-  AnchorProvider,
-  BN,
-  Program,
-  Wallet,
-  workspace,
-} from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
 import { createMintToInstruction } from "@solana/spl-token";
-import { Keypair, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { assert } from "chai";
 
 import { Marginfi } from "../target/types/marginfi";
 import {
   bankKeypairUsdc,
+  bankrunContext,
+  bankRunProvider,
+  bankrunProgram,
   ecosystem,
   groupAdmin,
   marginfiGroup,
@@ -22,19 +20,24 @@ import {
   expectFailedTxWithError,
 } from "./utils/genericTests";
 import {
-  accountInit,
   composeRemainingAccounts,
+  accountInit,
   depositIx,
   setAccountFreezeIx,
   withdrawIx,
 } from "./utils/user-instructions";
 import { ACCOUNT_FROZEN } from "./utils/types";
-import { MockUser, SetupTestUserOptions, setupTestUser } from "./utils/mocks";
+import {
+  getUserMarginfiProgram,
+  MockUser,
+  SetupTestUserBankrunOptions,
+  setupTestUserBankrun,
+} from "./utils/mocks";
 
 describe("Account freeze", () => {
-  const program = workspace.Marginfi as Program<Marginfi>;
-  const provider = program.provider as AnchorProvider;
-  const wallet = provider.wallet as Wallet;
+  let program: Program<Marginfi>;
+  let provider: BankrunProvider;
+  let mintAuthority: PublicKey;
 
   const frozenAccount = Keypair.generate();
   const initialDeposit = new BN(50 * 10 ** ecosystem.usdcDecimals);
@@ -48,9 +51,11 @@ describe("Account freeze", () => {
   let freezeUser: MockUser;
 
   before("setup dedicated frozen account with liquidity", async () => {
-    const options: SetupTestUserOptions = {
-      marginProgram: program,
-      forceWallet: undefined,
+    program = bankrunProgram;
+    provider = bankRunProvider;
+    mintAuthority = bankrunContext.payer.publicKey;
+
+    const options: SetupTestUserBankrunOptions = {
       wsolMint: ecosystem.wsolMint.publicKey,
       tokenAMint: ecosystem.tokenAMint.publicKey,
       tokenBMint: ecosystem.tokenBMint.publicKey,
@@ -58,7 +63,15 @@ describe("Account freeze", () => {
       lstAlphaMint: ecosystem.lstAlphaMint.publicKey,
     };
 
-    freezeUser = await setupTestUser(provider, wallet.payer, options);
+    freezeUser = await setupTestUserBankrun(
+      bankrunContext,
+      bankrunContext.payer,
+      options
+    );
+    freezeUser.mrgnProgram = getUserMarginfiProgram(
+      bankrunProgram,
+      freezeUser.wallet
+    );
 
     await freezeUser.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
@@ -77,7 +90,7 @@ describe("Account freeze", () => {
       createMintToInstruction(
         ecosystem.usdcMint.publicKey,
         freezeUser.usdcAccount,
-        wallet.publicKey,
+        mintAuthority,
         200 * 10 ** ecosystem.usdcDecimals
       )
     );
@@ -85,11 +98,11 @@ describe("Account freeze", () => {
       createMintToInstruction(
         ecosystem.usdcMint.publicKey,
         groupAdmin.usdcAccount,
-        wallet.publicKey,
+        mintAuthority,
         200 * 10 ** ecosystem.usdcDecimals
       )
     );
-    await program.provider.sendAndConfirm(mintTx);
+    await provider.sendAndConfirm(mintTx);
 
     await freezeUser.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(
