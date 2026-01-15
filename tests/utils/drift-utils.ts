@@ -24,7 +24,7 @@ export type DriftState = IdlAccounts<Drift>["state"];
 export type DriftUser = IdlAccounts<Drift>["user"];
 export type DriftUserStats = IdlAccounts<Drift>["userStats"];
 export type DriftSpotMarket = IdlAccounts<Drift>["spotMarket"];
-export type DriftSpotPosition = IdlTypes<Drift>["SpotPosition"];
+export type DriftSpotPosition = IdlTypes<Drift>["spotPosition"];
 
 /**
  * Determines if a Drift spot position represents a borrow position
@@ -274,31 +274,6 @@ export const getDriftStateAccount = async (
   return await program.account.state.fetch(statePDA);
 };
 
-/**
- * Formats a Drift spot position for display/debugging
- * @param position - The spot position from a Drift user account
- * @returns A formatted object with position details as strings
- */
-export const formatSpotPosition = (
-  position: DriftUser["spotPositions"][0]
-): {
-  marketIndex: number;
-  scaledBalance: string;
-  cumulativeDeposits: string;
-  openOrders: number;
-  openBids: string;
-  openAsks: string;
-} => {
-  return {
-    marketIndex: position.marketIndex,
-    scaledBalance: position.scaledBalance.toString(),
-    cumulativeDeposits: position.cumulativeDeposits.toString(),
-    openOrders: position.openOrders,
-    openBids: position.openBids.toString(),
-    openAsks: position.openAsks.toString(),
-  };
-};
-
 // copied from Drift: https://github.com/drift-labs/protocol-v2/blob/1fed025269eed8ea5159dc56e2143fb904dbf14e/sdk/src/math/spotBalance.ts#L65
 /**
  * Calculates the spot token amount including any accumulated interest.
@@ -541,7 +516,7 @@ export const hasActivePositions = (spotMarket: DriftSpotMarket): boolean => {
  * @param program - The Drift program instance
  * @param authority - The wallet authority that owns the user account
  * @param subAccountId - The sub-account ID to check
- * @returns Array of formatted position objects for active positions only
+ * @returns Array of position objects for active positions only
  */
 export const getUserPositions = async (
   program: Program<Drift>,
@@ -551,8 +526,7 @@ export const getUserPositions = async (
   const user = await getUserAccount(program, authority, subAccountId);
 
   return user.spotPositions
-    .filter((pos) => pos.marketIndex !== 0 || !pos.scaledBalance.isZero())
-    .map((pos) => formatSpotPosition(pos));
+    .filter((pos) => pos.marketIndex !== 0 || !pos.scaledBalance.isZero());
 };
 
 /**

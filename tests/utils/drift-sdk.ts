@@ -112,7 +112,7 @@ export const makeInitializeSpotMarketIx = async (
       new BN(10_000_000_000_000), // withdrawGuardThreshold
       new BN(1), // orderTickSize
       new BN(1), // orderStepSize
-      new BN(0), // ifTotalFactor
+      0, // ifTotalFactor
       Array(32).fill(0) // name
     )
     .accounts({
@@ -162,6 +162,7 @@ export const makeInitializeUserStatsIx = async (
 interface InitializeUserAccounts {
   authority: PublicKey;
   payer: PublicKey;
+  user: PublicKey;
 }
 
 interface InitializeUserArgs {
@@ -174,11 +175,6 @@ export const makeInitializeUserIx = async (
   accounts: InitializeUserAccounts,
   args: InitializeUserArgs
 ): Promise<TransactionInstruction> => {
-  const [userPublicKey] = deriveUserPDA(
-    program.programId,
-    accounts.authority,
-    args.subAccountId
-  );
   const [userStatsPublicKey] = deriveUserStatsPDA(
     program.programId,
     accounts.authority
@@ -188,7 +184,7 @@ export const makeInitializeUserIx = async (
   return program.methods
     .initializeUser(args.subAccountId, args.name)
     .accounts({
-      user: userPublicKey,
+      user: accounts.user,
       userStats: userStatsPublicKey,
       state: statePublicKey,
       authority: accounts.authority,

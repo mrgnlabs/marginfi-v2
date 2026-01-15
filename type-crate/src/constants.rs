@@ -32,7 +32,6 @@ pub const DAILY_RESET_INTERVAL: i64 = 24 * 60 * 60; // 24 hours
 /// Switchboard oracles are cranked on demand, so we can use a lower value (10 seconds)
 pub const ORACLE_MIN_AGE: u16 = 10;
 pub const MAX_PYTH_ORACLE_AGE: u64 = 60;
-pub const MAX_SWB_ORACLE_AGE: u64 = 3 * 60;
 
 /// Range that contains 95% price data distribution
 ///

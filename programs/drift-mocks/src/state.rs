@@ -95,7 +95,7 @@ pub struct MinimalSpotMarket {
 #[derive(Clone, Copy, Debug, PartialEq, AnchorSerialize, AnchorDeserialize)]
 #[repr(u8)]
 pub enum UserStatus {
-    // Active = 0
+    Active = 0,
     BeingLiquidated = 0b00000001,
     Bankrupt = 0b00000010,
     ReduceOnly = 0b00000100,
@@ -144,7 +144,10 @@ pub struct MinimalUser {
 
 impl MinimalUser {
     pub fn is_being_liquidated(&self) -> bool {
-        matches!(self.status, UserStatus::BeingLiquidated | UserStatus::Bankrupt)
+        matches!(
+            self.status,
+            UserStatus::BeingLiquidated | UserStatus::Bankrupt
+        )
     }
 }
 
