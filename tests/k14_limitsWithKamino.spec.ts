@@ -115,12 +115,14 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
         .slice(0, 10); // take first 10
 
       // build the 10 entries for this bank with random tags and values
+      // Banks have liability weights of 1.0, so asset weights must be lower to avoid
+      // exceeding leverage limits. Adjusted ranges to stay well under 15x/20x limits:
       const entries = entryTags.map((entryTag) =>
         newEmodeEntry(
           entryTag,
           1, // applies to isolated doesn't matter here
-          bigNumberToWrappedI80F48(Math.random() * 0.3 + 0.6), // random 0.6–0.9
-          bigNumberToWrappedI80F48(Math.random() * 0.1 + 0.9) // random 0.9–1.0
+          bigNumberToWrappedI80F48(Math.random() * 0.2 + 0.6), // random 0.6–0.8 (~3.3x-5x leverage)
+          bigNumberToWrappedI80F48(Math.random() * 0.1 + 0.8) // random 0.8–0.9 (~5x-10x leverage)
         )
       );
 
@@ -232,7 +234,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     }
   });
 
-  it("(admin) Tries to deposit into 9th Kamino bank - should fail with KaminoPositionLimitExceeded", async () => {
+  it("(admin) Tries to deposit into 9th Kamino bank - should fail with IntegrationPositionLimitExceeded", async () => {
     const user = groupAdmin;
     const userAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const market = kaminoAccounts.get(MARKET);
@@ -289,7 +291,7 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     depositTx.sign(user.wallet);
     const result = await banksClient.tryProcessTransaction(depositTx);
 
-    // Should fail with error 6212 (0x1844 in hex) - KaminoPositionLimitExceeded
+    // Should fail with error 6212 (0x1844 in hex) - IntegrationPositionLimitExceeded
     assertBankrunTxFailed(result, 6212);
   });
 

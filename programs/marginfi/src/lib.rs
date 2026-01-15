@@ -101,6 +101,8 @@ pub mod marginfi {
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
         is_arena_group: bool,
+        emode_max_init_leverage: Option<WrappedI80F48>,
+        emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> MarginfiResult {
         marginfi_group::configure(
             ctx,
@@ -112,6 +114,8 @@ pub mod marginfi {
             new_metadata_admin,
             new_risk_admin,
             is_arena_group,
+            emode_max_init_leverage,
+            emode_max_maint_leverage,
         )
     }
 
@@ -179,6 +183,15 @@ pub mod marginfi {
         )
     }
 
+    /// (risk_admin only) - Signals all of a bank's liability have been deleveraged. Used if a bank
+    /// still has liability dust after the risk admin has completed deleveraging all debts. The
+    /// risk admin is trusted not to execute this until all non-dust debts have been deleveraged.
+    pub fn lending_pool_force_tokenless_repay_complete(
+        ctx: Context<LendingPoolForceTokenlessRepayComplete>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_force_tokenless_repay_complete(ctx)
+    }
+
     /// (admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
@@ -203,6 +216,12 @@ pub mod marginfi {
         entries: [EmodeEntry; MAX_EMODE_ENTRIES],
     ) -> MarginfiResult {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
+    }
+
+    /// (admin or emode_admin) Copies emode settings from one bank to another. Useful when applying
+    /// emode settings from e.g. one LST to another.
+    pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
+        marginfi_group::lending_pool_clone_emode(ctx)
     }
 
     /// (delegate_emissions_admin only)
@@ -443,6 +462,13 @@ pub mod marginfi {
         marginfi_account::lending_account_pulse_health(ctx)
     }
 
+    /// (Permissionless) Refresh the cached oracle price for a bank.
+    pub fn lending_pool_pulse_bank_price_cache<'info>(
+        ctx: Context<'_, '_, 'info, 'info, LendingPoolPulseBankPriceCache<'info>>,
+    ) -> MarginfiResult {
+        marginfi_group::lending_pool_pulse_bank_price_cache(ctx)
+    }
+
     /// (Runs once per program) Configures the fee state account, where the global admin sets fees
     /// that are assessed to the protocol
     pub fn init_global_fee_state(
@@ -658,6 +684,88 @@ pub mod marginfi {
         reward_index: u64,
     ) -> MarginfiResult {
         kamino::kamino_harvest_reward(ctx, reward_index)
+    }
+
+    // Drift integration instructions
+
+    /// (group admin only) Add a Drift bank to the group.
+    pub fn lending_pool_add_bank_drift(
+        ctx: Context<LendingPoolAddBankDrift>,
+        bank_config: state::drift::DriftConfigCompact,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        drift::lending_pool_add_bank_drift(ctx, bank_config, bank_seed)
+    }
+
+    /// (permissionless) Initialize a Drift user and user stats for a marginfi bank
+    /// Creates user with sub_account_id = 0 and empty name
+    /// Requires a minimum deposit to ensure the account remains active
+    /// * amount - minimum deposit amount (at least 10 units) in native decimals
+    pub fn drift_init_user(ctx: Context<DriftInitUser>, amount: u64) -> MarginfiResult {
+        drift::drift_init_user(ctx, amount)
+    }
+
+    /// (user) Deposit into a Drift spot market through a marginfi account
+    /// * amount - in the underlying token (e.g., USDC), in native decimals
+    pub fn drift_deposit(ctx: Context<DriftDeposit>, amount: u64) -> MarginfiResult {
+        drift::drift_deposit(ctx, amount)
+    }
+
+    /// (user) Withdraw from a Drift spot market through a marginfi account
+    /// * amount - in the underlying token (e.g., USDC), in native decimals
+    /// * withdraw_all - if true, withdraws entire position
+    pub fn drift_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, DriftWithdraw<'info>>,
+        amount: u64,
+        withdraw_all: Option<bool>,
+    ) -> MarginfiResult {
+        drift::drift_withdraw(ctx, amount, withdraw_all)
+    }
+
+    /// (fee admin only) Harvest rewards from admin deposits in Drift spot markets
+    /// The harvest spot market must be different from the bank's main drift spot market
+    pub fn drift_harvest_reward<'info>(
+        ctx: Context<'_, '_, 'info, 'info, DriftHarvestReward<'info>>,
+    ) -> MarginfiResult {
+        drift::drift_harvest_reward(ctx)
+    }
+
+    // Solend integration instructions
+
+    /// (admin) Add a Solend bank to the marginfi group
+    pub fn lending_pool_add_bank_solend(
+        ctx: Context<LendingPoolAddBankSolend>,
+        bank_config: state::solend::SolendConfigCompact,
+        bank_seed: u64,
+    ) -> MarginfiResult {
+        solend::lending_pool_add_bank_solend(ctx, bank_config, bank_seed)
+    }
+
+    /// (permissionless) Initialize a Solend obligation for a marginfi bank
+    /// Requires a minimum deposit to ensure the obligation remains active
+    /// * amount - minimum deposit amount (at least 10 units) in native decimals
+    pub fn solend_init_obligation(
+        ctx: Context<SolendInitObligation>,
+        amount: u64,
+    ) -> MarginfiResult {
+        solend::solend_init_obligation(ctx, amount)
+    }
+
+    /// (user) Deposit into a Solend reserve through a marginfi account
+    /// * amount - in the underlying token (e.g., USDC), in native decimals
+    pub fn solend_deposit(ctx: Context<SolendDeposit>, amount: u64) -> MarginfiResult {
+        solend::solend_deposit(ctx, amount)
+    }
+
+    /// (user) Withdraw from a Solend reserve through a marginfi account
+    /// * amount - in collateral tokens (cTokens), in native decimals  
+    /// * withdraw_all - withdraw entire position if true
+    pub fn solend_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SolendWithdraw<'info>>,
+        amount: u64,
+        withdraw_all: Option<bool>,
+    ) -> MarginfiResult {
+        solend::solend_withdraw(ctx, amount, withdraw_all)
     }
 }
 

@@ -16,16 +16,17 @@ use marginfi_type_crate::{
         TOKENLESS_REPAYMENTS_ALLOWED,
     },
     types::{
-        make_points, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry, InterestRateConfigOpt,
-        MarginfiGroup, OracleSetup, RatePoint, EMODE_ON, INTEREST_CURVE_SEVEN_POINT,
+        make_points, u32_to_basis, Bank, BankCache, BankConfig, BankConfigOpt, EmodeEntry,
+        InterestRateConfigOpt, MarginfiGroup, OracleSetup, RatePoint, EMODE_ON,
+        INTEREST_CURVE_SEVEN_POINT,
     },
 };
 use pretty_assertions::assert_eq;
 use solana_program_test::*;
-use solana_sdk::signer::Signer;
 use solana_sdk::{
     clock::Clock, instruction::Instruction, pubkey::Pubkey, transaction::Transaction,
 };
+use solana_sdk::{signature::Keypair, signer::Signer};
 use test_case::test_case;
 
 #[tokio::test]
@@ -125,6 +126,11 @@ async fn add_bank_success() -> anyhow::Result<()> {
             _padding_0,
             kamino_reserve,
             kamino_obligation,
+            drift_spot_market,
+            drift_user,
+            drift_user_stats,
+            solend_reserve,
+            solend_obligation,
             _padding_1,
             .. // ignore internal padding
         } = bank_f.load().await;
@@ -162,7 +168,12 @@ async fn add_bank_success() -> anyhow::Result<()> {
             assert_eq!(_padding_0, <[u8; 16] as Default>::default());
             assert_eq!(kamino_reserve, Pubkey::default());
             assert_eq!(kamino_obligation, Pubkey::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 15] as Default>::default());
+            assert_eq!(drift_spot_market, Pubkey::default());
+            assert_eq!(drift_user, Pubkey::default());
+            assert_eq!(drift_user_stats, Pubkey::default());
+            assert_eq!(solend_reserve, Pubkey::default());
+            assert_eq!(solend_obligation, Pubkey::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 5] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -266,6 +277,11 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             _padding_0,
             kamino_reserve,
             kamino_obligation,
+            drift_spot_market,
+            drift_user,
+            drift_user_stats,
+            solend_reserve,
+            solend_obligation,
             _padding_1,
             .. // ignore internal padding
         } = bank_f.load().await;
@@ -303,7 +319,12 @@ async fn add_bank_with_seed_success() -> anyhow::Result<()> {
             assert_eq!(_padding_0, <[u8; 16] as Default>::default());
             assert_eq!(kamino_reserve, Pubkey::default());
             assert_eq!(kamino_obligation, Pubkey::default());
-            assert_eq!(_padding_1, <[[u64; 2]; 15] as Default>::default());
+            assert_eq!(drift_spot_market, Pubkey::default());
+            assert_eq!(drift_user, Pubkey::default());
+            assert_eq!(drift_user_stats, Pubkey::default());
+            assert_eq!(solend_reserve, Pubkey::default());
+            assert_eq!(solend_obligation, Pubkey::default());
+            assert_eq!(_padding_1, <[[u64; 2]; 5] as Default>::default());
 
             // this is the only loosely checked field
             assert!(last_update >= 0 && last_update <= 5);
@@ -804,14 +825,19 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
     assert_eq!(old_bank.emode.emode_config, loaded_bank.emode.emode_config); // config stays the same
     assert_eq!(old_bank.config, loaded_bank.config); // everything else also stays the same
 
-    // Now update the tag and add some entries
+    // Use weights that are safe (CW < LW)
+    let liab_init_w = I80F48::from(loaded_bank.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(loaded_bank.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
     let emode_tag = 2u16;
     let emode_entries = vec![EmodeEntry {
         collateral_bank_emode_tag: emode_tag, // sharing the same tag is allowed
         flags: 1,
         pad0: [0, 0, 0, 0, 0],
-        asset_weight_init: loaded_bank.config.asset_weight_init,
-        asset_weight_maint: loaded_bank.config.asset_weight_maint,
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
     }];
 
     let res = test_f
@@ -844,6 +870,142 @@ async fn configure_bank_emode_success(bank_mint: BankMint) -> anyhow::Result<()>
             0
         );
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_clone_emode_success() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank_admin = test_f.get_bank(&BankMint::Sol);
+    let copy_to_bank_emode_admin = test_f.get_bank(&BankMint::PyUSD);
+
+    let copy_to_before = copy_to_bank_admin.load().await;
+    assert_eq!(copy_to_before.emode.flags, 0);
+    assert_eq!(copy_to_before.emode.emode_tag, 0);
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Admin can clone emode settings.
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode(&copy_from_bank, &copy_to_bank_admin)
+        .await?;
+
+    let copy_from_after = copy_from_bank.load().await;
+    let copy_to_after = copy_to_bank_admin.load().await;
+
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
+
+    // A dedicated emode admin can also clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_emode_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            new_emode_admin.pubkey(),
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+        )
+        .await?;
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(
+            &new_emode_admin,
+            &copy_from_bank,
+            &copy_to_bank_emode_admin,
+        )
+        .await?;
+
+    let copy_to_after = copy_to_bank_emode_admin.load().await;
+    assert_eq!(copy_to_after.emode, copy_from_after.emode);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lending_pool_clone_emode_unauthorized_fails() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let copy_from_bank = test_f.get_bank(&BankMint::Usdc);
+    let copy_to_bank = test_f.get_bank(&BankMint::Sol);
+
+    let copy_to_before = copy_to_bank.load().await;
+
+    let copy_from_before = copy_from_bank.load().await;
+    let liab_init_w = I80F48::from(copy_from_before.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(copy_from_before.config.liability_weight_maint);
+    let asset_init_w = liab_init_w * I80F48::from_num(0.7);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9);
+
+    let emode_tag = 2u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 1,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&copy_from_bank, emode_tag, &emode_entries)
+        .await?;
+
+    // Other group roles must not be able to clone emode settings.
+    let group_before = test_f.marginfi_group.load().await;
+    let new_risk_admin = Keypair::new();
+    test_f
+        .marginfi_group
+        .try_update(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            new_risk_admin.pubkey(),
+            false,
+        )
+        .await?;
+
+    let err = test_f
+        .marginfi_group
+        .try_lending_pool_clone_emode_with_signer(&new_risk_admin, &copy_from_bank, &copy_to_bank)
+        .await
+        .unwrap_err();
+    assert_custom_error!(err, MarginfiError::Unauthorized);
+
+    let copy_to_after = copy_to_bank.load().await;
+    assert_eq!(copy_to_after.emode, copy_to_before.emode);
+    assert_eq!(copy_to_after.config, copy_to_before.config);
 
     Ok(())
 }
@@ -897,6 +1059,312 @@ async fn configure_bank_emode_invalid_args(bank_mint: BankMint) -> anyhow::Resul
         .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
         .await;
     assert!(res.is_err());
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_valid_leverage(bank_mint: BankMint) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+    let loaded_bank = bank.load().await;
+
+    let group_before = test_f.marginfi_group.load().await;
+    let max_init_leverage = I80F48::from_num(19);
+    let max_maint_leverage = I80F48::from_num(20);
+    test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(max_init_leverage.into()),
+            Some(max_maint_leverage.into()),
+        )
+        .await?;
+
+    let liab_init_w = loaded_bank.config.liability_weight_init;
+    let liab_maint_w = loaded_bank.config.liability_weight_maint;
+
+    // liab_init = 1.2, liab_maint = 1.0, asset_init = 0.84, asset_maint = 0.9
+    // This gives: L_init = 1/(1-0.84/1.2) = 1/(1-0.7) = 3.33x
+    //             L_maint = 1/(1-0.9/1.0) = 1/0.1 = 10x
+    let asset_init_w = I80F48::from(liab_init_w) * I80F48::from_num(0.7);
+    let asset_maint_w = I80F48::from(liab_maint_w) * I80F48::from_num(0.9);
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+
+    assert!(
+        res.is_ok(),
+        "Valid emode config with safe leverage should succeed"
+    );
+
+    let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
+    assert_eq!(loaded_bank.emode.flags, EMODE_ON);
+    assert_eq!(loaded_bank.emode.emode_tag, emode_tag);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_invalid_cw_exceeds_lw_init(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+    let loaded_bank = bank.load().await;
+
+    let group_before = test_f.marginfi_group.load().await;
+    let max_init_leverage = I80F48::from_num(19);
+    let max_maint_leverage = I80F48::from_num(20);
+    test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(max_init_leverage.into()),
+            Some(max_maint_leverage.into()),
+        )
+        .await?;
+
+    let liab_init_w = I80F48::from(loaded_bank.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(loaded_bank.config.liability_weight_maint);
+
+    // Set asset_weight_init >= liability_weight_init (invalid!)
+    let asset_init_w = liab_init_w + I80F48::from_num(0.1); // Exceeds liability weight
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9); // This is fine
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+
+    assert!(
+        res.is_err(),
+        "Emode config with CW_init >= LW_init should fail"
+    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadEmodeConfig);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_invalid_cw_exceeds_lw_maint(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+    let loaded_bank = bank.load().await;
+
+    let group_before = test_f.marginfi_group.load().await;
+    let max_init_leverage = I80F48::from_num(19);
+    let max_maint_leverage = I80F48::from_num(20);
+    test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(max_init_leverage.into()),
+            Some(max_maint_leverage.into()),
+        )
+        .await?;
+
+    let liab_init_w = I80F48::from(loaded_bank.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(loaded_bank.config.liability_weight_maint);
+
+    let asset_init_w = liab_init_w * I80F48::from_num(0.8); // This is fine
+    let asset_maint_w = liab_maint_w + I80F48::from_num(0.05); // Exceeds liability weight
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+
+    assert!(
+        res.is_err(),
+        "Emode config with CW_maint >= LW_maint should fail"
+    );
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadEmodeConfig);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_invalid_excessive_leverage(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+    let loaded_bank = bank.load().await;
+
+    let group_before = test_f.marginfi_group.load().await;
+    let max_init_leverage = I80F48::from_num(19);
+    let max_maint_leverage = I80F48::from_num(20);
+    test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(max_init_leverage.into()),
+            Some(max_maint_leverage.into()),
+        )
+        .await?;
+
+    let liab_init_w = I80F48::from(loaded_bank.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(loaded_bank.config.liability_weight_maint);
+
+    // Set weights that result in >20x leverage
+    // For init: CW/LW = 0.96 => L = 1/(1-0.96) = 1/0.04 = 25x > 20x (invalid!)
+    let asset_init_w = liab_init_w * I80F48::from_num(0.96);
+    // For maint: CW/LW = 0.95 => L = 1/(1-0.95) = 1/0.05 = 20x (at the limit, should be ok)
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.95);
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+
+    assert!(res.is_err(), "Emode config with leverage > 20x should fail");
+    assert_custom_error!(res.unwrap_err(), MarginfiError::BadEmodeConfig);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_bank_emode_max_leverage_boundary(bank_mint: BankMint) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&bank_mint);
+    let loaded_bank = bank.load().await;
+
+    let group_before = test_f.marginfi_group.load().await;
+    let max_init_leverage = I80F48::from_num(19);
+    let max_maint_leverage = I80F48::from_num(20);
+    test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(max_init_leverage.into()),
+            Some(max_maint_leverage.into()),
+        )
+        .await?;
+
+    let liab_init_w = I80F48::from(loaded_bank.config.liability_weight_init);
+    let liab_maint_w = I80F48::from(loaded_bank.config.liability_weight_maint);
+
+    // Set weights that result in slightly below the limits to account for floating point precision
+    // For init: targeting ~18.9x leverage (safely below 19x limit)
+    // For maint: targeting ~19.9x leverage (safely below 20x limit)
+    // CW/LW = 1 - 1/L, so for L=18.9: CW/LW = 1 - 1/18.9 ≈ 0.9471
+    // For L=19.9: CW/LW = 1 - 1/19.9 ≈ 0.9497
+    let asset_init_w = liab_init_w * I80F48::from_num(0.947);
+    let asset_maint_w = liab_maint_w * I80F48::from_num(0.9497);
+
+    let emode_tag = 1u16;
+    let emode_entries = vec![EmodeEntry {
+        collateral_bank_emode_tag: emode_tag,
+        flags: 0,
+        pad0: [0, 0, 0, 0, 0],
+        asset_weight_init: asset_init_w.into(),
+        asset_weight_maint: asset_maint_w.into(),
+    }];
+
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_emode(&bank, emode_tag, &emode_entries)
+        .await;
+
+    assert!(
+        res.is_ok(),
+        "Emode config with init<19x and maint<20x leverage (below limits) should succeed"
+    );
+
+    let loaded_bank: Bank = test_f.load_and_deserialize(&bank.key).await;
+    assert_eq!(loaded_bank.emode.flags, EMODE_ON);
+    assert_eq!(loaded_bank.emode.emode_tag, emode_tag);
 
     Ok(())
 }
@@ -1101,6 +1569,114 @@ async fn configure_bank_limits_only_not_admin() -> anyhow::Result<()> {
         .await;
     assert!(res.is_err());
     assert_custom_error!(res.unwrap_err(), MarginfiError::Unauthorized);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc)]
+#[test_case(BankMint::PyUSD)]
+#[test_case(BankMint::SolSwbPull)]
+#[tokio::test]
+async fn configure_group_max_emode_leverage_propagates_to_bank_cache(
+    bank_mint: BankMint,
+) -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+
+    let bank = test_f.get_bank(&bank_mint);
+    let group_before = test_f.marginfi_group.load().await;
+
+    let custom_max_init_leverage = I80F48::from_num(14);
+    let custom_max_maint_leverage = I80F48::from_num(15);
+    let res = test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            Some(custom_max_init_leverage.into()),
+            Some(custom_max_maint_leverage.into()),
+        )
+        .await;
+
+    assert!(res.is_ok(), "Setting max_emode_leverage should succeed");
+
+    let group_after: MarginfiGroup = test_f
+        .load_and_deserialize(&test_f.marginfi_group.key)
+        .await;
+    let actual_init = u32_to_basis(group_after.emode_max_init_leverage);
+    assert!(
+        (actual_init - custom_max_init_leverage).abs() < I80F48::from_num(0.001),
+        "Group's emode_max_init_leverage should be approximately {} (got {})",
+        custom_max_init_leverage,
+        actual_init
+    );
+    let actual_maint = u32_to_basis(group_after.emode_max_maint_leverage);
+    assert!(
+        (actual_maint - custom_max_maint_leverage).abs() < I80F48::from_num(0.001),
+        "Group's emode_max_maint_leverage should be approximately {} (got {})",
+        custom_max_maint_leverage,
+        actual_maint
+    );
+
+    let config_bank_opt = BankConfigOpt {
+        deposit_limit: Some(1000000),
+        ..BankConfigOpt::default()
+    };
+    let res = bank.update_config(config_bank_opt, None).await;
+    assert!(res.is_ok());
+
+    let res = test_f
+        .marginfi_group
+        .try_update_with_emode_leverage(
+            group_before.admin,
+            group_before.emode_admin,
+            group_before.delegate_curve_admin,
+            group_before.delegate_limit_admin,
+            group_before.delegate_emissions_admin,
+            group_before.metadata_admin,
+            group_before.risk_admin,
+            false,
+            None, // Should default to 15
+            None, // Should default to 20
+        )
+        .await;
+
+    assert!(
+        res.is_ok(),
+        "Setting max_emode_leverage to default should succeed"
+    );
+
+    let group_default: MarginfiGroup = test_f
+        .load_and_deserialize(&test_f.marginfi_group.key)
+        .await;
+    let default_init_max_leverage = I80F48::from_num(15); // DEFAULT_INIT_MAX_EMODE_LEVERAGE
+    let default_maint_max_leverage = I80F48::from_num(20); // DEFAULT_MAINT_MAX_EMODE_LEVERAGE
+    let actual_default_init = u32_to_basis(group_default.emode_max_init_leverage);
+    assert!(
+        (actual_default_init - default_init_max_leverage).abs() < I80F48::from_num(0.001),
+        "Group's emode_max_init_leverage should be approximately {} (got {})",
+        default_init_max_leverage,
+        actual_default_init
+    );
+    let actual_default_maint = u32_to_basis(group_default.emode_max_maint_leverage);
+    assert!(
+        (actual_default_maint - default_maint_max_leverage).abs() < I80F48::from_num(0.001),
+        "Group's emode_max_maint_leverage should be approximately {} (got {})",
+        default_maint_max_leverage,
+        actual_default_maint
+    );
+
+    let config_bank_opt2 = BankConfigOpt {
+        borrow_limit: Some(500000),
+        ..BankConfigOpt::default()
+    };
+    let res = bank.update_config(config_bank_opt2, None).await;
+    assert!(res.is_ok());
 
     Ok(())
 }

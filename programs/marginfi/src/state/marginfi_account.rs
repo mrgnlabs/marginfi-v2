@@ -1,17 +1,20 @@
-use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use super::price::{
+    OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter, PriceBias,
+};
 use crate::{
     check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     state::{bank::BankImpl, bank_config::BankConfigImpl},
-    utils::NumTraitsWithTolerance,
+    utils::{is_integration_asset_tag, NumTraitsWithTolerance},
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
+        ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48, MAX_INTEGRATION_POSITIONS,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
@@ -21,8 +24,7 @@ use marginfi_type_crate::{
 };
 use std::cmp::{max, min};
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
-/// for Kamino (bank, oracle, reserve), 1 for Fixed
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
     if bank.config.oracle_setup == OracleSetup::Fixed {
         Ok(1)
@@ -33,16 +35,10 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
 
 /// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
 /// for Kamino (bank, oracle, reserve), 1 for Fixed
-fn get_remaining_accounts_per_balance(balance: &Balance) -> MarginfiResult<usize> {
-    get_remaining_accounts_per_asset_tag(balance.bank_asset_tag)
-}
-
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
-/// for Kamino (bank, oracle, reserve), 1 for Fixed
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
-        ASSET_TAG_KAMINO => Ok(3),
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND => Ok(3),
         ASSET_TAG_STAKED => Ok(4),
         _ => err!(MarginfiError::AssetTagMismatch),
     }
@@ -50,7 +46,6 @@ fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> 
 
 pub trait MarginfiAccountImpl {
     fn initialize(&mut self, group: Pubkey, authority: Pubkey, current_timestamp: u64);
-    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize>;
     fn set_flag(&mut self, flag: u64, msg: bool);
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
@@ -108,22 +103,6 @@ impl MarginfiAccountImpl for MarginfiAccount {
         self.migrated_from = Pubkey::default();
         self.last_update = current_timestamp;
         self.migrated_to = Pubkey::default();
-    }
-
-    /// Expected length of remaining accounts to be passed in borrow/liquidate, INCLUDING the bank
-    /// key, oracle, and optional accounts like lst mint/pool, etc.
-    fn get_remaining_accounts_len(&self) -> MarginfiResult<usize> {
-        let mut total = 0usize;
-        for balance in self
-            .lending_account
-            .balances
-            .iter()
-            .filter(|b| b.is_active())
-        {
-            let num_accounts = get_remaining_accounts_per_balance(balance)?;
-            total += num_accounts;
-        }
-        Ok(total)
     }
 
     fn set_flag(&mut self, flag: u64, msg: bool) {
@@ -371,11 +350,10 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                             .ok_or_else(math_error!())?;
                     }
                 }
-
                 let value = calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
-                    bank.mint_decimals,
+                    bank.get_balance_decimals(),
                     Some(asset_weight),
                 )?;
 
@@ -410,7 +388,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let value = calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
-            bank.mint_decimals,
+            bank.get_balance_decimals(),
             Some(liability_weight),
         )?;
 
@@ -644,6 +622,28 @@ impl<'info> RiskEngine<'_, 'info> {
         }
 
         Ok((total_assets, total_liabilities))
+    }
+
+    pub fn get_unbiased_price_for_bank(
+        &self,
+        bank_pk: &Pubkey,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let bank_account = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|b| b.balance.bank_pk == *bank_pk)
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+        let bank = bank_account.bank.load()?;
+        let (price_feed_res, _) = bank_account.try_get_price_feed();
+        let price_feed = price_feed_res?;
+
+        let price = price_feed.get_price_and_confidence_of_type(
+            OraclePriceType::RealTime,
+            bank.config.oracle_max_confidence,
+        )?;
+
+        Ok(price)
     }
 
     /// Errors if risk account's liabilities exceed their assets.
@@ -962,17 +962,17 @@ impl<'a> BankAccountWrapper<'a> {
                 Ok(Self { balance, bank })
             }
             None => {
-                // Enforce Kamino position limit before creating a new Kamino position
-                if bank.config.asset_tag == ASSET_TAG_KAMINO {
-                    let kamino_position_count = lending_account
+                // Enforce integration position limit before creating a new integration position
+                if is_integration_asset_tag(bank.config.asset_tag) {
+                    let integration_position_count = lending_account
                         .balances
                         .iter()
-                        .filter(|b| b.is_active() && b.bank_asset_tag == ASSET_TAG_KAMINO)
+                        .filter(|b| b.is_active() && is_integration_asset_tag(b.bank_asset_tag))
                         .count();
 
                     check!(
-                        kamino_position_count < MAX_KAMINO_POSITIONS,
-                        MarginfiError::KaminoPositionLimitExceeded
+                        integration_position_count < MAX_INTEGRATION_POSITIONS,
+                        MarginfiError::IntegrationPositionLimitExceeded
                     );
                 }
 
@@ -1361,7 +1361,7 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = calc_emissions(
                 period,
                 balance_amount,
-                self.bank.mint_decimals as usize,
+                self.bank.get_balance_decimals() as usize,
                 emissions_rate,
             )?;
 

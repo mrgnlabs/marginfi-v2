@@ -982,7 +982,7 @@ describe("k17: Limits test - 8 Kamino + 7 regular TOKEN_A deposits, liquidation 
 
     // Add compute budget
     const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 2_000_000,
+      units: 850_000,
     });
 
     const reserveAccounts: {

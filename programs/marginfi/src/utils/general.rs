@@ -3,7 +3,10 @@ use crate::{
     state::{
         bank::BankVaultType,
         marginfi_account::get_remaining_accounts_per_bank,
-        price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias},
+        price::{
+            OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter,
+            PriceBias,
+        },
     },
     MarginfiError, MarginfiResult,
 };
@@ -21,7 +24,10 @@ use anchor_spl::{
 };
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED},
+    constants::{
+        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
+        ASSET_TAG_STAKED,
+    },
     types::{Bank, BankOperationalState, MarginfiAccount, WrappedI80F48},
 };
 
@@ -219,6 +225,10 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
                 ASSET_TAG_STAKED => has_staked_asset = true,
                 // Kamino isn't strictly a default asset but it's close enough
                 ASSET_TAG_KAMINO => has_default_asset = true,
+                // Drift assets behave like default assets
+                ASSET_TAG_DRIFT => has_default_asset = true,
+                // Solend assets behave like default assets
+                ASSET_TAG_SOLEND => has_default_asset = true,
                 _ => panic!("unsupported asset tag"),
             }
         }
@@ -330,29 +340,18 @@ pub fn wrapped_i80f48_to_f64(n: WrappedI80F48) -> f64 {
     as_f64
 }
 
-/// Fetch price for a given bank from a properly structured remaining accounts slice as passed to
-/// any risk check. Errors if the bank is not found.
+/// Fetch a low-biased price for a given bank from a properly structured remaining accounts slice as
+/// passed to any risk check.
 ///
-/// * Errors if bank/oracles don't appear in the slice in the correct order
-pub fn fetch_asset_price_for_bank<'info>(
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+/// * If a RiskEngine available, consider `get_unbiased_price_for_bank` instead
+pub fn fetch_asset_price_for_bank_low_bias<'info>(
     bank_key: &Pubkey,
     bank: &Bank,
     clock: &Clock,
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<I80F48> {
-    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
-    let bank_idx = remaining_accounts
-        .iter()
-        .position(|ai| ai.key == bank_key)
-        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
-
-    let start = bank_idx + 1;
-    let end = start + accs_needed;
-    require!(
-        end <= remaining_accounts.len(),
-        MarginfiError::WrongNumberOfOracleAccounts
-    );
-    let oracle_ais = &remaining_accounts[start..end];
+    let oracle_ais = oracle_accounts_for_bank(bank_key, bank, remaining_accounts)?;
     let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
     let price = pf.get_price_of_type(
         OraclePriceType::RealTime,
@@ -361,6 +360,50 @@ pub fn fetch_asset_price_for_bank<'info>(
     )?;
 
     Ok(price)
+}
+
+/// Fetch an unbiased oracle price (no safety bias) for a given bank.
+///
+/// * Errors if bank not found or bank/oracles don't appear in the slice in the correct order
+/// * If a RiskEngine available, consider `get_unbiased_price_for_bank` instead
+pub fn fetch_unbiased_price_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<OraclePriceWithConfidence> {
+    let oracle_ais = oracle_accounts_for_bank(bank_key, bank, remaining_accounts)?;
+    let pf = OraclePriceFeedAdapter::try_from_bank(bank, oracle_ais, clock)?;
+    let price = pf.get_price_and_confidence_of_type(
+        OraclePriceType::RealTime,
+        bank.config.oracle_max_confidence,
+    )?;
+
+    Ok(price)
+}
+
+/// Locate a bank's oracle information from a properly formatted slice of remaining accounts.
+fn oracle_accounts_for_bank<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<&'info [AccountInfo<'info>]> {
+    let accs_needed = get_remaining_accounts_per_bank(bank)? - 1;
+
+    let bank_idx = remaining_accounts
+        .iter()
+        .position(|ai| ai.key == bank_key)
+        .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+    let start = bank_idx + 1;
+    let end = start + accs_needed;
+
+    require!(
+        end <= remaining_accounts.len(),
+        MarginfiError::WrongNumberOfOracleAccounts
+    );
+
+    Ok(&remaining_accounts[start..end])
 }
 
 #[macro_export]
@@ -384,7 +427,26 @@ pub fn is_marginfi_asset_tag(asset_tag: u8) -> bool {
     )
 }
 
-/// Helper function for constraint validation - checks if asset tag is valid for Kamino operations  
+/// Helper function for constraint validation - checks if asset tag is valid for Kamino operations
 pub fn is_kamino_asset_tag(asset_tag: u8) -> bool {
     asset_tag == ASSET_TAG_KAMINO
+}
+
+/// Helper function for constraint validation - checks if asset tag is valid for Drift operations
+pub fn is_drift_asset_tag(asset_tag: u8) -> bool {
+    asset_tag == ASSET_TAG_DRIFT
+}
+
+/// Helper function for constraint validation - checks if asset tag is valid for Solend operations
+pub fn is_solend_asset_tag(asset_tag: u8) -> bool {
+    asset_tag == ASSET_TAG_SOLEND
+}
+
+/// Helper function - checks if asset tag is an integration type (Kamino, Drift, or Solend)
+/// These integrations share a position limit due to their 3-account-per-position overhead
+pub fn is_integration_asset_tag(asset_tag: u8) -> bool {
+    matches!(
+        asset_tag,
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND
+    )
 }
