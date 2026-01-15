@@ -63,7 +63,7 @@ pub struct MinimalSpotMarket {
     /// The vault used to store the market's deposits
     pub vault: Pubkey,
 
-    pub _padding1: [[u8; 32]; 9],
+    pub _padding1: [[u64; 4]; 9],
     pub _padding2: [u8; 8],
 
     /// All the fields we need for testing (stored as raw bytes for simplicity)
@@ -72,28 +72,41 @@ pub struct MinimalSpotMarket {
     pub cumulative_deposit_interest: [u8; 16], // u128 in Drift
     pub cumulative_borrow_interest: [u8; 16],  // u128 in Drift
 
-    pub _padding3: [[u8; 8]; 9],
+    pub _padding3: [u64; 9],
 
     /// Last time the cumulative deposit and borrow interest was updated
     /// Offset: 568 bytes from start of struct (including discriminator)
     pub last_interest_ts: u64,
 
-    pub _padding4: [[u8; 32]; 3],
-    pub _padding5: [u8; 8],
+    pub _padding4: [u64; 13],
 
     pub decimals: u32,
     pub market_index: u16,
 
-    pub _padding6: [[u8; 16]; 3],
-    pub _padding7: [u8; 1],
+    pub _padding5: [u16; 24],
+    pub _padding6: [u8; 1],
 
     pub pool_id: u8,
 
     /// Padding to reach 776 bytes total (including discriminator)
-    pub _padding8: [[u8; 8]; 5],
+    pub _padding7: [u64; 5],
 }
 
-assert_struct_size!(MinimalUser, 4376);
+#[derive(Clone, Copy, Debug, PartialEq, AnchorSerialize, AnchorDeserialize)]
+#[repr(u8)]
+pub enum UserStatus {
+    // Active = 0
+    BeingLiquidated = 0b00000001,
+    Bankrupt = 0b00000010,
+    ReduceOnly = 0b00000100,
+    AdvancedLp = 0b00001000,
+    ProtectedMakerOrders = 0b00010000,
+}
+
+unsafe impl Zeroable for UserStatus {}
+unsafe impl Pod for UserStatus {}
+
+assert_struct_size!(MinimalUser, 4368);
 assert_struct_align!(MinimalUser, 8);
 /// Minimal representation of Drift's User account
 /// Only includes the fields we actually need
@@ -111,26 +124,28 @@ pub struct MinimalUser {
     pub spot_positions: [SpotPosition; 8],
 
     /// Skip to the fields we need at the end
-    /// Total size needed: 4376 - 8 (discriminator) - 96 (header) - 320 (positions) = 3952 bytes
-    pub _padding1: [u8; 2048],
-    pub _padding2: [u8; 1024],
-    pub _padding3: [u8; 512],
-    pub _padding4: [u8; 256],
-    pub _padding5: [u8; 64],
-    pub _padding6: [u8; 32],
-    pub _padding7: [u8; 16],
+    pub _padding1: [u64; 256],
+    pub _padding2: [u64; 128],
+    pub _padding3: [u64; 64],
+    pub _padding4: [u64; 32],
+    pub _padding5: [u64; 8],
+    pub _padding6: [u64; 2],
+    pub _padding7: [u16; 1],
 
     /// Sub account id for this user account
     pub sub_account_id: u16,
 
     // Status and flags
-    pub status: u8,
+    pub status: UserStatus,
 
-    /// Whether the user is being liquidated
-    pub is_being_liquidated: u8,
+    // Final padding to reach exactly 4376 bytes (including discriminator)
+    pub _padding8: [u8; 27],
+}
 
-    // Final padding to reach exactly 4376 bytes
-    pub _padding8: [u8; 4],
+impl MinimalUser {
+    pub fn is_being_liquidated(&self) -> bool {
+        matches!(self.status, UserStatus::BeingLiquidated | UserStatus::Bankrupt)
+    }
 }
 
 assert_struct_size!(MinimalUserStats, 240);
@@ -144,9 +159,9 @@ pub struct MinimalUserStats {
     pub authority: Pubkey,
 
     /// Padding to reach 240 bytes total
-    pub _padding1: [u8; 128],
-    pub _padding2: [u8; 64],
-    pub _padding3: [u8; 16],
+    pub _padding1: [u64; 16],
+    pub _padding2: [u64; 8],
+    pub _padding3: [u64; 2],
 }
 
 // Implementation methods for MinimalSpotMarket
