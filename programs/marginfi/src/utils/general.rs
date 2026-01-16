@@ -217,29 +217,34 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
     let mut has_default_asset = false;
     let mut has_staked_asset = false;
 
+    let is_default_like = |asset_tag: u8| {
+        matches!(
+            asset_tag,
+            ASSET_TAG_DEFAULT | ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND
+        )
+    };
+
     for balance in marginfi_account.lending_account.balances.iter() {
         if balance.is_active() {
             match balance.bank_asset_tag {
                 ASSET_TAG_DEFAULT => has_default_asset = true,
                 ASSET_TAG_SOL => { /* Do nothing, SOL can mix with any asset type */ }
                 ASSET_TAG_STAKED => has_staked_asset = true,
-                // Kamino isn't strictly a default asset but it's close enough
-                ASSET_TAG_KAMINO => has_default_asset = true,
-                // Drift assets behave like default assets
-                ASSET_TAG_DRIFT => has_default_asset = true,
-                // Solend assets behave like default assets
-                ASSET_TAG_SOLEND => has_default_asset = true,
+                // Kamino/Drift/Solend assets behave like default assets
+                ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND => {
+                    has_default_asset = true
+                }
                 _ => panic!("unsupported asset tag"),
             }
         }
     }
 
-    // 1. Regular assets (DEFAULT) cannot mix with Staked assets
-    if bank.config.asset_tag == ASSET_TAG_DEFAULT && has_staked_asset {
+    // 1. Default-like assets cannot mix with Staked assets
+    if is_default_like(bank.config.asset_tag) && has_staked_asset {
         return err!(MarginfiError::AssetTagMismatch);
     }
 
-    // 2. Staked SOL cannot mix with Regular asset (DEFAULT)
+    // 2. Staked SOL cannot mix with Default-like assets
     if bank.config.asset_tag == ASSET_TAG_STAKED && has_default_asset {
         return err!(MarginfiError::AssetTagMismatch);
     }
@@ -262,9 +267,16 @@ pub fn validate_asset_tags(bank: &Bank, marginfi_account: &MarginfiAccount) -> M
 ///
 /// Returns an error if the two banks have mismatching asset tags according to the above.
 pub fn validate_bank_asset_tags(bank_a: &Bank, bank_b: &Bank) -> MarginfiResult {
-    let is_bank_a_default = bank_a.config.asset_tag == ASSET_TAG_DEFAULT;
+    let is_default_like = |asset_tag: u8| {
+        matches!(
+            asset_tag,
+            ASSET_TAG_DEFAULT | ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND
+        )
+    };
+
+    let is_bank_a_default = is_default_like(bank_a.config.asset_tag);
     let is_bank_a_staked = bank_a.config.asset_tag == ASSET_TAG_STAKED;
-    let is_bank_b_default = bank_b.config.asset_tag == ASSET_TAG_DEFAULT;
+    let is_bank_b_default = is_default_like(bank_b.config.asset_tag);
     let is_bank_b_staked = bank_b.config.asset_tag == ASSET_TAG_STAKED;
     // Note: Sol is compatible with all other tags and doesn't matter...
 
