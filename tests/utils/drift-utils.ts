@@ -2,22 +2,46 @@ import {
   PublicKey,
   Keypair,
   AccountMeta,
+  Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import BN from "bn.js";
 import { Program, IdlAccounts, IdlTypes } from "@coral-xyz/anchor";
 import { Drift } from "tests/fixtures/drift_v2";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
-import { I80F48_ONE, ORACLE_CONF_INTERVAL } from "../utils/types";
+import {
+  DRIFT_ORACLE_RECEIVER_PROGRAM_ID,
+  I80F48_ONE,
+  ORACLE_CONF_INTERVAL,
+} from "../utils/types";
 import { BanksClient, ProgramTestContext } from "solana-bankrun";
-import { setPythPullOraclePrice } from "./bankrun-oracles";
-import { Oracles } from "./mocks";
+import {
+  createBankrunPythOracleAccount,
+  setPythPullOraclePrice,
+} from "./bankrun-oracles";
+import { Oracles, MockUser } from "./mocks";
 import {
   DRIFT_TOKEN_A_PULL_ORACLE,
   DRIFT_TOKEN_A_PULL_FEED,
   ecosystem,
+  bankrunContext,
+  banksClient,
   bankrunProgram,
+  driftBankrunProgram,
+  driftAccounts,
+  globalFeeWallet,
+  globalProgramAdmin,
+  groupAdmin,
 } from "../rootHooks";
+import { makeInitializeSpotMarketIx, makeAdminDepositIx } from "./drift-sdk";
+import { deriveSpotMarketPDA } from "./pdas";
+import { accountInit } from "./user-instructions";
+import { processBankrunTransaction } from "./tools";
 
 // Import Drift account types using IdlAccounts - the clean Anchor-native way
 export type DriftState = IdlAccounts<Drift>["state"];
@@ -1266,3 +1290,234 @@ export async function assertBankBalance(
     assert.equal(shares.toString(), expectedBalance.toString());
   }
 }
+
+export const createIntermediaryTokenAccountIfNeeded = async (
+  bank: PublicKey,
+  mint: PublicKey
+) => {
+  const [liquidityVaultAuthority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_vault_auth"), bank.toBuffer()],
+    bankrunProgram.programId
+  );
+
+  const intermediaryTokenAccount = getAssociatedTokenAddressSync(
+    mint,
+    liquidityVaultAuthority,
+    true
+  );
+
+  const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+    groupAdmin.wallet.publicKey,
+    intermediaryTokenAccount,
+    liquidityVaultAuthority,
+    mint
+  );
+
+  const tx = new Transaction().add(createAtaIx);
+  await processBankrunTransaction(
+    bankrunContext,
+    tx,
+    [groupAdmin.wallet],
+    false,
+    true
+  );
+};
+
+export const createGlobalFeeWalletTokenAccount = async (mint: PublicKey) => {
+  const destinationAta = getAssociatedTokenAddressSync(mint, globalFeeWallet);
+
+  const tx = new Transaction().add(
+    createAssociatedTokenAccountIdempotentInstruction(
+      groupAdmin.wallet.publicKey,
+      destinationAta,
+      globalFeeWallet,
+      mint
+    )
+  );
+
+  await processBankrunTransaction(
+    bankrunContext,
+    tx,
+    [groupAdmin.wallet],
+    false,
+    true
+  );
+};
+
+export const createDriftSpotMarketWithOracle = async (
+  tokenMint: PublicKey,
+  tokenSymbol: string,
+  marketIndex: number,
+  price: number,
+  decimals: number
+) => {
+  const config = defaultSpotMarketConfig();
+  const normalizedSymbol = tokenSymbol.toLowerCase();
+
+  const [spotMarketPDA] = deriveSpotMarketPDA(
+    driftBankrunProgram.programId,
+    marketIndex
+  );
+
+  const pullOracle = Keypair.generate();
+  const pullFeed = Keypair.generate();
+
+  await createBankrunPythOracleAccount(
+    bankrunContext,
+    banksClient,
+    pullOracle,
+    DRIFT_ORACLE_RECEIVER_PROGRAM_ID
+  );
+
+  driftAccounts.set(
+    `drift_${normalizedSymbol}_pull_oracle`,
+    pullOracle.publicKey
+  );
+  driftAccounts.set(`drift_${normalizedSymbol}_pull_feed`, pullFeed.publicKey);
+
+  await setPythPullOraclePrice(
+    bankrunContext,
+    banksClient,
+    pullOracle.publicKey,
+    pullFeed.publicKey,
+    price,
+    decimals,
+    ORACLE_CONF_INTERVAL,
+    DRIFT_ORACLE_RECEIVER_PROGRAM_ID
+  );
+
+  const initMarketIx = await makeInitializeSpotMarketIx(
+    driftBankrunProgram,
+    {
+      admin: groupAdmin.wallet.publicKey,
+      spotMarketMint: tokenMint,
+      oracle: pullOracle.publicKey,
+    },
+    {
+      optimalUtilization: config.optimalUtilization,
+      optimalRate: config.optimalRate,
+      maxRate: config.maxRate,
+      oracleSource: DriftOracleSourceValues.pythPull,
+      initialAssetWeight: config.initialAssetWeight,
+      maintenanceAssetWeight: config.maintenanceAssetWeight,
+      initialLiabilityWeight: config.initialLiabilityWeight,
+      maintenanceLiabilityWeight: config.maintenanceLiabilityWeight,
+      marketIndex,
+    }
+  );
+
+  const tx = new Transaction().add(initMarketIx);
+  await processBankrunTransaction(
+    bankrunContext,
+    tx,
+    [groupAdmin.wallet],
+    false,
+    true
+  );
+
+  driftAccounts.set(`drift_${normalizedSymbol}_spot_market`, spotMarketPDA);
+
+  return spotMarketPDA;
+};
+
+export const fundAndDepositAdminReward = async (
+  driftAdmin: Keypair,
+  bank: PublicKey,
+  tokenMint: PublicKey,
+  marketIndex: number,
+  amount: BN
+) => {
+  await createIntermediaryTokenAccountIfNeeded(bank, tokenMint);
+  await createGlobalFeeWalletTokenAccount(tokenMint);
+
+  const adminTokenAccount = getAssociatedTokenAddressSync(
+    tokenMint,
+    driftAdmin.publicKey
+  );
+
+  const createAdminAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+    globalProgramAdmin.wallet.publicKey,
+    adminTokenAccount,
+    driftAdmin.publicKey,
+    tokenMint
+  );
+
+  const mintToAdminIx = createMintToInstruction(
+    tokenMint,
+    adminTokenAccount,
+    globalProgramAdmin.wallet.publicKey,
+    amount.toNumber()
+  );
+
+  const fundTx = new Transaction().add(createAdminAtaIx).add(mintToAdminIx);
+  await processBankrunTransaction(
+    bankrunContext,
+    fundTx,
+    [globalProgramAdmin.wallet],
+    false,
+    true
+  );
+
+  const bankAccount = await bankrunProgram.account.bank.fetch(bank);
+  const spotMarket = await getSpotMarketAccount(
+    driftBankrunProgram,
+    marketIndex
+  );
+  const [spotMarketPDA] = deriveSpotMarketPDA(
+    driftBankrunProgram.programId,
+    marketIndex
+  );
+
+  const remainingAccounts: PublicKey[] = [];
+  if (!spotMarket.oracle.equals(PublicKey.default)) {
+    remainingAccounts.push(spotMarket.oracle);
+  }
+  remainingAccounts.push(spotMarketPDA);
+
+  const adminDepositIx = await makeAdminDepositIx(
+    driftBankrunProgram,
+    {
+      admin: driftAdmin.publicKey,
+      driftUser: bankAccount.driftUser,
+      adminTokenAccount: adminTokenAccount,
+    },
+    {
+      marketIndex,
+      amount,
+      remainingAccounts,
+    }
+  );
+
+  const depositTx = new Transaction().add(adminDepositIx);
+  await processBankrunTransaction(
+    bankrunContext,
+    depositTx,
+    [driftAdmin],
+    false,
+    true
+  );
+};
+
+export const createThrowawayMarginfiAccount = async (
+  user: MockUser,
+  group: PublicKey
+) => {
+  const accountKeypair = Keypair.generate();
+  const initAccountIx = await accountInit(user.mrgnBankrunProgram, {
+    marginfiGroup: group,
+    marginfiAccount: accountKeypair.publicKey,
+    authority: user.wallet.publicKey,
+    feePayer: user.wallet.publicKey,
+  });
+
+  const initTx = new Transaction().add(initAccountIx);
+  await processBankrunTransaction(
+    bankrunContext,
+    initTx,
+    [user.wallet, accountKeypair],
+    false,
+    true
+  );
+
+  return accountKeypair.publicKey;
+};
