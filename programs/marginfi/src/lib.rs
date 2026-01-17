@@ -84,11 +84,8 @@ pub use id_crate::ID;
 pub mod marginfi {
     use super::*;
 
-    pub fn marginfi_group_initialize(
-        ctx: Context<MarginfiGroupInitialize>,
-        is_arena_group: bool,
-    ) -> MarginfiResult {
-        marginfi_group::initialize_group(ctx, is_arena_group)
+    pub fn marginfi_group_initialize(ctx: Context<MarginfiGroupInitialize>) -> MarginfiResult {
+        marginfi_group::initialize_group(ctx)
     }
 
     pub fn marginfi_group_configure(
@@ -100,7 +97,6 @@ pub mod marginfi {
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
-        is_arena_group: bool,
         emode_max_init_leverage: Option<WrappedI80F48>,
         emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> MarginfiResult {
@@ -113,7 +109,6 @@ pub mod marginfi {
             new_emissions_admin,
             new_metadata_admin,
             new_risk_admin,
-            is_arena_group,
             emode_max_init_leverage,
             emode_max_maint_leverage,
         )
@@ -432,6 +427,13 @@ pub mod marginfi {
         third_party_id: Option<u16>,
     ) -> MarginfiResult {
         marginfi_account::transfer_to_new_account_pda(ctx, account_index, third_party_id)
+    }
+
+    pub fn marginfi_account_set_freeze(
+        ctx: Context<SetAccountFreeze>,
+        frozen: bool,
+    ) -> MarginfiResult {
+        marginfi_account::set_account_freeze(ctx, frozen)
     }
 
     pub fn marginfi_account_close(ctx: Context<MarginfiAccountClose>) -> MarginfiResult {
