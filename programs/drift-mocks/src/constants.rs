@@ -4,9 +4,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 
 // Drift precision constants
-pub const SPOT_BALANCE_PRECISION: u128 = 1_000_000_000; // 10^9
-pub const SPOT_BALANCE_PRECISION_U64: u64 = 1_000_000_000; // 10^9
-pub const SPOT_CUMULATIVE_INTEREST_PRECISION: u128 = 10_000_000_000; // expo = -10
+pub const SPOT_CUMULATIVE_INTEREST_PRECISION: u128 = 10_000_000_000; // 10^10
 pub const PRICE_PRECISION: i64 = 1_000_000; // 10^6
 pub const PRICE_PRECISION_U64: u64 = 1_000_000; // 10^6
 pub const PERCENTAGE_PRECISION: u128 = 1_000_000; // 10^6

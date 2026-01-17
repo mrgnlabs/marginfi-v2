@@ -86,7 +86,6 @@ pub fn lending_pool_add_bank_solend(
     bank.config.validate()?;
     bank.config
         .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
-    bank.config.validate_oracle_age()?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

@@ -339,12 +339,13 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     assert.ok(isDriftPositionBorrow(usdcPosition));
     assert.ok(isDriftPositionDeposit(tokenAPosition));
 
-    const usdcUtilization = calculateUtilization(
-      usdcMarketAfter
-    );
+    const usdcUtilization = calculateUtilization(usdcMarketAfter);
     console.log(
       "USDC utilization: " +
-        (usdcUtilization.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
+        usdcUtilization
+          .mul(new BN(100))
+          .div(DRIFT_UTILIZATION_PRECISION)
+          .toNumber() +
         "%"
     ); // 10%
 
@@ -355,7 +356,10 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     );
     console.log(
       "USDC InterestRate: " +
-        (usdcInterestRate.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
+        usdcInterestRate
+          .mul(new BN(100))
+          .div(DRIFT_UTILIZATION_PRECISION)
+          .toNumber() +
         "%"
     ); // 1%
   });
@@ -451,12 +455,13 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     assert.ok(isDriftPositionDeposit(usdcPosition));
     assert.ok(isDriftPositionBorrow(tokenAPosition));
 
-    const tokenAUtilization = calculateUtilization(
-      tokenAMarketAfter
-    );
+    const tokenAUtilization = calculateUtilization(tokenAMarketAfter);
     console.log(
       "Token A utilization: " +
-        (tokenAUtilization.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
+        tokenAUtilization
+          .mul(new BN(100))
+          .div(DRIFT_UTILIZATION_PRECISION)
+          .toNumber() +
         "%"
     ); // 10%
 
@@ -467,7 +472,10 @@ describe("d04: Drift - User Deposits and Borrows", () => {
     );
     console.log(
       "Token A InterestRate: " +
-        (tokenAInterestRate.mul(new BN(100)).div(DRIFT_UTILIZATION_PRECISION).toNumber()) +
+        tokenAInterestRate
+          .mul(new BN(100))
+          .div(DRIFT_UTILIZATION_PRECISION)
+          .toNumber() +
         "%"
     ); // 400%
   });

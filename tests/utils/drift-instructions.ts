@@ -12,14 +12,10 @@ import {
 } from "@solana/spl-token";
 import { DRIFT_PROGRAM_ID } from "./types";
 import { DriftConfigCompact } from "./drift-utils";
-import { deriveBankWithSeed } from "./pdas";
 import { Drift } from "../fixtures/drift_v2";
 import {
-  deriveSpotMarketPDA,
   deriveDriftStatePDA,
   deriveSpotMarketVaultPDA,
-  deriveUserPDA,
-  deriveUserStatsPDA,
 } from "./pdas";
 import { globalFeeWallet } from "../rootHooks";
 
@@ -371,4 +367,55 @@ export const makeDriftHarvestRewardIx = async (
       .remainingAccounts(remainingAccounts)
       .instruction()
   );
+};
+
+export interface DepositIntoSpotMarketVaultAccounts {
+  spotMarket: PublicKey;
+  admin: PublicKey;
+  sourceVault: PublicKey;
+  spotMarketVault: PublicKey;
+  tokenProgram?: PublicKey;
+}
+
+export interface DepositIntoSpotMarketVaultArgs {
+  amount: BN;
+  remainingAccounts?: PublicKey[];
+}
+
+/**
+ * Deposit tokens into a Drift spot market vault (admin-only).
+ *
+ * This instruction increases cumulative deposit interest by topping up the
+ * spot market vault, improving depositor value without touching user accounts.
+ *
+ * @param program The Drift program
+ * @param accounts The required accounts
+ * @param args The amount and optional remaining accounts
+ * @returns The instruction to deposit into the spot market vault
+ */
+export const makeDepositIntoSpotMarketVaultIx = async (
+  program: Program<Drift>,
+  accounts: DepositIntoSpotMarketVaultAccounts,
+  args: DepositIntoSpotMarketVaultArgs
+): Promise<TransactionInstruction> => {
+  const [driftState] = deriveDriftStatePDA(program.programId);
+
+  return program.methods
+    .depositIntoSpotMarketVault(args.amount)
+    .accounts({
+      state: driftState,
+      spotMarket: accounts.spotMarket,
+      admin: accounts.admin,
+      sourceVault: accounts.sourceVault,
+      spotMarketVault: accounts.spotMarketVault,
+      tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
+    })
+    .remainingAccounts(
+      (args.remainingAccounts || []).map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: false,
+      }))
+    )
+    .instruction();
 };

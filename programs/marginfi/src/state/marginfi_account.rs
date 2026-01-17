@@ -19,7 +19,7 @@ use marginfi_type_crate::{
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
         HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
-        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+        ACCOUNT_FROZEN, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::cmp::{max, min};
@@ -50,6 +50,48 @@ pub trait MarginfiAccountImpl {
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
     fn can_be_closed(&self) -> bool;
+}
+
+/// Checks if a signer is authorized to perform actions on a marginfi account.
+///
+/// Returns `true` if the signer is authorized, `false` otherwise.
+///
+/// Authorization rules (checked in order):
+/// 1. If `allow_receivership` is true and the account is in receivership → `true`
+/// 2. If the account is frozen → `true` only if signer is the group admin
+/// 3. Otherwise → `true` only if signer is the account authority
+pub fn is_signer_authorized(
+    marginfi_account: &MarginfiAccount,
+    group_admin: Pubkey,
+    signer: Pubkey,
+    allow_receivership: bool,
+) -> bool {
+    if allow_receivership && marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        return true;
+    }
+
+    if marginfi_account.get_flag(ACCOUNT_FROZEN) {
+        return group_admin == signer;
+    }
+
+    marginfi_account.authority == signer
+}
+
+/// Checks if the account authority is allowed to act on their account based on frozen status.
+///
+/// Returns `true` if the action is allowed, `false` if blocked.
+///
+/// Returns `false` when both conditions are met:
+/// - The account is frozen
+/// - The signer is the account authority
+///
+/// This is intentionally separate from [`is_signer_authorized`] to return a distinct
+/// `AccountFrozen` error in the instruction context  rather than `Unauthorized`.
+pub fn account_not_frozen_for_authority(
+    marginfi_account: &MarginfiAccount,
+    signer: Pubkey,
+) -> bool {
+    !(marginfi_account.get_flag(ACCOUNT_FROZEN) && marginfi_account.authority == signer)
 }
 
 impl MarginfiAccountImpl for MarginfiAccount {

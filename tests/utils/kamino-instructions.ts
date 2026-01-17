@@ -105,7 +105,6 @@ export const makeKaminoHarvestRewardIx = async (
     .accounts({
       bank: accounts.bank,
       feeState: accounts.feeState,
-      destinationTokenAccount: accounts.destinationTokenAccount,
       userState: accounts.userState,
       farmState: accounts.farmState,
       globalConfig: accounts.globalConfig,
@@ -116,6 +115,9 @@ export const makeKaminoHarvestRewardIx = async (
       farmVaultsAuthority: accounts.farmVaultsAuthority,
       scopePrices: accounts.scopePrices || null,
       tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .accountsPartial({
+      destinationTokenAccount: accounts.destinationTokenAccount,
     })
     .instruction();
 };

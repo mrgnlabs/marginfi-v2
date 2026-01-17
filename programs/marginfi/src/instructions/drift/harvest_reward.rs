@@ -160,9 +160,7 @@ impl<'info> DriftHarvestReward<'info> {
         let cpi_ctx = CpiContext::new_with_signer(program, accounts, signer_seeds)
             .with_remaining_accounts(remaining_accounts.to_vec());
 
-        // Try u32::MAX as u64 to avoid overflow
-        let withdraw_amount = u32::MAX as u64;
-        withdraw(cpi_ctx, market_index, withdraw_amount, true)?;
+        withdraw(cpi_ctx, market_index, u64::MAX, true)?;
         Ok(())
     }
 

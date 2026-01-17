@@ -59,7 +59,7 @@ pub fn lending_pool_configure_bank_limits_only(
     if bank.get_flag(FREEZE_SETTINGS) {
         msg!("WARN: Bank settings frozen, only deposit/borrow limits update.");
         // Note: total_asset_value_init_limit is somewhat risky because it can reduce the value of
-        // existing deposited assets, which is why it remains frozen for e.g. arena banks.
+        // existing deposited assets.
         set_if_some!(bank.config.deposit_limit, deposit_limit);
         set_if_some!(bank.config.borrow_limit, borrow_limit);
     } else {
