@@ -78,6 +78,27 @@ export const transferAccountAuthorityIx = (
   return ix;
 };
 
+export type SetAccountFreezeArgs = {
+  group: PublicKey;
+  marginfiAccount: PublicKey;
+  admin: PublicKey;
+  frozen: boolean;
+};
+
+export const setAccountFreezeIx = (
+  program: Program<Marginfi>,
+  args: SetAccountFreezeArgs
+) => {
+  return program.methods
+    .marginfiAccountSetFreeze(args.frozen)
+    .accounts({
+      group: args.group,
+      marginfiAccount: args.marginfiAccount,
+      admin: args.admin,
+    })
+    .instruction();
+};
+
 export type DepositArgs = {
   marginfiAccount: PublicKey;
   bank: PublicKey;
@@ -544,6 +565,12 @@ export type HealthPulseArgs = {
   remaining: PublicKey[];
 };
 
+export type PulseBankPriceArgs = {
+  group: PublicKey;
+  bank: PublicKey;
+  remaining: PublicKey[];
+};
+
 /**
  * Creates a Health pulse instruction. This tx sets the user's risk engine health cache, a read-only
  * way to access the on-chain risk engine's current state, typically for debugging purposes.
@@ -567,6 +594,29 @@ export const healthPulse = (
     .lendingAccountPulseHealth()
     .accounts({
       marginfiAccount: args.marginfiAccount,
+    })
+    .remainingAccounts(oracleMeta)
+    .instruction();
+};
+
+/**
+ * Creates a bank price pulse instruction. This ix refreshes the cached oracle price
+ * for a given bank without modifying user positions.
+ * * `remaining` - pass the oracle accounts required for this bank
+ *   in the same order as used for other oracle reads for that bank.
+ */
+export const pulseBankPrice = (
+  program: Program<Marginfi>,
+  args: PulseBankPriceArgs
+) => {
+  const oracleMeta: AccountMeta[] = args.remaining.map((pubkey) => {
+    return { pubkey, isSigner: false, isWritable: false };
+  });
+
+  return program.methods
+    .lendingPoolPulseBankPriceCache()
+    .accounts({
+      bank: args.bank,
     })
     .remainingAccounts(oracleMeta)
     .instruction();

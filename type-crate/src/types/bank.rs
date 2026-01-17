@@ -125,7 +125,18 @@ pub struct Bank {
     /// Kamino banks only, otherwise Pubkey default
     pub kamino_obligation: Pubkey,
 
-    pub _padding_1: [[u64; 2]; 15], // 8 * 2 * 14 = 224B
+    /// Drift banks only, otherwise Pubkey default
+    pub drift_spot_market: Pubkey,
+    /// Drift banks only, otherwise Pubkey default
+    pub drift_user: Pubkey,
+    /// Drift banks only, otherwise Pubkey default
+    pub drift_user_stats: Pubkey,
+    /// Solend banks only, otherwise Pubkey default
+    pub solend_reserve: Pubkey,
+    /// Solend banks only, otherwise Pubkey default
+    pub solend_obligation: Pubkey,
+
+    pub _padding_1: [[u64; 2]; 5], // 8 * 2 * 5 = 80B
 }
 
 impl Bank {
@@ -175,6 +186,10 @@ pub enum OracleSetup {
     KaminoPythPush,
     KaminoSwitchboardPull,
     Fixed,
+    DriftPythPull,
+    DriftSwitchboardPull,
+    SolendPythPull,
+    SolendSwitchboardPull,
 }
 unsafe impl Zeroable for OracleSetup {}
 unsafe impl Pod for OracleSetup {}
@@ -191,6 +206,10 @@ impl OracleSetup {
             6 => Some(Self::KaminoPythPush),
             7 => Some(Self::KaminoSwitchboardPull),
             8 => Some(Self::Fixed),
+            9 => Some(Self::DriftPythPull),
+            10 => Some(Self::DriftSwitchboardPull),
+            11 => Some(Self::SolendPythPull),
+            12 => Some(Self::SolendSwitchboardPull),
             _ => None,
         }
     }

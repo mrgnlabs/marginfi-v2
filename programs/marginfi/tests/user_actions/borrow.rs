@@ -539,6 +539,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         I80F48!(0.4).into()
     );
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Fund SOL lender
     let lender_mfi_account_f = test_f.create_marginfi_account().await;
     let lender_token_account_sol = test_f
@@ -568,6 +571,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .await;
     assert!(res.is_ok());
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Fund SOL borrower
     let borrower_mfi_account_f = test_f.create_marginfi_account().await;
 
@@ -593,6 +599,9 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .await;
     assert!(res.is_err());
 
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
+
     // Configure emode for the banks so that SOL bank has a favourable rate for SOL_EQ bank
     let sol_eq_emode_tag = 1u16;
     let res = test_f
@@ -606,8 +615,8 @@ async fn emode_borrows() -> anyhow::Result<()> {
         collateral_bank_emode_tag: sol_eq_emode_tag,
         flags: 0,
         pad0: [0, 0, 0, 0, 0],
-        asset_weight_init: I80F48!(1.0).into(),  // up from 0.4
-        asset_weight_maint: I80F48!(1.0).into(), // up from 0.4
+        asset_weight_init: I80F48!(0.9).into(), // up from 0.4, gives 10x leverage
+        asset_weight_maint: I80F48!(0.9).into(), // up from 0.4, gives 10x leverage
     }];
 
     let res = test_f
@@ -616,15 +625,18 @@ async fn emode_borrows() -> anyhow::Result<()> {
         .await;
     assert!(res.is_ok());
 
-    // Verify that we CAN now borrow up to ~1000 SOL (i.e. +600 to existing liability)
+    // Verify that we CAN now borrow up to ~900 SOL (i.e. +500 to existing 399 liability)
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 600)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 500)
         .await;
     assert!(res.is_ok());
     let res = borrower_mfi_account_f
         .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 2)
         .await;
     assert!(res.is_err());
+
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
 
     // Now check that we cannot borrow any other asset since it would turn off the emode and put us in a bad health
     let borrower_token_account_f_usdc = test_f.usdc_mint.create_empty_token_account().await;
@@ -635,7 +647,7 @@ async fn emode_borrows() -> anyhow::Result<()> {
 
     // Repay part of the debt so that we can borrow some USDC (even though this would turn off the emode)
     let res = borrower_mfi_account_f
-        .try_bank_repay(borrower_token_account_f_sol.key, sol_bank, 650, None)
+        .try_bank_repay(borrower_token_account_f_sol.key, sol_bank, 550, None)
         .await;
     assert!(res.is_ok());
 
@@ -646,9 +658,12 @@ async fn emode_borrows() -> anyhow::Result<()> {
 
     // Check that we cannot re-borrow ~the same amount (- borrowed USDC) of SOL anymore.
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 500)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 400)
         .await;
     assert!(res.is_err());
+
+    // Refresh blockhash to prevent expiry during long test
+    test_f.refresh_blockhash().await;
 
     // Now fully repay the USDC debt and verify that the SOL borrow limits are again favourable (emode is ON)
     let res = borrower_mfi_account_f
@@ -657,7 +672,7 @@ async fn emode_borrows() -> anyhow::Result<()> {
     assert!(res.is_ok());
 
     let res = borrower_mfi_account_f
-        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 650)
+        .try_bank_borrow(borrower_token_account_f_sol.key, sol_bank, 550)
         .await;
     assert!(res.is_ok());
 
