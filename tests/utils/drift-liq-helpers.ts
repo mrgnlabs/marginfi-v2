@@ -416,7 +416,7 @@ export async function runLiquidationScenario(
           marginfiAccount: borrowerAccount,
           bank: driftBanks[i],
           signerTokenAccount: borrowerUser.tokenAAccount,
-          driftOracle: driftOracle,
+          driftOracle,
         },
         driftDepositAmount,
         TOKEN_A_MARKET_INDEX

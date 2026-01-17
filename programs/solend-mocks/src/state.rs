@@ -26,7 +26,7 @@ pub const LENDING_MARKET_LEN: usize = 290;
 // EXPERIMENTAL: Using Anchor's zero_copy with manual 1-byte discriminator
 // This treats Solend's version byte as an Anchor discriminator
 // WARNING: This is an experimental approach to load Solend accounts through Anchor
-#[account(zero_copy(unsafe), discriminator = &RESERVE_DISCRIMINATOR)]
+#[account(zero_copy, discriminator = &RESERVE_DISCRIMINATOR)]
 #[repr(C, packed)]
 pub struct SolendMinimalReserve {
     // NOTE: Version field removed - Anchor handles the discriminator

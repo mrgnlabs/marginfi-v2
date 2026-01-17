@@ -12,14 +12,10 @@ import {
 } from "@solana/spl-token";
 import { DRIFT_PROGRAM_ID } from "./types";
 import { DriftConfigCompact } from "./drift-utils";
-import { deriveBankWithSeed } from "./pdas";
 import { Drift } from "../fixtures/drift_v2";
 import {
-  deriveSpotMarketPDA,
   deriveDriftStatePDA,
   deriveSpotMarketVaultPDA,
-  deriveUserPDA,
-  deriveUserStatsPDA,
 } from "./pdas";
 import { globalFeeWallet } from "../rootHooks";
 

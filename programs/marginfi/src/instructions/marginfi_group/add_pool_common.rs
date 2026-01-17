@@ -31,7 +31,7 @@ pub fn log_pool_info(bank: &Bank) {
     msg!(
         "oracle conf {:?} age: {:?} flags: {:?}",
         conf.oracle_max_confidence,
-        conf.oracle_max_age as u8,
+        conf.oracle_max_age,
         bank.flags as u8
     );
     let interest = conf.interest_rate_config;

@@ -1528,3 +1528,60 @@ async fn configure_group_max_emode_leverage_propagates_to_bank_cache(
 
     Ok(())
 }
+
+#[tokio::test]
+async fn configure_bank_oracle_min_age_validation() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let bank = test_f.get_bank(&BankMint::Usdc);
+
+    // Try to set oracle_max_age below ORACLE_MIN_AGE (10 seconds) - should fail
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &bank,
+            BankConfigOpt {
+                oracle_max_age: Some(9),
+                ..Default::default()
+            },
+        )
+        .await;
+
+    assert!(res.is_err());
+    assert_custom_error!(res.unwrap_err(), MarginfiError::InvalidOracleSetup);
+
+    // Try to set oracle_max_age exactly at ORACLE_MIN_AGE (10 seconds) - should succeed
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &bank,
+            BankConfigOpt {
+                oracle_max_age: Some(10),
+                ..Default::default()
+            },
+        )
+        .await;
+
+    assert!(res.is_ok());
+
+    let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
+    assert_eq!(bank_after.config.oracle_max_age, 10);
+
+    // Try to set oracle_max_age above ORACLE_MIN_AGE - should succeed
+    let res = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank(
+            &bank,
+            BankConfigOpt {
+                oracle_max_age: Some(30),
+                ..Default::default()
+            },
+        )
+        .await;
+
+    assert!(res.is_ok());
+
+    let bank_after: Bank = test_f.load_and_deserialize(&bank.key).await;
+    assert_eq!(bank_after.config.oracle_max_age, 30);
+
+    Ok(())
+}

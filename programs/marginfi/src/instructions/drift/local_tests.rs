@@ -6,13 +6,14 @@ mod tests {
             get_precision_increase, DRIFT_PRECISION_EXP, EXP_10, SPOT_CUMULATIVE_INTEREST_PRECISION,
         },
         state::{MinimalSpotMarket, MinimalUser, SpotBalanceType, SpotPosition},
+        DriftMocksError,
     };
 
     /// Find the largest u64 raw value that won't overflow when adjusted.
     /// Formula: adjusted = raw * interest / precision
     /// Safe when: raw <= (u64::MAX * precision) / interest
     fn largest_safe_raw_for_u64_exact(market: &MinimalSpotMarket) -> u64 {
-        let interest = market.cumulative_deposit_interest;
+        let interest = u128::from_le_bytes(market.cumulative_deposit_interest);
         if interest == 0 {
             return u64::MAX;
         }
@@ -33,7 +34,7 @@ mod tests {
 
     /// Find the largest i64 raw value that won't overflow when adjusted.
     fn largest_safe_raw_for_i64_exact(market: &MinimalSpotMarket) -> i64 {
-        let interest = market.cumulative_deposit_interest;
+        let interest = u128::from_le_bytes(market.cumulative_deposit_interest);
         if interest == 0 {
             return i64::MAX;
         }
@@ -57,7 +58,7 @@ mod tests {
     /// Safe when: amount <= u64::MAX * interest / precision_increase
     fn largest_safe_amount_for_scaled_increment(market: &MinimalSpotMarket) -> u64 {
         let precision_increase = get_precision_increase(market.decimals).unwrap();
-        let interest = market.cumulative_deposit_interest;
+        let interest = u128::from_le_bytes(market.cumulative_deposit_interest);
         let safe = (u64::MAX as u128 * interest) / precision_increase;
         if safe > u64::MAX as u128 {
             u64::MAX
@@ -73,7 +74,7 @@ mod tests {
     fn spot_market(decimals: u32, cumulative_deposit_interest: u128) -> MinimalSpotMarket {
         let mut market = MinimalSpotMarket::zeroed();
         market.decimals = decimals;
-        market.cumulative_deposit_interest = cumulative_deposit_interest;
+        market.cumulative_deposit_interest = cumulative_deposit_interest.to_le_bytes();
         market
     }
 
@@ -566,5 +567,12 @@ mod tests {
         assert_eq!(market.adjust_i64(4).unwrap(), 4); // 4 * 1.2 = 4.8, floors to 4
         assert_eq!(market.get_scaled_balance_increment(1).unwrap(), 833); // 833.33... floors
         assert!(market.get_scaled_balance_decrement(1).unwrap() >= 834); //  rounds up
+    }
+
+    #[test]
+    fn scaling_overflow() {
+        let market = spot_market(9, u128::MAX);
+        let err = market.get_withdraw_token_amount(u64::MAX).unwrap_err();
+        assert_eq!(err, DriftMocksError::ScalingOverflow.into());
     }
 }
