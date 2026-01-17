@@ -3,7 +3,6 @@ use crate::events::{
 };
 use crate::prelude::MarginfiError;
 use crate::state::bank::BankImpl;
-use crate::state::bank_config::BankConfigImpl;
 use crate::state::emode::EmodeSettingsImpl;
 use crate::MarginfiResult;
 use crate::{check, math_error, utils};
@@ -42,10 +41,6 @@ pub fn lending_pool_configure_bank(
         // Settings are not frozen, everything updates
         bank.configure(&bank_config)?;
         msg!("Bank configured!");
-
-        if bank_config.oracle_max_age.is_some() {
-            bank.config.validate_oracle_age()?;
-        }
 
         let group = ctx.accounts.group.load()?;
         bank.emode.validate_entries_with_liability_weights(
