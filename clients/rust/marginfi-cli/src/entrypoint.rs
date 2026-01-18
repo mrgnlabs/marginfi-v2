@@ -13,7 +13,8 @@ use fixed::types::I80F48;
 use marginfi_type_crate::types::{
     make_points, Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState,
     InterestRateConfig, InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup,
-    RatePoint, RiskTier, WrappedI80F48, CURVE_POINTS,
+    RatePoint, RiskTier, WrappedI80F48, ACCOUNT_FLAG_DEPRECATED,
+    OrderTrigger, CURVE_POINTS,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
@@ -267,6 +268,52 @@ impl From<BankOperationalStateArg> for BankOperationalState {
     }
 }
 
+#[derive(Clone, Copy, Debug, Parser, ArgEnum)]
+pub enum OrderTriggerTypeArg {
+    StopLoss,
+    TakeProfit,
+    Both,
+}
+
+impl OrderTriggerTypeArg {
+    pub fn into_order_trigger(
+        self,
+        stop_loss: Option<f64>,
+        take_profit: Option<f64>,
+    ) -> Result<OrderTrigger> {
+        match self {
+            OrderTriggerTypeArg::StopLoss => {
+                let threshold = stop_loss.ok_or_else(|| {
+                    anyhow::anyhow!("stop_loss threshold required for StopLoss trigger")
+                })?;
+                Ok(OrderTrigger::StopLoss {
+                    threshold: I80F48::from_num(threshold).into(),
+                })
+            }
+            OrderTriggerTypeArg::TakeProfit => {
+                let threshold = take_profit.ok_or_else(|| {
+                    anyhow::anyhow!("take_profit threshold required for TakeProfit trigger")
+                })?;
+                Ok(OrderTrigger::TakeProfit {
+                    threshold: I80F48::from_num(threshold).into(),
+                })
+            }
+            OrderTriggerTypeArg::Both => {
+                let sl = stop_loss.ok_or_else(|| {
+                    anyhow::anyhow!("stop_loss threshold required for Both trigger")
+                })?;
+                let tp = take_profit.ok_or_else(|| {
+                    anyhow::anyhow!("take_profit threshold required for Both trigger")
+                })?;
+                Ok(OrderTrigger::Both {
+                    stop_loss: I80F48::from_num(sl).into(),
+                    take_profit: I80F48::from_num(tp).into(),
+                })
+            }
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum BankCommand {
@@ -506,6 +553,35 @@ pub enum AccountCommand {
     },
     Create,
     Close,
+    PlaceOrder {
+        /// First bank public key (one must be an asset balance)
+        #[clap(long)]
+        bank_1: Pubkey,
+        /// Second bank public key (one must be a liability balance)
+        #[clap(long)]
+        bank_2: Pubkey,
+        /// Order trigger type
+        #[clap(long, arg_enum)]
+        trigger_type: OrderTriggerTypeArg,
+        /// Stop loss threshold value (required for stop-loss and both)
+        #[clap(long)]
+        stop_loss: Option<f64>,
+        /// Take profit threshold value (required for take-profit and both)
+        #[clap(long)]
+        take_profit: Option<f64>,
+    },
+    CloseOrder {
+        /// The order account to close
+        order: Pubkey,
+        /// Recipient of lamports from closed order account (defaults to signer)
+        #[clap(long)]
+        fee_recipient: Option<Pubkey>,
+    },
+    SetKeeperCloseFlags {
+        /// Optional list of bank keys to clear tags for. If not provided, clears all tags.
+        #[clap(long)]
+        banks: Vec<Pubkey>,
+    },
 }
 
 pub fn entry(opts: Opts) -> Result<()> {
@@ -984,6 +1060,24 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
         ),
         AccountCommand::Create => processor::marginfi_account_create(&profile, &config),
         AccountCommand::Close => processor::marginfi_account_close(&profile, &config),
+        AccountCommand::PlaceOrder {
+            bank_1,
+            bank_2,
+            trigger_type,
+            stop_loss,
+            take_profit,
+        } => {
+            let trigger = trigger_type.into_order_trigger(stop_loss, take_profit)?;
+            processor::marginfi_account_place_order(&profile, &config, bank_1, bank_2, trigger)
+        }
+        AccountCommand::CloseOrder {
+            order,
+            fee_recipient,
+        } => processor::marginfi_account_close_order(&profile, &config, order, fee_recipient),
+        AccountCommand::SetKeeperCloseFlags { banks } => {
+            let bank_keys_opt = if banks.is_empty() { None } else { Some(banks) };
+            processor::marginfi_account_set_keeper_close_flags(&profile, &config, bank_keys_opt)
+        }
     }?;
 
     Ok(())
