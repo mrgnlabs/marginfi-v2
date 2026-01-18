@@ -68,8 +68,6 @@ impl OrderImpl for Order {
         self.tags = tags;
         self._tags_padding = [0; ORDER_TAG_PADDING];
         self.bump = bump;
-        self._reserved0 = [0; 5];
-        self._reserved1 = [0; 2];
 
         Ok(())
     }
@@ -126,8 +124,9 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 tag,
                 is_asset,
                 shares,
-                _pad0,
-                _pad1,
+                emissions_outstanding,
+                last_update,
+                ..
             } = &mut self.balance_states[idx];
 
             let side = balance
@@ -141,6 +140,8 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 BalanceSide::Assets => balance.asset_shares,
                 BalanceSide::Liabilities => balance.liability_shares,
             };
+            *emissions_outstanding = balance.emissions_outstanding;
+            *last_update = balance.last_update;
 
             idx += 1;
         }
@@ -200,9 +201,24 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 expected_shares,
                 MarginfiError::IllegalBalanceState
             );
+
+            check_eq!(
+                record.emissions_outstanding,
+                balance.emissions_outstanding,
+                MarginfiError::IllegalBalanceState
+            );
+
+            check_eq!(
+                record.last_update,
+                balance.last_update,
+                MarginfiError::IllegalBalanceState
+            );
         }
 
-        // This implies that the inactive balances were also not touched
+        // This implies that the inactive balances were also not touched.
+        // This check is not strictly necessary since deposits are not allowed
+        // during execution and the above has checked that the open balances are
+        // still open and the same, but is left here as a sanity check.
         check!(
             self.inactive_balance_count as usize + closed_order_balances_count
                 == inactive_balance_count,

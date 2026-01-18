@@ -41,7 +41,7 @@ pub enum OrderTrigger {
     },
 }
 
-assert_struct_size!(Order, 120);
+assert_struct_size!(Order, 192);
 assert_struct_align!(Order, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy), derive(Default, PartialEq, Eq))]
@@ -57,8 +57,8 @@ pub struct Order {
     pub _tags_padding: [u8; ORDER_TAG_PADDING],
     pub trigger: OrderTriggerType,
     pub bump: u8,
-    pub _reserved0: [u8; 5],
-    pub _reserved1: [u64; 2],
+    _reserved0: [u8; 5],
+    _reserved1: [u64; 11],
 }
 
 impl Order {
@@ -72,13 +72,13 @@ pub const MAX_EXECUTE_RECORD_BALANCES: usize = MAX_LENDING_ACCOUNT_BALANCES - 2;
 
 // Records key information about the account during order execution.
 // It is closed after the order completes with funds returned to the executor.
-assert_struct_size!(ExecuteOrderRecord, 1096);
+assert_struct_size!(ExecuteOrderRecord, 1432);
 assert_struct_align!(ExecuteOrderRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy))]
 #[cfg_attr(
     not(feature = "anchor"),
-    derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone)
+    derive(Default, Debug, PartialEq, Pod, Zeroable, Copy, Clone)
 )]
 pub struct ExecuteOrderRecord {
     pub order: Pubkey,
@@ -91,7 +91,7 @@ pub struct ExecuteOrderRecord {
 }
 
 // This is used to ensure the balance state after execution stays the same.
-assert_struct_size!(ExecuteOrderBalanceRecord, 64);
+assert_struct_size!(ExecuteOrderBalanceRecord, 88);
 assert_struct_align!(ExecuteOrderBalanceRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -99,27 +99,15 @@ assert_struct_align!(ExecuteOrderBalanceRecord, 8);
 pub struct ExecuteOrderBalanceRecord {
     pub bank: Pubkey,
     pub is_asset: u8,
-    pub _pad0: [u8; 5],
+    _pad0: [u8; 5],
     pub tag: u16,
     pub shares: WrappedI80F48,
-    pub _pad1: [u64; 1],
+    pub emissions_outstanding: WrappedI80F48,
+    pub last_update: u64,
+    _pad1: [u64; 1],
 }
 
 impl ExecuteOrderRecord {
     pub const LEN: usize = core::mem::size_of::<ExecuteOrderRecord>();
     pub const DISCRIMINATOR: [u8; 8] = discriminators::EXECUTE_ORDER_RECORD;
-}
-
-impl Default for ExecuteOrderRecord {
-    fn default() -> Self {
-        ExecuteOrderRecord {
-            order: Pubkey::default(),
-            executor: Pubkey::default(),
-            balance_states: [ExecuteOrderBalanceRecord::default(); MAX_EXECUTE_RECORD_BALANCES],
-            active_balance_count: 0,
-            inactive_balance_count: 0,
-            _reserved0: [0; 6],
-            _reserved1: [0; 16],
-        }
-    }
 }
