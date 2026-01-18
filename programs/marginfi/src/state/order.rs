@@ -1,11 +1,11 @@
-use crate::{check_eq, errors::MarginfiError, prelude::MarginfiResult};
+use crate::{check, check_eq, errors::MarginfiError, prelude::MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{ORDER_ACTIVE_TAGS, ORDER_TAG_PADDING},
     types::{
         BalanceSide, ExecuteOrderBalanceRecord, ExecuteOrderRecord, MarginfiAccount, Order,
-        OrderTrigger, OrderTriggerType, WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES,
+        OrderTrigger, OrderTriggerType, WrappedI80F48, MAX_EXECUTE_RECORD_BALANCES,
     },
 };
 
@@ -87,7 +87,7 @@ pub trait ExecuteOrderRecordImpl {
     fn verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
-        order_tags: &[u16],
+        closed_order_balances_count: usize,
     ) -> MarginfiResult;
 }
 
@@ -101,30 +101,52 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
     ) -> MarginfiResult {
         self.order = order;
         self.executor = executor;
-        self.balance_states = [ExecuteOrderBalanceRecord::default(); MAX_LENDING_ACCOUNT_BALANCES];
+        self.balance_states = [ExecuteOrderBalanceRecord::default(); MAX_EXECUTE_RECORD_BALANCES];
 
-        for (i, balance) in marginfi_account.lending_account.balances.iter().enumerate() {
+        let mut idx: usize = 0;
+        let mut inactive_count: u8 = 0;
+
+        for balance in marginfi_account.lending_account.balances.iter() {
             if !balance.is_active() {
+                inactive_count += 1;
                 continue;
             }
 
-            // Skip balances that belong to this order, they can be changed by the liquidator
+            if idx >= self.balance_states.len() {
+                return Err(error!(MarginfiError::IllegalBalanceState));
+            }
+
+            // Skip balances that belong to this order, they can be changed by the keeper
             if balance.tag != 0 && order_tags.iter().any(|t| *t == balance.tag) {
                 continue;
             }
 
-            let record = &mut self.balance_states[i];
-            record.bank = balance.bank_pk;
-            record.is_active = 1;
+            let ExecuteOrderBalanceRecord {
+                bank,
+                tag,
+                is_asset,
+                shares,
+                _pad0,
+                _pad1,
+            } = &mut self.balance_states[idx];
+
             let side = balance
                 .get_side()
                 .ok_or_else(|| error!(MarginfiError::IllegalBalanceState))?;
-            record.is_asset = matches!(side, BalanceSide::Assets) as u8;
-            record.shares = match side {
+
+            *bank = balance.bank_pk;
+            *tag = balance.tag;
+            *is_asset = matches!(side, BalanceSide::Assets) as u8;
+            *shares = match side {
                 BalanceSide::Assets => balance.asset_shares,
                 BalanceSide::Liabilities => balance.liability_shares,
-            }
+            };
+
+            idx += 1;
         }
+
+        self.inactive_balance_count = inactive_count;
+        self.active_balance_count = idx.try_into().unwrap();
 
         Ok(())
     }
@@ -132,55 +154,60 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
     fn verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
-        order_tags: &[u16],
+        closed_order_balances_count: usize,
     ) -> MarginfiResult {
-        for (record, balance) in self
-            .balance_states
+        let inactive_balance_count = marginfi_account
+            .lending_account
+            .balances
             .iter()
-            .zip(marginfi_account.lending_account.balances.iter())
-        {
-            let balance_is_active = balance.is_active();
-            let balance_in_order = balance.tag != 0 && order_tags.iter().any(|t| *t == balance.tag);
-            let record_is_active = record.is_active == 1;
+            .filter(|balance| !balance.is_active())
+            .count();
 
-            if record_is_active {
-                if !balance_is_active {
-                    return Err(error!(MarginfiError::IllegalBalanceState));
-                }
+        for record in self.balance_states[..self.active_balance_count as usize].iter() {
+            let index = marginfi_account
+                .lending_account
+                .balances
+                .binary_search_by(|balance| record.bank.cmp(&balance.bank_pk))
+                .map_err(|_| MarginfiError::IllegalBalanceState)?;
 
-                check_eq!(
-                    record.bank,
-                    balance.bank_pk,
-                    MarginfiError::IllegalBalanceState
-                );
+            let balance = &marginfi_account.lending_account.balances[index];
 
-                let side = balance
-                    .get_side()
-                    .ok_or_else(|| error!(MarginfiError::IllegalBalanceState))?;
+            check_eq!(
+                record.bank,
+                balance.bank_pk,
+                MarginfiError::IllegalBalanceState
+            );
 
-                let expected_is_asset = matches!(side, BalanceSide::Assets) as u8;
+            let side = balance
+                .get_side()
+                .ok_or_else(|| error!(MarginfiError::IllegalBalanceState))?;
 
-                check_eq!(
-                    record.is_asset,
-                    expected_is_asset,
-                    MarginfiError::IllegalBalanceState
-                );
+            let expected_is_asset = matches!(side, BalanceSide::Assets) as u8;
 
-                let expected_shares = match side {
-                    BalanceSide::Assets => balance.asset_shares,
-                    BalanceSide::Liabilities => balance.liability_shares,
-                };
+            check_eq!(
+                record.is_asset,
+                expected_is_asset,
+                MarginfiError::IllegalBalanceState
+            );
 
-                check_eq!(
-                    record.shares,
-                    expected_shares,
-                    MarginfiError::IllegalBalanceState
-                );
-            } else if balance_is_active && !balance_in_order {
-                // Record marked inactive but an unexpected non-order balance is now active.
-                return Err(error!(MarginfiError::IllegalBalanceState));
-            }
+            let expected_shares = match side {
+                BalanceSide::Assets => balance.asset_shares,
+                BalanceSide::Liabilities => balance.liability_shares,
+            };
+
+            check_eq!(
+                record.shares,
+                expected_shares,
+                MarginfiError::IllegalBalanceState
+            );
         }
+
+        // This implies that the inactive balances were also not touched
+        check!(
+            self.inactive_balance_count as usize + closed_order_balances_count
+                == inactive_balance_count,
+            MarginfiError::IllegalBalanceState
+        );
 
         Ok(())
     }

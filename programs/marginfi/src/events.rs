@@ -212,7 +212,7 @@ pub struct KeeperCloseOrderEvent {
 }
 
 #[event]
-pub struct SetLiquidatorCloseFlagsEvent {
+pub struct SetKeeperCloseFlagsEvent {
     pub header: AccountEventHeader,
     pub bank_keys: Option<Vec<Pubkey>>,
 }

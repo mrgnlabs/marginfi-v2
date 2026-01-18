@@ -488,7 +488,7 @@ impl From<u32> for MarginfiError {
             6106 => MarginfiError::LiquidatorOrderCloseNotAllowed,
             6107 => MarginfiError::OrderTriggerValueNonPositive,
             6108 => MarginfiError::OrderTriggerNotMet,
-            6108 => MarginfiError::UnexpectedOrderExecutionState,
+            6109 => MarginfiError::UnexpectedOrderExecutionState,
             6110 => MarginfiError::OrderLiabilityNotClosed,
             6111 => MarginfiError::InvalidAssetOrLiabilitiesCount,
             6112 => MarginfiError::AccountNotHealthy,

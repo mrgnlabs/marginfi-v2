@@ -22,7 +22,7 @@ use marginfi_type_crate::{
     constants::{
         TOKENLESS_REPAYMENTS_ALLOWED, TOKENLESS_REPAYMENTS_COMPLETE, ZERO_AMOUNT_THRESHOLD,
     },
-    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED, ACCOUNT_IN_ORDER_EXECUTION,},
+    types::{Bank, MarginfiAccount, MarginfiGroup, ACCOUNT_DISABLED},
 };
 
 /// 1. Accrue interest

@@ -11,15 +11,15 @@ use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
-        ASSET_TAG_SOLEND, EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MAX_INTEGRATION_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
-        ORDER_ACTIVE_TAGS
+        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
+        ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48, MAX_INTEGRATION_POSITIONS,
+        MIN_EMISSIONS_START_TIME, ORDER_ACTIVE_TAGS, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
         reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
         HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
-        ACCOUNT_FROZEN, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+        ACCOUNT_FROZEN, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_ORDER_EXECUTION, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::{
@@ -61,15 +61,21 @@ pub trait MarginfiAccountImpl {
 ///
 /// Authorization rules (checked in order):
 /// 1. If `allow_receivership` is true and the account is in receivership → `true`
-/// 2. If the account is frozen → `true` only if signer is the group admin
-/// 3. Otherwise → `true` only if signer is the account authority
+/// 2. If `allow_order_execution` is true and the account is in order execution → `true`
+/// 3. If the account is frozen → `true` only if signer is the group admin
+/// 4. Otherwise → `true` only if signer is the account authority
 pub fn is_signer_authorized(
     marginfi_account: &MarginfiAccount,
     group_admin: Pubkey,
     signer: Pubkey,
     allow_receivership: bool,
+    allow_order_execution: bool,
 ) -> bool {
     if allow_receivership && marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        return true;
+    }
+
+    if allow_order_execution && marginfi_account.get_flag(ACCOUNT_IN_ORDER_EXECUTION) {
         return true;
     }
 
@@ -328,7 +334,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                             RequirementType::Maintenance => {
                                 I80F48::from(emode_entry.asset_weight_maint)
                             }
-                            // Note: For equity (which is only used for bankruptcies) emode does not
+                            // Note: For equity (which is only used for bankruptcies and orders) emode does not
                             // apply, as the asset weight is always 1
                             RequirementType::Equity => I80F48::ONE,
                         };
@@ -640,18 +646,15 @@ impl<'info> RiskEngine<'_, 'info> {
         let requirement_type = RiskRequirementType::Equity.to_weight_type();
 
         for bank_account in self.bank_accounts_with_price.iter() {
-            if balance_tags
+            if !balance_tags
                 .iter()
-                .find(|tag| **tag == bank_account.balance.tag)
-                .is_none()
+                .any(|tag| *tag == bank_account.balance.tag)
             {
                 continue;
             }
 
             let (asset_val, liab_val, _price, _err_code) =
                 bank_account.calc_weighted_value(requirement_type, &self.emode_config)?;
-
-            // MAYBE-TODO: Check that asset prices don't equal zero.
 
             if asset_val.ne(&I80F48::ZERO) {
                 asset_count += 1;
