@@ -221,10 +221,11 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        DriftWithdraw, EndDeleverage, EndLiquidation, InitLiquidationRecord, LendingAccountEndFlashloan,
-        KaminoWithdraw, LendingAccountRepay, LendingAccountSettleEmissions, LendingAccountStartFlashloan,
-        EndExecuteOrder, LendingAccountWithdraw, LendingAccountWithdrawEmissions, StartDeleverage, StartLiquidation,
-        StartExecuteOrder
+        DriftWithdraw, EndDeleverage, EndExecuteOrder, EndLiquidation, InitLiquidationRecord,
+        KaminoWithdraw, LendingAccountEndFlashloan, LendingAccountRepay,
+        LendingAccountSettleEmissions, LendingAccountStartFlashloan, LendingAccountWithdraw,
+        LendingAccountWithdrawEmissions, LendingAccountWithdrawEmissionsPermissionless,
+        StartDeleverage, StartExecuteOrder, StartLiquidation,
     };
 
     use super::*;
@@ -300,14 +301,19 @@ mod tests {
         assert_eq!(got_repay, want_repay);
 
         // ─── LendingAccountWithdrawEmissions ─────────────────────────────────────────────────
-        let got_repay = LendingAccountWithdrawEmissions::get_hash();
-        let want_repay = ix_discriminators::LENDING_SETTLE_EMISSIONS;
-        assert_eq!(got_repay, want_repay);
+        let got_emissions = LendingAccountWithdrawEmissions::get_hash();
+        let want_emissions = ix_discriminators::LENDING_WITHDRAW_EMISSIONS;
+        assert_eq!(got_emissions, want_emissions);
 
-        // ─── LendingAccountSettleEmissions ─────────────────────────────────────────────────
-        let got_repay = LendingAccountSettleEmissions::get_hash();
-        let want_repay = ix_discriminators::LENDING_WITHDRAW_EMISSIONS;
-        assert_eq!(got_repay, want_repay);
+        // ─── LendingAccountWithdrawEmissionsPermissionless ───────────────────────────────────
+        let got_emissions = LendingAccountWithdrawEmissionsPermissionless::get_hash();
+        let want_emissions = ix_discriminators::LENDING_WITHDRAW_EMISSIONS_PERMISSIONLESS;
+        assert_eq!(got_emissions, want_emissions);
+
+        // ─── LendingAccountSettleEmissions ────────────────────────────────────────────────
+        let got_emissions = LendingAccountSettleEmissions::get_hash();
+        let want_emissions = ix_discriminators::LENDING_SETTLE_EMISSIONS;
+        assert_eq!(got_emissions, want_emissions);
 
         // ─── LendingAccountStartFlashloan ─────────────────────────────────────────────────
         let got_flash = LendingAccountStartFlashloan::get_hash();
