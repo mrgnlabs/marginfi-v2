@@ -202,12 +202,14 @@ pub mod ix_discriminators {
     pub const INIT_LIQUIDATION_RECORD: [u8; 8] = [236, 213, 238, 126, 147, 251, 164, 8];
     pub const START_LIQUIDATION: [u8; 8] = [244, 93, 90, 214, 192, 166, 191, 21];
     pub const END_LIQUIDATION: [u8; 8] = [110, 11, 244, 54, 229, 181, 22, 184];
-    pub const START_EXECUTE_ORDER: [u8; 8] = [233, 121, 125, 40, 10, 203, 249, 227];
-    pub const END_EXECUTE_ORDER: [u8; 8] = [204, 96, 95, 246, 187, 116, 235, 201];
+    pub const START_EXECUTE_ORDER: [u8; 8] = [1, 70, 140, 134, 183, 29, 208, 224];
+    pub const END_EXECUTE_ORDER: [u8; 8] = [115, 42, 20, 93, 121, 84, 178, 83];
     pub const LENDING_ACCOUNT_WITHDRAW: [u8; 8] = [36, 72, 74, 19, 210, 210, 192, 192];
     pub const LENDING_ACCOUNT_REPAY: [u8; 8] = [79, 209, 172, 177, 222, 51, 173, 151];
-    pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
-    pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
+    pub const LENDING_SETTLE_EMISSIONS: [u8; 8] = [161, 58, 136, 174, 242, 223, 156, 176];
+    pub const LENDING_WITHDRAW_EMISSIONS: [u8; 8] = [234, 22, 84, 214, 118, 176, 140, 170];
+    pub const LENDING_WITHDRAW_EMISSIONS_PERMISSIONLESS: [u8; 8] =
+        [4, 174, 124, 203, 44, 49, 145, 150];
     pub const KAMINO_WITHDRAW: [u8; 8] = [199, 101, 41, 45, 213, 98, 224, 200];
     pub const DRIFT_WITHDRAW: [u8; 8] = [86, 59, 186, 123, 183, 181, 234, 137];
     pub const START_FLASHLOAN: [u8; 8] = [14, 131, 33, 220, 81, 186, 180, 107];

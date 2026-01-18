@@ -17,10 +17,9 @@ use super::{WrappedI80F48, MAX_LENDING_ACCOUNT_BALANCES};
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum OrderTriggerType {
     #[default]
-    None = 0,
-    StopLoss = 1,
-    TakeProfit = 2,
-    Both = 3,
+    StopLoss = 0,
+    TakeProfit = 1,
+    Both = 2,
 }
 
 unsafe impl Zeroable for OrderTriggerType {}
@@ -67,6 +66,10 @@ impl Order {
     pub const DISCRIMINATOR: [u8; 8] = discriminators::ORDER;
 }
 
+// The execution record does not store order balances and each order
+// has at least 2 balances
+pub const MAX_EXECUTE_RECORD_BALANCES: usize = MAX_LENDING_ACCOUNT_BALANCES - 2;
+
 // Records key information about the account during order execution.
 // It is closed after the order completes with funds returned to the executor.
 assert_struct_size!(ExecuteOrderRecord, 1096);
@@ -80,8 +83,11 @@ assert_struct_align!(ExecuteOrderRecord, 8);
 pub struct ExecuteOrderRecord {
     pub order: Pubkey,
     pub executor: Pubkey,
-    pub balance_states: [ExecuteOrderBalanceRecord; MAX_LENDING_ACCOUNT_BALANCES],
-    _reserved0: [u64; 1],
+    pub balance_states: [ExecuteOrderBalanceRecord; MAX_EXECUTE_RECORD_BALANCES],
+    pub active_balance_count: u8,
+    pub inactive_balance_count: u8,
+    _reserved0: [u8; 6],
+    _reserved1: [u64; 16],
 }
 
 // This is used to ensure the balance state after execution stays the same.
@@ -93,10 +99,10 @@ assert_struct_align!(ExecuteOrderBalanceRecord, 8);
 pub struct ExecuteOrderBalanceRecord {
     pub bank: Pubkey,
     pub is_asset: u8,
-    pub is_active: u8,
-    pub pad0: [u8; 6],
+    pub _pad0: [u8; 5],
+    pub tag: u16,
     pub shares: WrappedI80F48,
-    pub _padding: [u64; 1],
+    pub _pad1: [u64; 1],
 }
 
 impl ExecuteOrderRecord {
@@ -109,8 +115,11 @@ impl Default for ExecuteOrderRecord {
         ExecuteOrderRecord {
             order: Pubkey::default(),
             executor: Pubkey::default(),
-            balance_states: [ExecuteOrderBalanceRecord::default(); MAX_LENDING_ACCOUNT_BALANCES],
-            _reserved0: [0; 1],
+            balance_states: [ExecuteOrderBalanceRecord::default(); MAX_EXECUTE_RECORD_BALANCES],
+            active_balance_count: 0,
+            inactive_balance_count: 0,
+            _reserved0: [0; 6],
+            _reserved1: [0; 16],
         }
     }
 }

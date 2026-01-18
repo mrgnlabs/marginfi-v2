@@ -1,6 +1,6 @@
 use crate::events::{
     AccountEventHeader, KeeperCloseOrderEvent, MarginfiAccountCloseOrderEvent,
-    MarginfiAccountPlaceOrderEvent, SetLiquidatorCloseFlagsEvent,
+    MarginfiAccountPlaceOrderEvent, SetKeeperCloseFlagsEvent,
 };
 use crate::instructions::marginfi_account::liquidate_start::validate_instructions;
 use crate::ix_utils::{
@@ -44,18 +44,7 @@ pub fn place_order(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    // MAYBE-TODO: Later on check if it is worth having the order being created, i.e checking if the target is
-    // already hit, also checking that in the case of a stop loss the price is less than the current price
-    // and a take profit the price is greater than the current price, prices would be priced in equity terms.
-
-    // If we are going through with the above, it may also be worth checking that the resulting sum that leads to that trigger price
-    // would also not be due for liquidation if the maintainance weights were used instead, as if this was the case then the order may
-    // be useless, but this may be prevented in the case where assets are later added to the lending account that can offset this.
-
-    // Also if it is too close to the liqudation price then liquidators may be more inclined to ignore the order and just wait for it to
-    // hit the liquidation price, is this a problem?
-
-    // SHOULD-TODO: Transfer SOL flat fee to the order account for order creation.
+    // TODO: Transfer SOL flat fee to the order account for order creation.
 
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
@@ -82,14 +71,14 @@ pub fn place_order(
 
     let balance_index_1 = lending_account
         .balances
-        .binary_search_by(|balance| balance.bank_pk.cmp(bank_key_1))
+        .binary_search_by(|balance| bank_key_1.cmp(&balance.bank_pk))
         .ok()
         .and_then(|index| lending_account.balances[index].is_active().then_some(index))
         .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
 
     let balance_index_2 = lending_account
         .balances
-        .binary_search_by(|balance| balance.bank_pk.cmp(bank_key_2))
+        .binary_search_by(|balance| bank_key_2.cmp(&balance.bank_pk))
         .ok()
         .and_then(|index| lending_account.balances[index].is_active().then_some(index))
         .ok_or(MarginfiError::LendingAccountBalanceNotFound)?;
@@ -176,7 +165,7 @@ pub fn close_order(ctx: Context<CloseOrder>) -> MarginfiResult {
     Ok(())
 }
 
-pub fn liquidator_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
+pub fn keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
     let KeeperCloseOrder {
         marginfi_account: marginfi_account_loader,
         order: order_loader,
@@ -190,10 +179,9 @@ pub fn liquidator_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult 
     let balances = &mut marginfi_account.lending_account.balances;
 
     let can_close = order.tags.iter().any(|tag| {
-        balances
+        !balances
             .iter()
-            .find(|balance| balance.is_active() && balance.tag == *tag)
-            .is_none()
+            .any(|balance| balance.is_active() && balance.tag == *tag)
     });
 
     if !can_close {
@@ -213,11 +201,11 @@ pub fn liquidator_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult 
     Ok(())
 }
 
-pub fn set_liquidator_close_flags(
-    ctx: Context<SetLiquidatorCloseFlags>,
+pub fn set_keeper_close_flags(
+    ctx: Context<SetKeeperCloseFlags>,
     bank_keys_opt: Option<Vec<Pubkey>>,
 ) -> MarginfiResult {
-    let SetLiquidatorCloseFlags {
+    let SetKeeperCloseFlags {
         marginfi_account, ..
     } = &ctx.accounts;
 
@@ -229,7 +217,7 @@ pub fn set_liquidator_close_flags(
         Some(ref keys) => {
             for bank_key in keys.iter() {
                 let index = balances
-                    .binary_search_by(|balance| balance.bank_pk.cmp(bank_key))
+                    .binary_search_by(|balance| bank_key.cmp(&balance.bank_pk))
                     .map_err(|_| error!(MarginfiError::LendingAccountBalanceNotFound))?;
 
                 let balance = &mut balances[index];
@@ -243,7 +231,7 @@ pub fn set_liquidator_close_flags(
         }
     }
 
-    emit!(SetLiquidatorCloseFlagsEvent {
+    emit!(SetKeeperCloseFlagsEvent {
         header: AccountEventHeader {
             signer: Some(ctx.accounts.authority.key()),
             marginfi_account: ctx.accounts.marginfi_account.key(),
@@ -270,7 +258,7 @@ pub fn start_execute_order<'info>(
     } = &ctx.accounts;
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
-    let order = order_loader.load()?;
+    let mut order = order_loader.load_mut()?;
 
     marginfi_account.set_flag(ACCOUNT_IN_ORDER_EXECUTION, false);
 
@@ -313,6 +301,7 @@ pub fn start_execute_order<'info>(
         OrderTriggerType::StopLoss => {
             let sl: I80F48 = order.stop_loss.into();
             check!(net <= sl, MarginfiError::OrderTriggerNotMet);
+            order.stop_loss = net.into();
         }
         OrderTriggerType::TakeProfit => {
             let tp: I80F48 = order.take_profit.into();
@@ -322,8 +311,11 @@ pub fn start_execute_order<'info>(
             let sl: I80F48 = order.stop_loss.into();
             let tp: I80F48 = order.take_profit.into();
             check!(net <= sl || net >= tp, MarginfiError::OrderTriggerNotMet);
+            // This is only used if the stop loss was hit, and in the case of the
+            // take profit it serves as a guard, so the keeper would not rely on the
+            // sl case instead of tp.
+            order.stop_loss = net.into();
         }
-        _ => return Err(error!(MarginfiError::OrderTriggerNotMet)),
     }
 
     // Create execution record
@@ -338,7 +330,7 @@ pub fn start_execute_order<'info>(
     )?;
 
     validate_instructions(
-        &instruction_sysvar,
+        instruction_sysvar,
         ctx.program_id,
         &ix_discriminators::START_EXECUTE_ORDER,
         &ix_discriminators::END_EXECUTE_ORDER,
@@ -409,11 +401,13 @@ pub fn end_execute_order<'info>(
             let tp: I80F48 = order.take_profit.into();
             check!(net >= sl || net >= tp, MarginfiError::OrderTriggerNotMet); // Same as in both comments above.
         }
-        _ => return Err(error!(MarginfiError::OrderTriggerNotMet)),
     }
 
+    // Only one asset and liab are currently involved in a balance, with the single liability being closed.
+    let closed_order_balances_count = 1;
+
     // Check that the non-order balances remain unchanged, including inactive ones.
-    execute_record.verify_unchanged(&marginfi_account, &order.tags)?;
+    execute_record.verify_unchanged(&marginfi_account, closed_order_balances_count)?;
 
     // At this point we know that all non order balances were not touched and the order
     // balances that were touched:-
@@ -512,7 +506,7 @@ pub struct KeeperCloseOrder<'info> {
 }
 
 #[derive(Accounts)]
-pub struct SetLiquidatorCloseFlags<'info> {
+pub struct SetKeeperCloseFlags<'info> {
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(
@@ -584,7 +578,7 @@ pub struct StartExecuteOrder<'info> {
 
 impl Hashable for StartExecuteOrder<'_> {
     fn get_hash() -> [u8; 8] {
-        get_discrim_hash("global", "start_execute_order")
+        get_discrim_hash("global", "marginfi_account_start_execute_order")
     }
 }
 
@@ -634,6 +628,6 @@ pub struct EndExecuteOrder<'info> {
 
 impl Hashable for EndExecuteOrder<'_> {
     fn get_hash() -> [u8; 8] {
-        get_discrim_hash("global", "end_execute_order")
+        get_discrim_hash("global", "marginfi_account_end_execute_order")
     }
 }

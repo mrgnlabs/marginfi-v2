@@ -294,17 +294,15 @@ pub mod marginfi {
         marginfi_account::close_order(ctx)
     }
 
-    pub fn marginfi_account_liquidator_close_order(
-        ctx: Context<KeeperCloseOrder>,
-    ) -> MarginfiResult {
-        marginfi_account::liquidator_close_order(ctx)
+    pub fn marginfi_account_keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
+        marginfi_account::keeper_close_order(ctx)
     }
 
-    pub fn marginfi_account_set_liquidator_close_flags(
-        ctx: Context<SetLiquidatorCloseFlags>,
+    pub fn marginfi_account_set_keeper_close_flags(
+        ctx: Context<SetKeeperCloseFlags>,
         bank_keys_opt: Option<Vec<Pubkey>>,
     ) -> MarginfiResult {
-        marginfi_account::set_liquidator_close_flags(ctx, bank_keys_opt)
+        marginfi_account::set_keeper_close_flags(ctx, bank_keys_opt)
     }
 
     pub fn marginfi_account_start_execute_order<'info>(
