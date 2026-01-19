@@ -1361,13 +1361,11 @@ impl MarginfiAccountFixture {
         order: Pubkey,
         fee_recipient: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
-        let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
 
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::CloseOrder {
-                group: marginfi_account.group,
                 marginfi_account: self.key,
                 authority: ctx.payer.pubkey(),
                 order,
@@ -1399,13 +1397,11 @@ impl MarginfiAccountFixture {
         keeper: &Keypair,
         fee_recipient: Pubkey,
     ) -> std::result::Result<(), BanksClientError> {
-        let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
 
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::KeeperCloseOrder {
-                group: marginfi_account.group,
                 marginfi_account: self.key,
                 order,
                 fee_recipient,
@@ -1433,13 +1429,11 @@ impl MarginfiAccountFixture {
         &self,
         bank_keys_opt: Option<Vec<Pubkey>>,
     ) -> std::result::Result<(), BanksClientError> {
-        let marginfi_account = self.load().await;
         let ctx = self.ctx.borrow();
 
         let ix = Instruction {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::SetKeeperCloseFlags {
-                group: marginfi_account.group,
                 marginfi_account: self.key,
                 authority: ctx.payer.pubkey(),
             }
@@ -1465,5 +1459,37 @@ impl MarginfiAccountFixture {
 
     pub async fn load_order(&self, order: Pubkey) -> Order {
         load_and_deserialize::<Order>(self.ctx.clone(), &order).await
+    }
+
+    pub async fn try_set_emissions_destination(
+        &self,
+        destination_account: Pubkey,
+    ) -> std::result::Result<(), BanksClientError> {
+        let ctx = self.ctx.borrow();
+
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::MarginfiAccountUpdateEmissionsDestinationAccount {
+                marginfi_account: self.key,
+                authority: ctx.payer.pubkey(),
+                destination_account,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::MarginfiAccountUpdateEmissionsDestinationAccount {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        drop(ctx);
+        self.ctx
+            .borrow_mut()
+            .banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await
     }
 }

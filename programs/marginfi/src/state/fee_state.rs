@@ -28,8 +28,6 @@ mod tests {
 
     #[test]
     fn fee_state_regression() {
-        let mainnet_id = pubkey!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
-
         // HoMNdUF3RDZDPKAARYK1mxcPFfUnPjLmpKYibZzAijev Mainnet August 1, 2025
         let mut bytes = hex_to_bytes("3fe01055c124ebdcf99abe673005fd029ed4e061d83daab0145fa9c01140e8ab5e05b1aaaeef4317ab83bfce0e61a1a233632ba4cfbabf812b8023caf2be7df80972bfc9ff327540ab83bfce0e61a1a233632ba4cfbabf812b8023caf2be7df80972bfc9ff327540000000000000000080d1f008ff000000000000000000000000000000000000000000000000000000000000000000000033333333331300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
 
@@ -47,7 +45,7 @@ mod tests {
         assert_eq!(disc, discriminators::FEE_STATE, "Discriminator mismatch");
 
         let (expected_key, expected_bump) =
-            Pubkey::find_program_address(&[b"feestate"], &mainnet_id);
+            Pubkey::find_program_address(&[b"feestate"], &crate::ID);
 
         // Wrap into AccountInfo to test zero-copy deserialization
         let mut lamports = 1u64;

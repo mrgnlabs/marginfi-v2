@@ -124,8 +124,6 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 tag,
                 is_asset,
                 shares,
-                emissions_outstanding,
-                last_update,
                 ..
             } = &mut self.balance_states[idx];
 
@@ -140,8 +138,6 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 BalanceSide::Assets => balance.asset_shares,
                 BalanceSide::Liabilities => balance.liability_shares,
             };
-            *emissions_outstanding = balance.emissions_outstanding;
-            *last_update = balance.last_update;
 
             idx += 1;
         }
@@ -199,18 +195,6 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
             check_eq!(
                 record.shares,
                 expected_shares,
-                MarginfiError::IllegalBalanceState
-            );
-
-            check_eq!(
-                record.emissions_outstanding,
-                balance.emissions_outstanding,
-                MarginfiError::IllegalBalanceState
-            );
-
-            check_eq!(
-                record.last_update,
-                balance.last_update,
                 MarginfiError::IllegalBalanceState
             );
         }

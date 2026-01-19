@@ -72,7 +72,7 @@ pub const MAX_EXECUTE_RECORD_BALANCES: usize = MAX_LENDING_ACCOUNT_BALANCES - 2;
 
 // Records key information about the account during order execution.
 // It is closed after the order completes with funds returned to the executor.
-assert_struct_size!(ExecuteOrderRecord, 1432);
+assert_struct_size!(ExecuteOrderRecord, 856);
 assert_struct_align!(ExecuteOrderRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy))]
@@ -87,11 +87,10 @@ pub struct ExecuteOrderRecord {
     pub active_balance_count: u8,
     pub inactive_balance_count: u8,
     _reserved0: [u8; 6],
-    _reserved1: [u64; 16],
 }
 
 // This is used to ensure the balance state after execution stays the same.
-assert_struct_size!(ExecuteOrderBalanceRecord, 88);
+assert_struct_size!(ExecuteOrderBalanceRecord, 56);
 assert_struct_align!(ExecuteOrderBalanceRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
@@ -102,9 +101,6 @@ pub struct ExecuteOrderBalanceRecord {
     _pad0: [u8; 5],
     pub tag: u16,
     pub shares: WrappedI80F48,
-    pub emissions_outstanding: WrappedI80F48,
-    pub last_update: u64,
-    _pad1: [u64; 1],
 }
 
 impl ExecuteOrderRecord {

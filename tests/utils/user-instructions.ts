@@ -759,7 +759,6 @@ export type OrderTriggerArgs =
   | { both: { stopLoss: WrappedI80F48; takeProfit: WrappedI80F48 } };
 
 export type PlaceOrderArgs = {
-  group: PublicKey;
   marginfiAccount: PublicKey;
   authority: PublicKey;
   feePayer: PublicKey;
@@ -777,8 +776,7 @@ export const placeOrderIx = (
     args.bankKeys
   );
 
-  const accounts: any = {
-    group: args.group,
+  const accounts = {
     authority: args.authority,
     marginfiAccount: args.marginfiAccount,
     feePayer: args.feePayer,
@@ -792,7 +790,6 @@ export const placeOrderIx = (
 };
 
 export type CloseOrderArgs = {
-  group: PublicKey;
   marginfiAccount: PublicKey;
   authority: PublicKey;
   order: PublicKey;
@@ -803,8 +800,7 @@ export const closeOrderIx = (
   program: Program<Marginfi>,
   args: CloseOrderArgs
 ) => {
-  const accounts: any = {
-    group: args.group,
+  const accounts = {
     marginfiAccount: args.marginfiAccount,
     authority: args.authority,
     order: args.order,
@@ -818,7 +814,6 @@ export const closeOrderIx = (
 };
 
 export type KeeperCloseOrderArgs = {
-  group: PublicKey;
   marginfiAccount: PublicKey;
   order: PublicKey;
   feeRecipient: PublicKey;
@@ -828,8 +823,7 @@ export const keeperCloseOrderIx = (
   program: Program<Marginfi>,
   args: KeeperCloseOrderArgs
 ) => {
-  const accounts: any = {
-    group: args.group,
+  const accounts = {
     marginfiAccount: args.marginfiAccount,
     order: args.order,
     feeRecipient: args.feeRecipient,
@@ -843,7 +837,6 @@ export const keeperCloseOrderIx = (
 
 export type SetKeeperCloseFlagsArgs = {
   marginfiAccount: PublicKey;
-  group: PublicKey;
   authority: PublicKey;
   bankKeysOpt?: PublicKey[] | null;
 };
@@ -853,7 +846,6 @@ export const setLiquidatorCloseFlagsIx = (
   args: SetKeeperCloseFlagsArgs
 ) => {
   const accounts: any = {
-    group: args.group,
     marginfiAccount: args.marginfiAccount,
     authority: args.authority,
   };
