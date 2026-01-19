@@ -25,7 +25,8 @@ import {
   depositIx,
   borrowIx,
   withdrawEmissionsIx,
-  repayIx
+  repayIx,
+  updateEmissionsDestination
 } from "./utils/user-instructions";
 import { deriveOrderPda, deriveExecuteOrderPda } from "./utils/pdas";
 import { refreshOracles as refreshPullOracles } from "./utils/pyth-pull-mocks";
@@ -134,6 +135,13 @@ describe("orders", () => {
 
     await userProgram.provider.sendAndConfirm(new Transaction().add(borrowUsdcIx));
 
+    // Set emissions destination to the authority before placing any orders
+    const setEmissionsDestIx = await updateEmissionsDestination(user.mrgnProgram, {
+      marginfiAccount: userMarginfiAccount,
+      destinationAccount: user.wallet.publicKey,
+    });
+    await userProgram.provider.sendAndConfirm(new Transaction().add(setEmissionsDestIx));
+
   });
 
   describe("order placement", () => {
@@ -144,7 +152,6 @@ describe("orders", () => {
       };
 
       const ix = await placeOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         authority: user.wallet.publicKey,
         feePayer: user.wallet.publicKey,
@@ -191,7 +198,6 @@ describe("orders", () => {
       await expectFailedTxWithError(
         async () => {
           const ix = await placeOrderIx(program, {
-            group: marginfiGroup.publicKey,
             marginfiAccount: userMarginfiAccount,
             authority: user.wallet.publicKey,
             feePayer: user.wallet.publicKey,
@@ -210,7 +216,6 @@ describe("orders", () => {
       await expectFailedTxWithError(
         async () => {
           const ix = await placeOrderIx(program, {
-            group: marginfiGroup.publicKey,
             marginfiAccount: userMarginfiAccount,
             authority: user.wallet.publicKey,
             feePayer: user.wallet.publicKey,
@@ -230,7 +235,6 @@ describe("orders", () => {
 
       await expectFailedTxWithMessage(async () => {
         const ix = await placeOrderIx(program, {
-          group: marginfiGroup.publicKey,
           marginfiAccount: userMarginfiAccount,
           authority: user.wallet.publicKey,
           feePayer: user.wallet.publicKey,
@@ -246,7 +250,6 @@ describe("orders", () => {
   describe("order maintenance", () => {
     const placeTestOrder = async (bankKeys: PublicKey[] = [bankA, bankUsdc]) => {
       const ix = await placeOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         authority: user.wallet.publicKey,
         feePayer: user.wallet.publicKey,
@@ -264,7 +267,6 @@ describe("orders", () => {
       const [orderPk] = deriveOrderPda(program.programId, userMarginfiAccount, bankKeys);
 
       const ix = await closeOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         authority: user.wallet.publicKey,
         order: orderPk,
@@ -330,7 +332,6 @@ describe("orders", () => {
       );
 
       const ix = await keeperCloseOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         order: orderPk,
         feeRecipient: keeper.wallet.publicKey,
@@ -371,7 +372,6 @@ describe("orders", () => {
       await expectFailedTxWithError(
         async () => {
           const ix = await keeperCloseOrderIx(program, {
-            group: marginfiGroup.publicKey,
             marginfiAccount: userMarginfiAccount,
             order: orderPk,
             feeRecipient: keeper.wallet.publicKey,
@@ -385,7 +385,6 @@ describe("orders", () => {
 
     it("sets liquidator close flags - happy path", async () => {
       const ix = await setLiquidatorCloseFlagsIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         authority: user.wallet.publicKey,
         bankKeysOpt: [bankA],
@@ -405,7 +404,6 @@ describe("orders", () => {
       const keeperProgram = keeper.mrgnProgram as Program<Marginfi>;
 
       const ix = await keeperCloseOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         order: orderPk,
         feeRecipient: keeper.wallet.publicKey,
@@ -430,7 +428,6 @@ describe("orders", () => {
     before(async () => {
 
       const ixPlace = await placeOrderIx(program, {
-        group: marginfiGroup.publicKey,
         marginfiAccount: userMarginfiAccount,
         authority: user.wallet.publicKey,
         feePayer: user.wallet.publicKey,

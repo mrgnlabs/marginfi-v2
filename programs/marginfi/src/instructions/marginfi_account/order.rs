@@ -6,7 +6,6 @@ use crate::instructions::marginfi_account::liquidate_start::validate_instruction
 use crate::ix_utils::{
     get_discrim_hash, keys_sha256_hash, validate_not_cpi_by_stack_height, Hashable,
 };
-use crate::math_error;
 use crate::state::marginfi_account::RiskRequirementType;
 use crate::{
     check,
@@ -17,6 +16,8 @@ use crate::{
         order::{ExecuteOrderRecordImpl, OrderImpl},
     },
 };
+use crate::{check_eq, math_error};
+use anchor_lang::system_program;
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
@@ -174,22 +175,51 @@ pub fn close_order(ctx: Context<CloseOrder>) -> MarginfiResult {
 
 pub fn keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
     let KeeperCloseOrder {
-        marginfi_account: marginfi_account_loader,
         order: order_loader,
+        marginfi_account,
         ..
     } = &ctx.accounts;
 
-    let mut marginfi_account = marginfi_account_loader.load_mut()?;
-
     let order = order_loader.load()?;
+    let marginfi_account_info = marginfi_account.to_account_info();
 
-    let balances = &mut marginfi_account.lending_account.balances;
+    // Manual owner check: Only attempt to deserialize when the account is not closed
+    let (authority_pk, group_pk, can_close) = if marginfi_account_info.owner.eq(&system_program::ID)
+        && marginfi_account_info.data_is_empty()
+    {
+        (Pubkey::default(), Pubkey::default(), true)
+    } else {
+        // Deserialize manually using bytemuck to avoid lifetime issues
+        let data = marginfi_account_info.try_borrow_data()?;
 
-    let can_close = order.tags.iter().any(|tag| {
-        !balances
-            .iter()
-            .any(|balance| balance.is_active() && balance.tag == *tag)
-    });
+        // Check discriminator
+        require!(
+            data.len() >= 8 + std::mem::size_of::<MarginfiAccount>(),
+            MarginfiError::InternalLogicError
+        );
+
+        let disc = &data[..8];
+        check_eq!(
+            disc,
+            MarginfiAccount::DISCRIMINATOR,
+            MarginfiError::InternalLogicError
+        );
+
+        let marginfi_account: &MarginfiAccount =
+            bytemuck::from_bytes(&data[8..8 + std::mem::size_of::<MarginfiAccount>()]);
+
+        let balances = &marginfi_account.lending_account.balances;
+        let can_close = order.tags.iter().any(|tag| {
+            !balances
+                .iter()
+                .any(|balance| balance.is_active() && balance.tag == *tag)
+        });
+        (
+            marginfi_account.authority,
+            marginfi_account.group,
+            can_close,
+        )
+    };
 
     if !can_close {
         return err!(MarginfiError::LiquidatorOrderCloseNotAllowed);
@@ -198,9 +228,9 @@ pub fn keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
     emit!(KeeperCloseOrderEvent {
         header: AccountEventHeader {
             signer: None,
-            marginfi_account: marginfi_account_loader.key(),
-            marginfi_account_authority: marginfi_account.authority,
-            marginfi_group: marginfi_account.group,
+            marginfi_account: marginfi_account_info.key(),
+            marginfi_account_authority: authority_pk,
+            marginfi_group: group_pk,
         },
         order: order_loader.key(),
     });
@@ -328,7 +358,7 @@ pub fn start_execute_order<'info>(
     // Create execution record
     let mut execute_record = execute_record_loader.load_init()?;
 
-    // Store the order, executor as well as all the non-order balances including inactive ones.
+    // Store the order, executor as well as all the non-order balances.
     execute_record.initialize(
         order_loader.key(),
         executor.key(),
@@ -465,11 +495,8 @@ pub struct PlaceOrder<'info> {
 
 #[derive(Accounts)]
 pub struct CloseOrder<'info> {
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        has_one = group @ MarginfiError::InvalidGroup,
         has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
@@ -492,13 +519,11 @@ pub struct CloseOrder<'info> {
 
 #[derive(Accounts)]
 pub struct KeeperCloseOrder<'info> {
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        mut,
-        has_one = group @ MarginfiError::InvalidGroup,
-    )]
-    pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
+    /// CHECK: This uses an unchecked account here so the instruction can be called even when the
+    /// marginfi account was closed.
+    /// The ownership check is checked in the handler or/and type checks are made in the handler.
+    #[account(mut)]
+    pub marginfi_account: UncheckedAccount<'info>,
 
     /// CHECK: no checks whatsoever, keeper decides this without restriction
     #[account(mut)]
@@ -514,11 +539,8 @@ pub struct KeeperCloseOrder<'info> {
 
 #[derive(Accounts)]
 pub struct SetKeeperCloseFlags<'info> {
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
     #[account(
         mut,
-        has_one = group @ MarginfiError::InvalidGroup,
         has_one = authority @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,

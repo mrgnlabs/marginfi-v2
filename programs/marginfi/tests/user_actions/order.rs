@@ -84,6 +84,12 @@ async fn setup_execution_fixture_with_params(
         .try_bank_deposit(uninvolved_account.key, uninvolved_bank_f, 0.5, None)
         .await?;
 
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
     // place the order with the provided trigger
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let order_pda = borrower_mfi_account_f
@@ -1101,6 +1107,12 @@ async fn place_order_success_one_asset_one_liability(
     // Test
     // ---------------------------------------------------------------------
 
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
 
@@ -1164,6 +1176,12 @@ async fn place_order_fails_both_assets(
     // Test
     // ---------------------------------------------------------------------
 
+    // set emissions destination to the authority before placing order
+    let authority = mfi_account_f.load().await.authority;
+    mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
     let bank_keys = vec![first_bank_f.key, second_bank_f.key];
     let trigger = stop_loss_trigger(fp!(100));
 
@@ -1208,6 +1226,12 @@ async fn place_order_fails_same_order_twice(
     // Test
     // ---------------------------------------------------------------------
 
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(fp!(100));
     borrower_mfi_account_f
@@ -1251,6 +1275,12 @@ async fn close_order_success_authority(
         liability_borrow,
     )
     .await?;
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
@@ -1309,6 +1339,12 @@ async fn keeper_close_order_success_after_clearing_side(
     )
     .await?;
 
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
@@ -1348,6 +1384,93 @@ async fn keeper_close_order_success_after_clearing_side(
 }
 
 #[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, fp!(80))]
+#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
+#[tokio::test]
+async fn keeper_can_close_order_after_marginfi_account_closed(
+    asset_mint: BankMint,
+    asset_deposit: f64,
+    liability_mint: BankMint,
+    liability_borrow: f64,
+    trigger_threshold: I80F48,
+) -> anyhow::Result<()> {
+    // ---------------------------------------------------------------------
+    // Setup
+    // ---------------------------------------------------------------------
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let asset_bank_f = test_f.get_bank(&asset_mint);
+    let liability_bank_f = test_f.get_bank(&liability_mint);
+
+    let borrower_mfi_account_f = create_borrower_with_positions(
+        &test_f,
+        asset_bank_f,
+        asset_deposit,
+        liability_bank_f,
+        liability_borrow,
+    )
+    .await?;
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
+    let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
+    let trigger = stop_loss_trigger(trigger_threshold);
+    let order_pda = borrower_mfi_account_f
+        .try_place_order(bank_keys.clone(), trigger)
+        .await?;
+
+    // Verify order exists
+    let order_before = test_f.try_load(&order_pda).await?;
+    assert!(order_before.is_some(), "order should exist before cleanup");
+
+    // Clear balances
+
+    let repay_account = liability_bank_f
+        .mint
+        .create_token_account_and_mint_to(liability_borrow * 2.0)
+        .await;
+    borrower_mfi_account_f
+        .try_bank_repay(repay_account.key, liability_bank_f, 0.0, Some(true))
+        .await?;
+
+    let withdraw_destination = asset_bank_f.mint.create_empty_token_account().await;
+    borrower_mfi_account_f
+        .try_bank_withdraw(withdraw_destination.key, asset_bank_f, 0.0, Some(true))
+        .await?;
+
+    let marginfi_account_after = borrower_mfi_account_f.load().await;
+    let active_balances = marginfi_account_after
+        .lending_account
+        .balances
+        .iter()
+        .filter(|b| b.is_active())
+        .count();
+    assert_eq!(active_balances, 0, "all balances should be closed");
+
+    borrower_mfi_account_f.try_close_account(1).await?;
+
+    // ---------------------------------------------------------------------
+    // Test
+    // ---------------------------------------------------------------------
+
+    let keeper = Keypair::new();
+    fund_keeper_for_fees(&test_f, &keeper).await?;
+    let fee_recipient = keeper.pubkey();
+
+    borrower_mfi_account_f
+        .try_keeper_close_order(order_pda, &keeper, fee_recipient)
+        .await?;
+
+    let order_after = test_f.try_load(&order_pda).await?;
+    assert!(order_after.is_none(), "order should be closed by keeper");
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
 #[test_case(BankMint::Fixed, 150.0, BankMint::Sol, 20.0, fp!(80))]
 #[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
 #[tokio::test]
@@ -1374,6 +1497,12 @@ async fn keeper_close_order_fails_active_tags(
         liability_borrow,
     )
     .await?;
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
@@ -1430,6 +1559,12 @@ async fn set_liquidator_close_order_flags_success(
         liability_borrow,
     )
     .await?;
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
@@ -1498,6 +1633,12 @@ async fn keeper_close_order_success_after_set_flags(
         liability_borrow,
     )
     .await?;
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
     let trigger = stop_loss_trigger(trigger_threshold);
