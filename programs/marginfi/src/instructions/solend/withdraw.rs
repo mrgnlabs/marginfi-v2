@@ -11,8 +11,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        assert_within_one_token, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
-        is_solend_asset_tag, validate_bank_state, InstructionKind,
+        assert_within_one_token, fetch_asset_price_for_bank_low_bias,
+        fetch_unbiased_price_for_bank, is_solend_asset_tag, validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
 };
