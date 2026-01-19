@@ -45,7 +45,7 @@ describe("d07: Drift Deposit Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftUsdcBank);
     const [userUsdcBefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.usdcAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
@@ -80,7 +80,7 @@ describe("d07: Drift Deposit Tests", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
@@ -121,7 +121,7 @@ describe("d07: Drift Deposit Tests", () => {
 
     const driftUserAfterSecondDeposit = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const scaledBalanceAfterSecondDeposit =
       driftUserAfterSecondDeposit.spotPositions[0].scaledBalance;
@@ -143,7 +143,7 @@ describe("d07: Drift Deposit Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftUsdcBank);
     const driftUserBefore = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
@@ -166,7 +166,7 @@ describe("d07: Drift Deposit Tests", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const spotPositionAfter = driftUserAfter.spotPositions[0];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
@@ -219,7 +219,7 @@ describe("d07: Drift Deposit Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const [userTokenABefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[1]; // non-USDC -> position 1
@@ -255,7 +255,7 @@ describe("d07: Drift Deposit Tests", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     // Token A (market 1) uses position[1]
     const spotPositionAfter = driftUserAfter.spotPositions[1];

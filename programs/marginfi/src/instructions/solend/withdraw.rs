@@ -69,8 +69,8 @@ pub fn solend_withdraw<'info>(
     withdraw_all: Option<bool>,
 ) -> MarginfiResult {
     validate_solend_obligation(
-        ctx.accounts.solend_obligation.as_ref(),
-        ctx.accounts.solend_reserve.key(),
+        ctx.accounts.integration_acc_2.as_ref(),
+        ctx.accounts.integration_acc_1.key(),
     )?;
 
     let withdraw_all = withdraw_all.unwrap_or(false);
@@ -137,14 +137,14 @@ pub fn solend_withdraw<'info>(
 
     // Get initial obligation data to verify withdrawal amount later
     let initial_obligation_deposited_amount =
-        get_solend_obligation_deposit_amount(&ctx.accounts.solend_obligation)?;
+        get_solend_obligation_deposit_amount(&ctx.accounts.integration_acc_2)?;
 
     // Get initial values to verify successful withdrawal later
     let pre_transfer_vault_balance =
         accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
     let expected_liquidity_amount = ctx
         .accounts
-        .solend_reserve
+        .integration_acc_1
         .load()?
         .collateral_to_liquidity(collateral_amount)?;
 
@@ -153,7 +153,7 @@ pub fn solend_withdraw<'info>(
 
     // Verify the obligation deposit amount decreased by the correct amount
     let final_obligation_deposited_amount =
-        get_solend_obligation_deposit_amount(&ctx.accounts.solend_obligation)?;
+        get_solend_obligation_deposit_amount(&ctx.accounts.integration_acc_2)?;
     let obligation_collateral_change =
         initial_obligation_deposited_amount - final_obligation_deposited_amount;
     assert_within_one_token(
@@ -255,8 +255,8 @@ pub struct SolendWithdraw<'info> {
         mut,
         has_one = group @ MarginfiError::InvalidGroup,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
-        has_one = solend_reserve @ MarginfiError::InvalidSolendReserve,
-        has_one = solend_obligation @ MarginfiError::InvalidSolendObligation,
+        has_one = integration_acc_1 @ MarginfiError::InvalidSolendReserve,
+        has_one = integration_acc_2 @ MarginfiError::InvalidSolendObligation,
         has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_solend_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForSolendOperation,
@@ -292,9 +292,9 @@ pub struct SolendWithdraw<'info> {
     /// CHECK: Validated in instruction body
     #[account(
         mut,
-        constraint = solend_obligation.owner == &SOLEND_PROGRAM_ID @ MarginfiError::InvalidSolendAccount
+        constraint = integration_acc_2.owner == &SOLEND_PROGRAM_ID @ MarginfiError::InvalidSolendAccount
     )]
-    pub solend_obligation: UncheckedAccount<'info>,
+    pub integration_acc_2: UncheckedAccount<'info>,
 
     /// CHECK: validated by the Solend program
     #[account(mut)]
@@ -307,9 +307,9 @@ pub struct SolendWithdraw<'info> {
     /// The Solend reserve that holds liquidity
     #[account(
         mut,
-        constraint = !solend_reserve.load()?.is_stale()? @ MarginfiError::SolendReserveStale
+        constraint = !integration_acc_1.load()?.is_stale()? @ MarginfiError::SolendReserveStale
     )]
-    pub solend_reserve: AccountLoader<'info, SolendMinimalReserve>,
+    pub integration_acc_1: AccountLoader<'info, SolendMinimalReserve>,
 
     /// Bank's liquidity token mint (e.g., USDC)
     pub mint: Box<InterfaceAccount<'info, Mint>>,
@@ -351,8 +351,8 @@ impl<'info> SolendWithdraw<'info> {
         let accounts = WithdrawObligationCollateralAndRedeemReserveCollateral {
             source_collateral_info: self.reserve_collateral_supply.to_account_info(),
             destination_collateral_info: self.user_collateral.to_account_info(),
-            reserve_info: self.solend_reserve.to_account_info(),
-            obligation_info: self.solend_obligation.to_account_info(),
+            reserve_info: self.integration_acc_1.to_account_info(),
+            obligation_info: self.integration_acc_2.to_account_info(),
             lending_market_info: self.lending_market.to_account_info(),
             lending_market_authority_info: self.lending_market_authority.to_account_info(),
             destination_liquidity_info: self.liquidity_vault.to_account_info(),
@@ -361,7 +361,7 @@ impl<'info> SolendWithdraw<'info> {
             obligation_owner_info: self.liquidity_vault_authority.to_account_info(),
             user_transfer_authority_info: self.liquidity_vault_authority.to_account_info(),
             token_program_info: self.token_program.to_account_info(),
-            deposit_reserve_info: self.solend_reserve.to_account_info(),
+            deposit_reserve_info: self.integration_acc_1.to_account_info(),
         };
         let signer_seeds: &[&[&[u8]]] =
             bank_signer!(BankVaultType::Liquidity, self.bank.key(), authority_bump);

@@ -288,7 +288,7 @@ export const makeDepositIx = async (
 
 interface AdminDepositAccounts {
   admin: PublicKey;
-  driftUser: PublicKey; // The drift user account to deposit into
+  integrationAcc2: PublicKey; // The drift user account to deposit into
   adminTokenAccount: PublicKey; // Admin's token account (source of funds)
 }
 
@@ -346,7 +346,7 @@ export const makeAdminDepositIx = async (
   // 6. token_program
   const keys = [
     { pubkey: driftState, isSigner: false, isWritable: false }, // state
-    { pubkey: accounts.driftUser, isSigner: false, isWritable: true }, // user
+    { pubkey: accounts.integrationAcc2, isSigner: false, isWritable: true }, // user
     { pubkey: accounts.admin, isSigner: true, isWritable: false }, // admin (signer)
     { pubkey: spotMarketVault, isSigner: false, isWritable: true }, // spot_market_vault
     { pubkey: accounts.adminTokenAccount, isSigner: false, isWritable: true }, // admin_token_account

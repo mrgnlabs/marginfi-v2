@@ -126,7 +126,7 @@ export interface AddKaminoBankAccounts {
   group: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
-  kaminoReserve: PublicKey;
+  integrationAcc1: PublicKey;
   kaminoMarket: PublicKey;
   oracle: PublicKey;
   tokenProgram?: PublicKey;
@@ -159,7 +159,7 @@ export const makeAddKaminoBankIx = (
     isWritable: false,
   };
   const reserveMeta: AccountMeta = {
-    pubkey: accounts.kaminoReserve,
+    pubkey: accounts.integrationAcc1,
     isSigner: false,
     isWritable: false,
   };
@@ -182,7 +182,7 @@ export const makeAddKaminoBankIx = (
   const ix = program.methods
     .lendingPoolAddBankKamino(args.config, args.seed)
     .accounts({
-      kaminoObligation,
+      integrationAcc2: kaminoObligation,
       tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
       ...accounts,
     })

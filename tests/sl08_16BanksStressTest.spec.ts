@@ -134,7 +134,7 @@ describe("sl08: 16 Banks Stress Test", () => {
             group: throwawayGroup.publicKey,
             feePayer: groupAdmin.wallet.publicKey,
             bankMint: config.mint,
-            solendReserve: solendAccounts.get(config.reserve)!,
+            integrationAcc1: solendAccounts.get(config.reserve)!,
             solendMarket: solendAccounts.get(SOLEND_MARKET)!,
             oracle: config.oracle,
           },

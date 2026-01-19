@@ -126,7 +126,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
         group: solendGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
-        solendReserve: solendAccounts.get(SOLEND_USDC_RESERVE)!,
+        integrationAcc1: solendAccounts.get(SOLEND_USDC_RESERVE)!,
         solendMarket: solendAccounts.get(SOLEND_MARKET)!,
         oracle: oracles.usdcOracle.publicKey,
       },
@@ -157,13 +157,13 @@ describe("sl05: Solend - MarginFi Integration", () => {
     assert.equal(bank.mintDecimals, ecosystem.usdcDecimals);
     assertKeysEqual(bank.config.oracleKeys[0], oracles.usdcOracle.publicKey);
     assertKeysEqual(bank.config.oracleKeys[1], usdcReserve);
-    assertKeysEqual(bank.solendReserve, usdcReserve);
+    assertKeysEqual(bank.integrationAcc1, usdcReserve);
 
     const [expectedObligation] = deriveSolendObligation(
       bankrunProgram.programId,
       usdcBank
     );
-    assertKeysEqual(bank.solendObligation, expectedObligation);
+    assertKeysEqual(bank.integrationAcc2, expectedObligation);
     assert.ok(Object.keys(bank.config.oracleSetup).includes("solendPythPull"));
   });
 
@@ -187,7 +187,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
         group: solendGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.tokenAMint.publicKey,
-        solendReserve: solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!,
+        integrationAcc1: solendAccounts.get(SOLEND_TOKEN_A_RESERVE)!,
         solendMarket: solendAccounts.get(SOLEND_MARKET)!,
         oracle: oracles.tokenAOracle.publicKey,
       },
@@ -218,13 +218,13 @@ describe("sl05: Solend - MarginFi Integration", () => {
     assert.equal(bank.mintDecimals, ecosystem.tokenADecimals);
     assertKeysEqual(bank.config.oracleKeys[0], oracles.tokenAOracle.publicKey);
     assertKeysEqual(bank.config.oracleKeys[1], tokenAReserve);
-    assertKeysEqual(bank.solendReserve, tokenAReserve);
+    assertKeysEqual(bank.integrationAcc1, tokenAReserve);
 
     const [expectedTokenAObligation] = deriveSolendObligation(
       bankrunProgram.programId,
       tokenABank
     );
-    assertKeysEqual(bank.solendObligation, expectedTokenAObligation);
+    assertKeysEqual(bank.integrationAcc2, expectedTokenAObligation);
     assert.ok(Object.keys(bank.config.oracleSetup).includes("solendPythPull"));
   });
 
@@ -239,7 +239,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
         group: solendGroup.publicKey,
         feePayer: userA.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
-        solendReserve: solendAccounts.get(SOLEND_USDC_RESERVE)!,
+        integrationAcc1: solendAccounts.get(SOLEND_USDC_RESERVE)!,
         solendMarket: solendAccounts.get(SOLEND_MARKET)!,
         oracle: oracles.usdcOracle.publicKey,
       },
@@ -439,7 +439,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
       bankrunProgram.programId,
       usdcBank
     );
-    assertKeysEqual(bank.solendObligation, expectedObligation);
+    assertKeysEqual(bank.integrationAcc2, expectedObligation);
     assertI80F48Equal(bank.totalAssetShares, 0);
     const obligationAccount = await bankrunContext.banksClient.getAccount(
       expectedObligation
@@ -570,7 +570,7 @@ describe("sl05: Solend - MarginFi Integration", () => {
       bankrunProgram.programId,
       tokenABank
     );
-    assertKeysEqual(bank.solendObligation, expectedTokenAObligation);
+    assertKeysEqual(bank.integrationAcc2, expectedTokenAObligation);
     assertI80F48Equal(bank.totalAssetShares, 0);
 
     const obligationAccount = await bankrunContext.banksClient.getAccount(

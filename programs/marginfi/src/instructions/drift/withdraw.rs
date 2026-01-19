@@ -91,8 +91,8 @@ pub fn drift_withdraw<'info>(
             I80F48::ZERO
         };
 
-        let drift_spot_market = ctx.accounts.drift_spot_market.load()?;
-        market_index = drift_spot_market.market_index;
+        let integration_acc_1 = ctx.accounts.integration_acc_1.load()?;
+        market_index = integration_acc_1.market_index;
 
         let mut bank_account = BankAccountWrapper::find(
             &ctx.accounts.bank.key(),
@@ -103,9 +103,9 @@ pub fn drift_withdraw<'info>(
         let (token_amount, expected_scaled_balance_change) = if withdraw_all {
             let scaled_balance = bank_account.withdraw_all()?;
 
-            let mut token_amount = drift_spot_market.get_withdraw_token_amount(scaled_balance)?;
+            let mut token_amount = integration_acc_1.get_withdraw_token_amount(scaled_balance)?;
             let mut expected_scaled_balance_change =
-                drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+                integration_acc_1.get_scaled_balance_decrement(token_amount)?;
 
             // If rounding would require more scaled balance than we have, reduce the withdraw
             // amount by 1 base unit to keep the init deposit buffer intact. In practice, this means
@@ -114,7 +114,7 @@ pub fn drift_withdraw<'info>(
             if expected_scaled_balance_change == scaled_balance + 1 && token_amount > 0 {
                 token_amount = token_amount.saturating_sub(1);
                 expected_scaled_balance_change =
-                    drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+                    integration_acc_1.get_scaled_balance_decrement(token_amount)?;
             }
 
             // Sanity check
@@ -126,7 +126,7 @@ pub fn drift_withdraw<'info>(
 
             (token_amount, expected_scaled_balance_change)
         } else {
-            let mut scaled_decrement = drift_spot_market.get_scaled_balance_decrement(amount)?;
+            let mut scaled_decrement = integration_acc_1.get_scaled_balance_decrement(amount)?;
             let mut token_amount = amount;
 
             let asset_shares_i80f48: I80F48 = bank_account.balance.asset_shares.into();
@@ -148,8 +148,8 @@ pub fn drift_withdraw<'info>(
             if scaled_decrement > asset_shares + 1 {
                 return Err(error!(MarginfiError::OperationWithdrawOnly));
             } else if scaled_decrement == asset_shares + 1 {
-                token_amount = drift_spot_market.get_withdraw_token_amount(asset_shares)?;
-                scaled_decrement = drift_spot_market.get_scaled_balance_decrement(token_amount)?;
+                token_amount = integration_acc_1.get_withdraw_token_amount(asset_shares)?;
+                scaled_decrement = integration_acc_1.get_scaled_balance_decrement(token_amount)?;
             }
 
             bank_account.withdraw(I80F48::from_num(scaled_decrement))?;
@@ -179,8 +179,8 @@ pub fn drift_withdraw<'info>(
         0
     } else {
         let initial_scaled_balance = {
-            let drift_user = ctx.accounts.drift_user.load()?;
-            drift_user.get_scaled_balance(market_index)
+            let integration_acc_2 = ctx.accounts.integration_acc_2.load()?;
+            integration_acc_2.get_scaled_balance(market_index)
         };
         let pre_transfer_vault_balance =
             accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
@@ -189,8 +189,8 @@ pub fn drift_withdraw<'info>(
             .cpi_drift_withdraw(market_index, token_amount, authority_bump)?;
 
         let final_scaled_balance = {
-            let drift_user = ctx.accounts.drift_user.load()?;
-            drift_user.get_scaled_balance(market_index)
+            let integration_acc_2 = ctx.accounts.integration_acc_2.load()?;
+            integration_acc_2.get_scaled_balance(market_index)
         };
         let post_transfer_vault_balance =
             accessor::amount(&ctx.accounts.liquidity_vault.to_account_info())?;
@@ -294,9 +294,9 @@ pub struct DriftWithdraw<'info> {
         mut,
         has_one = group @ MarginfiError::InvalidGroup,
         has_one = liquidity_vault @ MarginfiError::InvalidLiquidityVault,
-        has_one = drift_spot_market @ MarginfiError::InvalidDriftSpotMarket,
-        has_one = drift_user @ MarginfiError::InvalidDriftUser,
-        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
+        has_one = integration_acc_1 @ MarginfiError::InvalidDriftSpotMarket,
+        has_one = integration_acc_2 @ MarginfiError::InvalidDriftUser,
+        has_one = integration_acc_3 @ MarginfiError::InvalidDriftUserStats,
         has_one = mint @ MarginfiError::InvalidMint,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation,
@@ -341,33 +341,33 @@ pub struct DriftWithdraw<'info> {
     #[account(
         mut,
         constraint = {
-            let user = drift_user.load()?;
-            let spot_market = drift_spot_market.load()?;
+            let user = integration_acc_2.load()?;
+            let spot_market = integration_acc_1.load()?;
             user.validate_spot_position(spot_market.market_index).is_ok()
         } @ MarginfiError::DriftInvalidSpotPositions,
         constraint = {
-            let user = drift_user.load()?;
+            let user = integration_acc_2.load()?;
             user.validate_reward_accounts(
                 drift_reward_spot_market.is_none(),
                 drift_reward_spot_market_2.is_none(),
             ).is_ok()
         } @ MarginfiError::DriftMissingRewardAccounts,
-        constraint = drift_user.load()?.validate_not_bricked_by_admin_deposits().is_ok() @ MarginfiError::DriftBrickedAccount
+        constraint = integration_acc_2.load()?.validate_not_bricked_by_admin_deposits().is_ok() @ MarginfiError::DriftBrickedAccount
     )]
-    pub drift_user: AccountLoader<'info, MinimalUser>,
+    pub integration_acc_2: AccountLoader<'info, MinimalUser>,
 
     /// The Drift user stats account owned by liquidity_vault_authority
     /// CHECK: validated by the Drift program
     #[account(mut)]
-    pub drift_user_stats: UncheckedAccount<'info>,
+    pub integration_acc_3: UncheckedAccount<'info>,
 
     /// The Drift spot market for this asset
     #[account(
         mut,
-        constraint = drift_spot_market.load()?.mint == mint.key()
+        constraint = integration_acc_1.load()?.mint == mint.key()
             @ MarginfiError::DriftSpotMarketMintMismatch
     )]
-    pub drift_spot_market: AccountLoader<'info, drift_mocks::state::MinimalSpotMarket>,
+    pub integration_acc_1: AccountLoader<'info, drift_mocks::state::MinimalSpotMarket>,
 
     /// The Drift spot market vault that holds tokens
     /// CHECK: validated by the Drift program
@@ -417,7 +417,7 @@ impl<'info> DriftWithdraw<'info> {
     pub fn cpi_update_spot_market_cumulative_interest(&self) -> MarginfiResult {
         let accounts = UpdateSpotMarketCumulativeInterest {
             state: self.drift_state.to_account_info(),
-            spot_market: self.drift_spot_market.to_account_info(),
+            spot_market: self.integration_acc_1.to_account_info(),
             oracle: self
                 .drift_oracle
                 .as_ref()
@@ -441,8 +441,8 @@ impl<'info> DriftWithdraw<'info> {
     ) -> MarginfiResult {
         let accounts = Withdraw {
             state: self.drift_state.to_account_info(),
-            user: self.drift_user.to_account_info(),
-            user_stats: self.drift_user_stats.to_account_info(),
+            user: self.integration_acc_2.to_account_info(),
+            user_stats: self.integration_acc_3.to_account_info(),
             authority: self.liquidity_vault_authority.to_account_info(),
             spot_market_vault: self.drift_spot_market_vault.to_account_info(),
             drift_signer: self.drift_signer.to_account_info(),
@@ -482,7 +482,7 @@ impl<'info> DriftWithdraw<'info> {
         }
 
         // Always add main spot market account
-        remaining_accounts.push(self.drift_spot_market.to_account_info());
+        remaining_accounts.push(self.integration_acc_1.to_account_info());
 
         // Add first reward spot market if provided (for admin deposits)
         if let Some(reward_spot_market) = &self.drift_reward_spot_market {

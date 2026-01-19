@@ -30,9 +30,9 @@ pub fn lending_pool_add_bank_drift(
     let LendingPoolAddBankDrift {
         bank_mint,
         bank: bank_loader,
-        drift_spot_market: spot_market_loader,
-        drift_user,
-        drift_user_stats,
+        integration_acc_1: spot_market_loader,
+        integration_acc_2,
+        integration_acc_3,
         ..
     } = ctx.accounts;
 
@@ -81,9 +81,9 @@ pub fn lending_pool_add_bank_drift(
     );
 
     // Set Drift-specific fields
-    bank.drift_spot_market = spot_market_key;
-    bank.drift_user = drift_user.key();
-    bank.drift_user_stats = drift_user_stats.key();
+    bank.integration_acc_1 = spot_market_key;
+    bank.integration_acc_2 = integration_acc_2.key();
+    bank.integration_acc_3 = integration_acc_3.key();
 
     log_pool_info(&bank);
 
@@ -119,7 +119,7 @@ pub struct LendingPoolAddBankDrift<'info> {
     #[account(mut)]
     pub fee_payer: Signer<'info>,
 
-    /// Must match the mint used by `drift_spot_market`
+    /// Must match the mint used by `integration_acc_1`
     pub bank_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
@@ -137,10 +137,10 @@ pub struct LendingPoolAddBankDrift<'info> {
 
     /// Drift spot market account that must match the bank mint
     #[account(
-        constraint = drift_spot_market.load()?.mint == bank_mint.key()
+        constraint = integration_acc_1.load()?.mint == bank_mint.key()
             @ MarginfiError::DriftSpotMarketMintMismatch,
     )]
-    pub drift_spot_market: AccountLoader<'info, MinimalSpotMarket>,
+    pub integration_acc_1: AccountLoader<'info, MinimalSpotMarket>,
 
     /// Drift user account for the marginfi program (derived from liquidity_vault_authority)
     #[account(
@@ -152,7 +152,7 @@ pub struct LendingPoolAddBankDrift<'info> {
         bump,
         seeds::program = DRIFT_PROGRAM_ID
     )]
-    pub drift_user: SystemAccount<'info>,
+    pub integration_acc_2: SystemAccount<'info>,
 
     /// Drift user stats account for the marginfi program (derived from liquidity_vault_authority)
     #[account(
@@ -163,7 +163,7 @@ pub struct LendingPoolAddBankDrift<'info> {
         bump,
         seeds::program = DRIFT_PROGRAM_ID
     )]
-    pub drift_user_stats: SystemAccount<'info>,
+    pub integration_acc_3: SystemAccount<'info>,
 
     /// Will be authority of the bank's liquidity vault. Used as intermediary for deposits/withdraws
     #[account(

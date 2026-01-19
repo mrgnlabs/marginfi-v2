@@ -44,8 +44,8 @@ pub fn drift_harvest_reward<'info>(
 #[derive(Accounts)]
 pub struct DriftHarvestReward<'info> {
     #[account(
-        has_one = drift_user @ MarginfiError::InvalidDriftUser,
-        has_one = drift_user_stats @ MarginfiError::InvalidDriftUserStats,
+        has_one = integration_acc_2 @ MarginfiError::InvalidDriftUser,
+        has_one = integration_acc_3 @ MarginfiError::InvalidDriftUserStats,
         constraint = is_drift_asset_tag(bank.load()?.config.asset_tag)
             @ MarginfiError::WrongBankAssetTagForDriftOperation
     )]
@@ -94,24 +94,24 @@ pub struct DriftHarvestReward<'info> {
     #[account(
         mut,
         constraint = {
-            let user = drift_user.load()?;
+            let user = integration_acc_2.load()?;
             user.has_admin_deposit(harvest_drift_spot_market.load()?.market_index).is_ok()
         } @ MarginfiError::DriftNoAdminDeposit
     )]
-    pub drift_user: AccountLoader<'info, MinimalUser>,
+    pub integration_acc_2: AccountLoader<'info, MinimalUser>,
 
     /// CHECK: Validated in cpi
     #[account(mut)]
-    pub drift_user_stats: UncheckedAccount<'info>,
+    pub integration_acc_3: UncheckedAccount<'info>,
 
-    /// The harvest spot market - MUST be different from bank's drift_spot_market
+    /// The harvest spot market - MUST be different from bank's Drift spot market (integration_acc_1)
     /// This is the market that contains admin deposits to harvest
     #[account(
         mut,
         owner = DRIFT_PROGRAM_ID,
         constraint = harvest_drift_spot_market.load()?.mint != bank.load()?.mint
             @ MarginfiError::DriftSpotMarketMintMismatch,
-        constraint = harvest_drift_spot_market.key() != bank.load()?.drift_spot_market
+        constraint = harvest_drift_spot_market.key() != bank.load()?.integration_acc_1
             @ MarginfiError::DriftHarvestSameMarket,
     )]
     pub harvest_drift_spot_market: AccountLoader<'info, MinimalSpotMarket>,
@@ -144,8 +144,8 @@ impl<'info> DriftHarvestReward<'info> {
 
         let accounts = Withdraw {
             state: self.drift_state.to_account_info(),
-            user: self.drift_user.to_account_info(),
-            user_stats: self.drift_user_stats.to_account_info(),
+            user: self.integration_acc_2.to_account_info(),
+            user_stats: self.integration_acc_3.to_account_info(),
             authority: self.liquidity_vault_authority.to_account_info(),
             spot_market_vault: self.harvest_drift_spot_market_vault.to_account_info(),
             drift_signer: self.drift_signer.to_account_info(),

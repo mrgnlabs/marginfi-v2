@@ -649,7 +649,7 @@ export const defaultDriftBankConfig = (
   return config;
 };
 /**
- * Get Drift user account from a marginfi bank's drift_user field
+ * Get Drift user account from a marginfi bank's integration_acc_2 field
  *
  * @param program The Drift program
  * @param driftUserPubkey The drift user pubkey from the marginfi bank
@@ -1068,7 +1068,7 @@ export const compareDriftValuations = async (
   banksClient: BanksClient,
   marginfiAccount: PublicKey,
   driftBank: PublicKey,
-  driftUser: PublicKey,
+  integrationAcc2: PublicKey,
   oracleInfo: { oracle: PublicKey; symbol: string; decimals: number }
 ): Promise<{
   marginfiAssetShares: BN;
@@ -1448,7 +1448,7 @@ export const fundAndDepositAdminReward = async (
     driftBankrunProgram,
     {
       admin: driftAdmin.publicKey,
-      driftUser: bankAccount.driftUser,
+      integrationAcc2: bankAccount.integrationAcc2,
       adminTokenAccount: adminTokenAccount,
     },
     {

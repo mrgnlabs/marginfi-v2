@@ -1,7 +1,12 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { createMockAccount, Oracles, storeMockAccount } from "./mocks";
-import { ORACLE_CONF_INTERVAL } from "./types";
+import {
+  ASSET_TAG_DRIFT,
+  ASSET_TAG_KAMINO,
+  ASSET_TAG_SOLEND,
+  ORACLE_CONF_INTERVAL,
+} from "./types";
 import { Mocks } from "../../target/types/mocks";
 import { Marginfi } from "../../target/types/marginfi";
 import { Program, Wallet, workspace } from "@coral-xyz/anchor";
@@ -188,20 +193,20 @@ export async function debugPrintBankConfig(
     console.log(`Operational State: ${JSON.stringify(bank.config.operationalState)}`);
 
     // Check which type of bank it is
-    const isDrift = !bank.driftSpotMarket.equals(PublicKey.default);
-    const isSolend = !bank.solendReserve.equals(PublicKey.default);
-    const isKamino = !bank.kaminoReserve.equals(PublicKey.default);
+    const isDrift = bank.config.assetTag === ASSET_TAG_DRIFT;
+    const isSolend = bank.config.assetTag === ASSET_TAG_SOLEND;
+    const isKamino = bank.config.assetTag === ASSET_TAG_KAMINO;
 
     console.log(`Bank Type: ${isDrift ? 'Drift' : isSolend ? 'Solend' : isKamino ? 'Kamino' : 'Regular'}`);
 
     if (isDrift) {
-      console.log(`Drift Spot Market: ${bank.driftSpotMarket.toString()}`);
-      console.log(`Drift User: ${bank.driftUser.toString()}`);
+      console.log(`Drift Spot Market: ${bank.integrationAcc1.toString()}`);
+      console.log(`Drift User: ${bank.integrationAcc2.toString()}`);
     }
 
     if (isSolend) {
-      console.log(`Solend Reserve: ${bank.solendReserve.toString()}`);
-      console.log(`Solend Obligation: ${bank.solendObligation.toString()}`);
+      console.log(`Solend Reserve: ${bank.integrationAcc1.toString()}`);
+      console.log(`Solend Obligation: ${bank.integrationAcc2.toString()}`);
     }
 
     console.log(`========================================\n`);

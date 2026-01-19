@@ -1201,7 +1201,7 @@ impl MarginfiAccountFixture {
         let bank = bank.load().await;
 
         let accounts = kamino::accounts::RefreshReserve {
-            reserve: bank.kamino_reserve,
+            reserve: bank.integration_acc_1,
             lending_market: reserve.lending_market,
             pyth_oracle: None,
             switchboard_price_oracle: None,
@@ -1222,7 +1222,7 @@ impl MarginfiAccountFixture {
         let bank = bank.load().await;
 
         let accounts = kamino::accounts::RefreshObligation {
-            obligation: bank.kamino_obligation,
+            obligation: bank.integration_acc_2,
             lending_market: obligation.lending_market,
         }
         .to_account_metas(Some(true));

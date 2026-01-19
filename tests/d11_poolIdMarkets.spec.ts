@@ -225,7 +225,7 @@ describe("d11: Drift Pool ID Markets", () => {
           group: driftGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          driftSpotMarket: usdcPool2Market,
+          integrationAcc1: usdcPool2Market,
           oracle: oracles.usdcOracle.publicKey,
         },
         { config, seed }
@@ -246,7 +246,7 @@ describe("d11: Drift Pool ID Markets", () => {
       const bank = await groupAdmin.mrgnBankrunProgram.account.bank.fetch(
         bankKey
       );
-      assertKeysEqual(bank.driftSpotMarket, usdcPool2Market);
+      assertKeysEqual(bank.integrationAcc1, usdcPool2Market);
     });
 
     it("Add Drift bank for Token A (pool ID 3)", async () => {
@@ -266,7 +266,7 @@ describe("d11: Drift Pool ID Markets", () => {
           group: driftGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: tokenAPool3Market,
+          integrationAcc1: tokenAPool3Market,
           oracle: oracles.tokenAOracle.publicKey,
         },
         { config, seed }
@@ -287,7 +287,7 @@ describe("d11: Drift Pool ID Markets", () => {
       const bank = await groupAdmin.mrgnBankrunProgram.account.bank.fetch(
         bankKey
       );
-      assertKeysEqual(bank.driftSpotMarket, tokenAPool3Market);
+      assertKeysEqual(bank.integrationAcc1, tokenAPool3Market);
     });
   });
 
@@ -405,7 +405,7 @@ describe("d11: Drift Pool ID Markets", () => {
         usdcPool2Bank
       );
       const driftUserAccount = await driftBankrunProgram.account.user.fetch(
-        bankAccount.driftUser
+        bankAccount.integrationAcc2
       );
       assert.equal(driftUserAccount.poolId, POOL2_ID);
 
@@ -462,7 +462,7 @@ describe("d11: Drift Pool ID Markets", () => {
         tokenAPool3Bank
       );
       const driftUserAccount = await driftBankrunProgram.account.user.fetch(
-        bankAccount.driftUser
+        bankAccount.integrationAcc2
       );
       assert.equal(driftUserAccount.poolId, POOL3_ID);
 

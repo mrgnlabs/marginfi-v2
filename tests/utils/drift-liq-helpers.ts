@@ -77,7 +77,7 @@ export interface DriftLiqEnv {
   // Core context
   group: PublicKey;
   throwawayGroup: Keypair;
-  driftSpotMarket: PublicKey;
+  integrationAcc1: PublicKey;
   driftOracle: PublicKey;
   tokenMint: PublicKey;
 
@@ -160,7 +160,7 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
           group: throwawayGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: driftSpotMarket,
+          integrationAcc1: driftSpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         { config: defaultConfig, seed }
@@ -712,7 +712,7 @@ async function createAndExtendLUT(
   driftBanks: PublicKey[],
   regularBanks: PublicKey[],
   liabBank: PublicKey,
-  driftSpotMarket: PublicKey
+  integrationAcc1: PublicKey
 ): Promise<PublicKey> {
   const recentSlot = Number(await banksClient.getSlot());
   const [createLutIx, lutAddress] = AddressLookupTableProgram.createLookupTable(

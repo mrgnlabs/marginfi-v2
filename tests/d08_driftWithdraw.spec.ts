@@ -55,7 +55,7 @@ describe("d08: Drift Withdraw Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftUsdcBank);
     const [userUsdcBefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.usdcAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
@@ -94,7 +94,7 @@ describe("d08: Drift Withdraw Tests", () => {
     );
     const [userUsdcAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.usdcAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     const amountReceived = new BN(userUsdcAfter - userUsdcBefore);
 
@@ -118,7 +118,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userUsdcBefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.usdcAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
@@ -151,7 +151,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userUsdcAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.usdcAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     const amountReceived = new BN(userUsdcAfter - userUsdcBefore);
     // Note: withdraw_all loses 1 lamport to preserve drift's rounding
@@ -186,7 +186,7 @@ describe("d08: Drift Withdraw Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const [userTokenABefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
@@ -235,7 +235,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userTokenAAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     assertBNEqual(amount, userTokenAAfter - userTokenABefore);
 
@@ -303,7 +303,7 @@ describe("d08: Drift Withdraw Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const [userTokenABefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[0];
@@ -342,7 +342,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userTokenAAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     assertBNEqual(new BN(userTokenAAfter), new BN(userTokenABefore));
     const spotPositionAfter = driftUserAfter.spotPositions[0];
@@ -362,9 +362,9 @@ describe("d08: Drift Withdraw Tests", () => {
       driftUserBefore,
     ] = await Promise.all([
       bankrunProgram.account.marginfiAccount.fetch(marginfiAccount),
-      driftBankrunProgram.account.spotMarket.fetch(bank.driftSpotMarket),
+      driftBankrunProgram.account.spotMarket.fetch(bank.integrationAcc1),
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const marginfiBalanceBefore =
@@ -419,7 +419,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userTokenAAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     assertBNEqual(maxTokenAmount, userTokenAAfter - userTokenABefore);
 
@@ -464,7 +464,7 @@ describe("d08: Drift Withdraw Tests", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const [userTokenABefore, driftUserBefore] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
 
     const spotPositionBefore = driftUserBefore.spotPositions[1];
@@ -497,7 +497,7 @@ describe("d08: Drift Withdraw Tests", () => {
 
     const [userTokenAAfter, driftUserAfter] = await Promise.all([
       getTokenBalance(bankRunProvider, user.tokenAAccount),
-      getDriftUserAccount(driftBankrunProgram, bank.driftUser),
+      getDriftUserAccount(driftBankrunProgram, bank.integrationAcc2),
     ]);
     const amountReceived = new BN(userTokenAAfter - userTokenABefore);
 

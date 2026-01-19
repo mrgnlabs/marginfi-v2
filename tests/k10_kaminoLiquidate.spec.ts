@@ -58,7 +58,7 @@ let ctx: ProgramTestContext;
 let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 let kaminoUsdcBank: PublicKey;
-let kaminoObligation: PublicKey;
+let integrationAcc2: PublicKey;
 let mrgnID: PublicKey;
 
 const seedAmountLst = new BN(5 * 10 ** ecosystem.lstAlphaDecimals);
@@ -102,7 +102,7 @@ describe("k10: Kamino Liquidation", () => {
           group: throwawayGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          kaminoReserve: usdcReserve,
+          integrationAcc1: usdcReserve,
           kaminoMarket: market,
           oracle: oracles.usdcOracle.publicKey,
         },

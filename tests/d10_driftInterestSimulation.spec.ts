@@ -121,7 +121,7 @@ describe("d10: Drift Interest Simulation", () => {
         group: driftGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.usdcMint.publicKey,
-        driftSpotMarket: driftAccounts.get(DRIFT_USDC_SPOT_MARKET),
+        integrationAcc1: driftAccounts.get(DRIFT_USDC_SPOT_MARKET),
         oracle: oracles.usdcOracle.publicKey,
       },
       {
@@ -142,7 +142,7 @@ describe("d10: Drift Interest Simulation", () => {
         group: driftGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.tokenAMint.publicKey,
-        driftSpotMarket: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
+        integrationAcc1: driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
         oracle: oracles.tokenAOracle.publicKey,
       },
       {
@@ -339,7 +339,7 @@ describe("d10: Drift Interest Simulation", () => {
         const balanceOracle = balanceBank.config.oracleKeys[0];
 
         if (balanceBank.config.assetTag === ASSET_TAG_DRIFT) {
-          const driftSpotMarket = balanceBank.driftSpotMarket;
+          const driftSpotMarket = balanceBank.integrationAcc1;
           activePositions.push([
             balance.bankPk,
             balanceOracle,
@@ -423,7 +423,7 @@ describe("d10: Drift Interest Simulation", () => {
         const balanceOracle = balanceBank.config.oracleKeys[0];
 
         if (balanceBank.config.assetTag === ASSET_TAG_DRIFT) {
-          const driftSpotMarket = balanceBank.driftSpotMarket;
+          const driftSpotMarket = balanceBank.integrationAcc1;
           activePositions.push([
             balance.bankPk,
             balanceOracle,
@@ -706,7 +706,7 @@ describe("d10: Drift Interest Simulation", () => {
       const bank = await bankrunProgram.account.bank.fetch(bankInfo.bank);
       const driftUser = await getDriftUserAccount(
         driftBankrunProgram,
-        bank.driftUser
+        bank.integrationAcc2
       );
       const spotPosition = driftUser.spotPositions[0];
       const scaledBalance = spotPosition.scaledBalance;
