@@ -11,8 +11,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        assert_within_one_token, fetch_asset_price_for_bank_low_bias, is_solend_asset_tag,
-        validate_bank_state, InstructionKind,
+        assert_within_one_token, fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank,
+        is_solend_asset_tag, validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
 };
@@ -204,11 +204,14 @@ pub fn solend_withdraw<'info>(
         // Drop the bank mutable borrow before health check (bank is in remaining_accounts)
         drop(bank);
 
-        // Note: during liquidation, we skip all health checks until the end of the transaction.
-        if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
+
+        // Note: during liquidation, we skip all health checks until the end of the transaction,
+        // but we still update the price cache.
+        if !in_receivership {
             // Check account health, if below threshold fail transaction
             // Assuming `ctx.remaining_accounts` holds only oracle accounts
-            let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            let (risk_result, risk_engine) = RiskEngine::check_account_init_health(
                 &marginfi_account,
                 ctx.remaining_accounts,
                 &mut Some(&mut health_cache),
@@ -216,8 +219,26 @@ pub fn solend_withdraw<'info>(
             risk_result?;
             health_cache.program_version = PROGRAM_VERSION;
 
+            // Note: in flashloans, risk_engine is None, and we skip the cache price update.
+            let bank_loader = &ctx.accounts.bank;
+            if let Some(engine) = risk_engine {
+                if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
+                    bank_loader.load_mut()?.update_cache_price(Some(price))?;
+                }
+            }
+
             health_cache.set_engine_ok(true);
             marginfi_account.health_cache = health_cache;
+        } else {
+            // Note: the caller can simply omit risk accounts since the risk check is ignored here,
+            // that case the cache doesn't update and this does nothing.
+            let mut bank = ctx.accounts.bank.load_mut()?;
+            let clock = Clock::get()?;
+            let price_for_cache =
+                fetch_unbiased_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)
+                    .ok();
+
+            bank.update_cache_price(price_for_cache)?;
         }
     }
 
