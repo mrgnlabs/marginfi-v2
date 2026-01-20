@@ -41,7 +41,7 @@ const USER_ACCOUNT_THROWAWAY = "throwaway_account1";
 let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 
-describe("Limits on number of accounts when using Kamino", () => {
+describe("m01: Limits on number of accounts when using Kamino", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       MAX_BALANCES,

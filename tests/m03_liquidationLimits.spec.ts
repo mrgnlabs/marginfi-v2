@@ -13,6 +13,12 @@ import {
   MARKET,
   TOKEN_A_RESERVE,
   kaminoAccounts,
+  farmAccounts,
+  A_FARM_STATE,
+  FARMS_PROGRAM_ID,
+  driftAccounts,
+  DRIFT_TOKEN_A_PULL_ORACLE,
+  DRIFT_TOKEN_A_SPOT_MARKET,
 } from "./rootHooks";
 import { configureBank, setFixedPrice } from "./utils/group-instructions";
 import { getBankrunBlockhash } from "./utils/spl-staking-utils";
@@ -37,6 +43,10 @@ import {
 import { makeKaminoDepositIx } from "./utils/kamino-instructions";
 import { makeDriftDepositIx } from "./utils/drift-instructions";
 import { TOKEN_A_MARKET_INDEX } from "./utils/drift-utils";
+import {
+  deriveBaseObligation,
+  deriveLiquidityVaultAuthority,
+} from "./utils/pdas";
 
 const startingSeed: number = 42;
 const groupBuff = Buffer.from("MARGINFI_GROUP_SEED_1234000000M3");
@@ -51,10 +61,14 @@ const USER_ACCOUNT_THROWAWAY = "throwaway_account2";
 let banks: PublicKey[] = [];
 let kaminoBanks: PublicKey[] = [];
 let driftBanks: PublicKey[] = [];
-let kaminoMarket: PublicKey;
+let lendingMarket: PublicKey;
+let reserveFarmState: PublicKey;
 let tokenAReserve: PublicKey;
+let liquidateeRemainingAccounts: PublicKey[] = [];
+let liquidatorRemainingAccounts: PublicKey[] = [];
+let driftSpotMarket: PublicKey;
 
-describe("Limits on number of accounts when using Kamino and Drift", () => {
+describe("m03: Limits on number of accounts when using Kamino and Drift", () => {
   it("init group, init banks, and fund banks", async () => {
     const result = await genericMultiBankTestSetup(
       P0_BORROWS,
@@ -62,13 +76,15 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
       groupBuff,
       startingSeed,
       KAMINO_DEPOSITS,
-      DRIFT_DEPOSITS
+      DRIFT_DEPOSITS,
     );
     banks = result.banks;
     kaminoBanks = result.kaminoBanks;
     driftBanks = result.driftBanks;
-    kaminoMarket = kaminoAccounts.get(MARKET);
+    lendingMarket = kaminoAccounts.get(MARKET);
     tokenAReserve = kaminoAccounts.get(TOKEN_A_RESERVE);
+    reserveFarmState = farmAccounts.get(A_FARM_STATE);
+    driftSpotMarket = driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET);
   });
 
   it("Refresh oracles", async () => {
@@ -79,7 +95,7 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
       new BN(Number(clock.slot)),
       Number(clock.unixTimestamp),
       bankrunContext,
-      false
+      false,
     );
   });
 
@@ -88,79 +104,110 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const depositLstAmount = new BN(10 * 10 ** ecosystem.lstAlphaDecimals);
     const depositTokenAAmount = new BN(100 * 10 ** ecosystem.tokenADecimals);
-    // Note: This is about the max per TX without using LUTs.
-    const depositsPerTx = 3;
 
-    for (let i = 0; i < banks.length; i += depositsPerTx) {
-      const chunk = banks.slice(i, i + depositsPerTx);
+    const remainingAccounts: PublicKey[][] = [];
+    for (let i = 0; i < banks.length; i += 1) {
+      const bank = banks[i];
       const tx = new Transaction();
-      for (const bank of chunk) {
-        tx.add(
-          await depositIx(user.mrgnBankrunProgram, {
+      tx.add(
+        await depositIx(user.mrgnBankrunProgram, {
+          marginfiAccount,
+          bank,
+          tokenAccount: user.lstAlphaAccount,
+          amount: depositLstAmount,
+          depositUpToLimit: false,
+        }),
+      );
+      await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
+      remainingAccounts.push([bank, oracles.pythPullLst.publicKey]);
+    }
+
+    for (let i = 0; i < kaminoBanks.length; i += 1) {
+      const bank = kaminoBanks[i];
+      const tx = new Transaction();
+      const [lendingVaultAuthority] = deriveLiquidityVaultAuthority(
+        bankrunProgram.programId,
+        bank,
+      );
+      const [obligation] = deriveBaseObligation(
+        lendingVaultAuthority,
+        lendingMarket,
+      );
+      const [obligationFarmUserState] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user"),
+          reserveFarmState.toBuffer(),
+          obligation.toBuffer(),
+        ],
+        FARMS_PROGRAM_ID,
+      );
+
+      tx.add(
+        await simpleRefreshReserve(
+          klendBankrunProgram,
+          tokenAReserve,
+          lendingMarket,
+          oracles.tokenAOracle.publicKey,
+        ),
+        await simpleRefreshObligation(
+          klendBankrunProgram,
+          lendingMarket,
+          obligation,
+          [tokenAReserve],
+        ),
+        await makeKaminoDepositIx(
+          user.mrgnBankrunProgram,
+          {
             marginfiAccount,
             bank,
-            tokenAccount: user.lstAlphaAccount,
-            amount: depositLstAmount,
-            depositUpToLimit: false,
-          })
-        );
-      }
+            signerTokenAccount: user.tokenAAccount,
+            lendingMarket,
+            reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+            obligationFarmUserState,
+            reserveFarmState,
+          },
+          depositTokenAAmount,
+        ),
+      );
       await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
+      remainingAccounts.push([
+        bank,
+        oracles.tokenAOracle.publicKey,
+        tokenAReserve,
+      ]);
     }
 
-    for (let i = 0; i < kaminoBanks.length; i += depositsPerTx) {
-      const chunk = kaminoBanks.slice(i, i + depositsPerTx);
+    for (let i = 0; i < driftBanks.length; i += 1) {
+      const bank = driftBanks[i];
       const tx = new Transaction();
-      for (const bank of chunk) {
-        tx.add(
-          await simpleRefreshReserve(
-            klendBankrunProgram,
-            tokenAReserve,
-            kaminoMarket,
-            oracles.usdcOracle.publicKey
-          ),
-          //   // pass the USDC reserve since it's now part of the obligation
-          //   await simpleRefreshObligation(
-          //     klendBankrunProgram,
-          //     market,
-          //     usdcBankObligation,
-          //     [usdcReserve]
-          //   ),
-          await makeKaminoDepositIx(
-            user.mrgnBankrunProgram,
-            {
-              marginfiAccount,
-              bank,
-              signerTokenAccount: user.tokenAAccount,
-              lendingMarket: kaminoMarket,
-              reserveLiquidityMint: ecosystem.usdcMint.publicKey,
-            },
-            depositTokenAAmount
-          )
-        );
-      }
-      await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
+      tx.add(
+        await makeDriftDepositIx(
+          user.mrgnBankrunProgram,
+          {
+            marginfiAccount,
+            bank,
+            signerTokenAccount: user.tokenAAccount,
+            driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
+          },
+          depositTokenAAmount,
+          TOKEN_A_MARKET_INDEX,
+        ),
+      );
+      await processBankrunTransaction(
+        bankrunContext,
+        tx,
+        [user.wallet],
+        false,
+        true,
+      );
+      remainingAccounts.push([
+        bank,
+        oracles.tokenAOracle.publicKey,
+        driftSpotMarket,
+      ]);
     }
 
-    for (let i = 0; i < driftBanks.length; i += depositsPerTx) {
-      const chunk = driftBanks.slice(i, i + depositsPerTx);
-      const tx = new Transaction();
-      for (const bank of chunk) {
-        tx.add(
-          await makeDriftDepositIx(
-            user.mrgnBankrunProgram,
-            {
-              marginfiAccount,
-              bank,
-              signerTokenAccount: user.tokenAAccount,
-            },
-            depositTokenAAmount,
-            TOKEN_A_MARKET_INDEX
-          )
-        );
-      }
-      await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
-    }
+    liquidatorRemainingAccounts = composeRemainingAccounts(remainingAccounts);
   });
 
   it("(user 0) Deposits to all Kamino and Drift banks and borrows from a regular one - happy path", async () => {
@@ -168,72 +215,89 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_THROWAWAY);
     const depositTokenAAmount = new BN(10 * 10 ** ecosystem.tokenADecimals);
     const borrowLstAmount = new BN(1 * 10 ** ecosystem.lstAlphaDecimals);
-    const depositsPerTx = 3;
 
     const remainingAccounts: PublicKey[][] = [];
-    for (let i = 0; i < kaminoBanks.length; i += depositsPerTx) {
-      const chunk = kaminoBanks.slice(i, i + depositsPerTx);
+    for (let i = 0; i < kaminoBanks.length; i += 1) {
+      const bank = kaminoBanks[i];
       const tx = new Transaction();
-      for (const bank of chunk) {
-        tx.add(
-          await simpleRefreshReserve(
-            klendBankrunProgram,
-            tokenAReserve,
-            kaminoMarket,
-            oracles.usdcOracle.publicKey
-          ),
-          //   // pass the USDC reserve since it's now part of the obligation
-          //   await simpleRefreshObligation(
-          //     klendBankrunProgram,
-          //     market,
-          //     usdcBankObligation,
-          //     [usdcReserve]
-          //   ),
-          await makeKaminoDepositIx(
-            user.mrgnBankrunProgram,
-            {
-              marginfiAccount,
-              bank,
-              signerTokenAccount: user.tokenAAccount,
-              lendingMarket: kaminoMarket,
-              reserveLiquidityMint: ecosystem.usdcMint.publicKey,
-            },
-            depositTokenAAmount
-          )
-        );
-        remainingAccounts.push([
-          bank,
-          oracles.tokenAOracle.publicKey,
+      const [lendingVaultAuthority] = deriveLiquidityVaultAuthority(
+        bankrunProgram.programId,
+        bank,
+      );
+      const [obligation] = deriveBaseObligation(
+        lendingVaultAuthority,
+        lendingMarket,
+      );
+      const [obligationFarmUserState] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user"),
+          reserveFarmState.toBuffer(),
+          obligation.toBuffer(),
+        ],
+        FARMS_PROGRAM_ID,
+      );
+
+      tx.add(
+        await simpleRefreshReserve(
+          klendBankrunProgram,
           tokenAReserve,
-        ]);
-      }
+          lendingMarket,
+          oracles.tokenAOracle.publicKey,
+        ),
+        await simpleRefreshObligation(
+          klendBankrunProgram,
+          lendingMarket,
+          obligation,
+          [tokenAReserve],
+        ),
+        await makeKaminoDepositIx(
+          user.mrgnBankrunProgram,
+          {
+            marginfiAccount,
+            bank,
+            signerTokenAccount: user.tokenAAccount,
+            lendingMarket,
+            reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+            obligationFarmUserState,
+            reserveFarmState,
+          },
+          depositTokenAAmount,
+        ),
+      );
+      remainingAccounts.push([
+        bank,
+        oracles.tokenAOracle.publicKey,
+        tokenAReserve,
+      ]);
       await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
     }
 
-    for (let i = 0; i < driftBanks.length; i += depositsPerTx) {
-      const chunk = driftBanks.slice(i, i + depositsPerTx);
+    for (let i = 0; i < driftBanks.length; i += 1) {
+      const bank = driftBanks[i];
       const tx = new Transaction();
-      for (const bank of chunk) {
-        tx.add(
-          await makeDriftDepositIx(
-            user.mrgnBankrunProgram,
-            {
-              marginfiAccount,
-              bank,
-              signerTokenAccount: user.tokenAAccount,
-            },
-            depositTokenAAmount,
-            TOKEN_A_MARKET_INDEX
-          )
-        );
-        remainingAccounts.push([
-          bank,
-          oracles.tokenAOracle.publicKey,
-          tokenAReserve,
-        ]);
-      }
+      tx.add(
+        await makeDriftDepositIx(
+          user.mrgnBankrunProgram,
+          {
+            marginfiAccount,
+            bank,
+            signerTokenAccount: user.tokenAAccount,
+            driftOracle: driftAccounts.get(DRIFT_TOKEN_A_PULL_ORACLE),
+          },
+          depositTokenAAmount,
+          TOKEN_A_MARKET_INDEX,
+        ),
+      );
+      remainingAccounts.push([
+        bank,
+        oracles.tokenAOracle.publicKey,
+        driftSpotMarket,
+      ]);
       await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
     }
+
+    remainingAccounts.push([banks[0], oracles.pythPullLst.publicKey]);
+    liquidateeRemainingAccounts = composeRemainingAccounts(remainingAccounts);
 
     const tx = new Transaction();
     tx.add(
@@ -243,11 +307,17 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
         marginfiAccount,
         bank: banks[0], // there is only one regular bank
         tokenAccount: user.lstAlphaAccount,
-        remaining: composeRemainingAccounts(remainingAccounts),
+        remaining: liquidateeRemainingAccounts,
         amount: borrowLstAmount,
-      })
+      }),
     );
-    await processBankrunTransaction(bankrunContext, tx, [user.wallet]);
+    await processBankrunTransaction(
+      bankrunContext,
+      tx,
+      [user.wallet],
+      false,
+      true,
+    );
   });
 
   it("(admin) Vastly increases regular bank liability ratio to make user 0 unhealthy", async () => {
@@ -259,7 +329,7 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
       await configureBank(groupAdmin.mrgnBankrunProgram, {
         bank: banks[0],
         bankConfigOpt: config,
-      })
+      }),
     );
     await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
   });
@@ -271,46 +341,64 @@ describe("Limits on number of accounts when using Kamino and Drift", () => {
     const liquidatorAccount = liquidator.accounts.get(USER_ACCOUNT_THROWAWAY);
     const liquidateAmount = new BN(0.1 * 10 ** ecosystem.lstAlphaDecimals);
 
-    const remainingAccounts: PublicKey[][] = [];
-    for (let i = 0; i < MAX_BALANCES; i++) {
-      remainingAccounts.push([banks[i], oracles.pythPullLst.publicKey]);
-    }
-    let liquidateeAccounts = composeRemainingAccounts(remainingAccounts);
-
     const liquidateeAcc = await bankrunProgram.account.marginfiAccount.fetch(
-      liquidateeAccount
+      liquidateeAccount,
     );
     dumpAccBalances(liquidateeAcc);
     const liquidatorAcc = await bankrunProgram.account.marginfiAccount.fetch(
-      liquidatorAccount
+      liquidatorAccount,
     );
     dumpAccBalances(liquidatorAcc);
 
-    let tx = new Transaction().add(
+    const kaminoTx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
       await liquidateIx(liquidator.mrgnBankrunProgram, {
-        assetBankKey: banks[0],
-        liabilityBankKey: banks[MAX_BALANCES - 1],
+        assetBankKey: kaminoBanks[0],
+        liabilityBankKey: banks[0],
         liquidatorMarginfiAccount: liquidatorAccount,
         liquidateeMarginfiAccount: liquidateeAccount,
         remaining: [
-          oracles.pythPullLst.publicKey, // asset oracle
+          oracles.tokenAOracle.publicKey, // asset oracle
+          tokenAReserve, // Kamino-specific "oracle"
           oracles.pythPullLst.publicKey, // liab oracle
-
-          ...composeRemainingAccounts([
-            // liquidator accounts
-            [banks[0], oracles.pythPullLst.publicKey],
-            [banks[MAX_BALANCES - 1], oracles.pythPullLst.publicKey],
-          ]),
-
-          ...liquidateeAccounts,
+          ...liquidatorRemainingAccounts,
+          ...liquidateeRemainingAccounts,
         ],
         amount: liquidateAmount,
-        liquidateeAccounts: liquidateeAccounts.length,
-        liquidatorAccounts: 4,
-      })
+        liquidateeAccounts: liquidateeRemainingAccounts.length,
+        liquidatorAccounts: liquidatorRemainingAccounts.length,
+      }),
     );
-    await processBankrunTransaction(bankrunContext, tx, [groupAdmin.wallet]);
+    await processBankrunTransaction(
+      bankrunContext,
+      kaminoTx,
+      [groupAdmin.wallet]
+    );
+
+    const driftTx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
+      await liquidateIx(liquidator.mrgnBankrunProgram, {
+        assetBankKey: driftBanks[0],
+        liabilityBankKey: banks[0],
+        liquidatorMarginfiAccount: liquidatorAccount,
+        liquidateeMarginfiAccount: liquidateeAccount,
+        remaining: [
+          oracles.tokenAOracle.publicKey, // asset oracle
+          driftSpotMarket, // Drift-specific "oracle"
+          oracles.pythPullLst.publicKey, // liab oracle
+          ...liquidatorRemainingAccounts,
+          ...liquidateeRemainingAccounts,
+        ],
+        amount: liquidateAmount,
+        liquidateeAccounts: liquidateeRemainingAccounts.length,
+        liquidatorAccounts: liquidatorRemainingAccounts.length,
+      }),
+    );
+    await processBankrunTransaction(
+      bankrunContext,
+      driftTx,
+      [groupAdmin.wallet]
+    );
   });
   // TODO try these with switchboard oracles.
 });

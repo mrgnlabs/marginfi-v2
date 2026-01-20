@@ -172,6 +172,8 @@ pub const ASSET_TAG_SOLEND: u8 = 5;
 /// limit to prevent accounts from becoming unliquidatable due to CU/heap memory issues in
 /// liquidation. These integrations require 3 accounts per position for health checks (bank + oracle
 /// + reserve/spot-market), so they share the same limit.
+/// Note: it's disabled in local integration tests so that we can measure the performance and
+/// eventually get rid of this limit altogether.
 pub const MAX_INTEGRATION_POSITIONS: usize = 8;
 
 // WARN: You can set anything here, including a discrim that's technically "wrong" for the struct

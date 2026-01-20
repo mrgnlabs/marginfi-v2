@@ -2,7 +2,7 @@ use super::price::{
     OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter, PriceBias,
 };
 use crate::{
-    check, check_eq, debug, math_error,
+    check, check_eq, debug, live, math_error,
     prelude::{MarginfiError, MarginfiResult},
     state::{bank::BankImpl, bank_config::BankConfigImpl},
     utils::{is_integration_asset_tag, NumTraitsWithTolerance},
@@ -970,10 +970,14 @@ impl<'a> BankAccountWrapper<'a> {
                         .filter(|b| b.is_active() && is_integration_asset_tag(b.bank_asset_tag))
                         .count();
 
-                    check!(
-                        integration_position_count < MAX_INTEGRATION_POSITIONS,
-                        MarginfiError::IntegrationPositionLimitExceeded
-                    );
+                    // Note: this check is disabled in local integration tests so that we can measure the performance and
+                    // eventually get rid of this limit altogether.
+                    if live!() {
+                        check!(
+                            integration_position_count < MAX_INTEGRATION_POSITIONS,
+                            MarginfiError::IntegrationPositionLimitExceeded
+                        );
+                    }
                 }
 
                 let empty_index = lending_account
