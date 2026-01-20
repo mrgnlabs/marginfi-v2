@@ -26,7 +26,6 @@ assert_struct_align!(BankConfig, 8);
 #[cfg_attr(feature = "anchor", derive(AnchorDeserialize, AnchorSerialize))]
 #[derive(Debug, PartialEq, Pod, Zeroable, Copy, Clone, Eq)]
 pub struct BankConfig {
-    /// TODO: Convert weights to (u64, u64) to avoid precision loss (maybe?)
     pub asset_weight_init: WrappedI80F48,
     pub asset_weight_maint: WrappedI80F48,
 
@@ -56,6 +55,9 @@ pub struct BankConfig {
     /// `ASSET_TAG_DEFAULT` or `ASSET_TAG_STAKED` positions, but not both
     /// * ASSET_TAG_STAKED (2) - Staked SOL assets. Accounts with a STAKED position can only deposit
     /// other STAKED assets or SOL (`ASSET_TAG_SOL`) and can only borrow SOL
+    /// * ASSET_TAG_KAMINO (3) - Treated the same as ASSET_TAG_DEFAULT
+    /// * ASSET_TAG_DRIFT (4) - Treated the same as ASSET_TAG_DEFAULT
+    /// * ASSET_TAG_SOLED (5) - Treated the same as ASSET_TAG_DEFAULT
     pub asset_tag: u8,
 
     /// Flags for various config options
