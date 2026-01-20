@@ -31,8 +31,8 @@ pub fn lending_pool_add_bank_drift(
         bank_mint,
         bank: bank_loader,
         integration_acc_1: spot_market_loader,
-        integration_acc_2,
-        integration_acc_3,
+        integration_acc_2: obligation_loader,
+        integration_acc_3: user_stats_loader,
         ..
     } = ctx.accounts;
 
@@ -82,8 +82,8 @@ pub fn lending_pool_add_bank_drift(
 
     // Set Drift-specific fields
     bank.integration_acc_1 = spot_market_key;
-    bank.integration_acc_2 = integration_acc_2.key();
-    bank.integration_acc_3 = integration_acc_3.key();
+    bank.integration_acc_2 = obligation_loader.key();
+    bank.integration_acc_3 = user_stats_loader.key();
 
     log_pool_info(&bank);
 

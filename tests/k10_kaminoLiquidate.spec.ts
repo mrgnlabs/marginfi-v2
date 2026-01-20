@@ -58,7 +58,7 @@ let ctx: ProgramTestContext;
 let banks: PublicKey[] = [];
 let throwawayGroup: Keypair;
 let kaminoUsdcBank: PublicKey;
-let integrationAcc2: PublicKey;
+let kaminoObligation: PublicKey;
 let mrgnID: PublicKey;
 
 const seedAmountLst = new BN(5 * 10 ** ecosystem.lstAlphaDecimals);
@@ -118,7 +118,7 @@ describe("k10: Kamino Liquidation", () => {
       mrgnID,
       kaminoUsdcBank
     );
-    [integrationAcc2] = deriveBaseObligation(liquidityVaultAuthority, market);
+    [kaminoObligation] = deriveBaseObligation(liquidityVaultAuthority, market);
 
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
@@ -181,7 +181,7 @@ describe("k10: Kamino Liquidation", () => {
       await simpleRefreshObligation(
         klendBankrunProgram,
         market,
-        integrationAcc2,
+        kaminoObligation,
         [usdcReserve]
       ),
       await makeKaminoDepositIx(

@@ -31,14 +31,14 @@ pub fn lending_pool_add_bank_solend(
         bank_mint,
         bank: bank_loader,
         integration_acc_1: reserve_loader,
-        integration_acc_2,
+        integration_acc_2: obligation_loader,
         ..
     } = ctx.accounts;
 
     let mut bank = bank_loader.load_init()?;
     let mut group = ctx.accounts.group.load_mut()?;
     let reserve_key = reserve_loader.key();
-    let obligation_key = integration_acc_2.key();
+    let obligation_key = obligation_loader.key();
 
     // Validate that we're using a supported Solend oracle setup type
     require!(
