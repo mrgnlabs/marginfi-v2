@@ -124,7 +124,7 @@ describe("sl07: Solend Liquidation", () => {
           group: throwawayGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          solendReserve: solendAccounts.get(SOLEND_USDC_RESERVE)!,
+          integrationAcc1: solendAccounts.get(SOLEND_USDC_RESERVE)!,
           solendMarket: solendAccounts.get(SOLEND_MARKET)!,
           oracle: oracles.usdcOracle.publicKey,
         },

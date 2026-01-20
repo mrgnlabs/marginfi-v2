@@ -174,8 +174,8 @@ impl BankImpl for Bank {
             lending_position_count: 0,
             borrowing_position_count: 0,
             _padding_0: [0; 16],
-            kamino_reserve: Pubkey::default(),
-            kamino_obligation: Pubkey::default(),
+            integration_acc_1: Pubkey::default(),
+            integration_acc_2: Pubkey::default(),
             ..Default::default()
         }
     }

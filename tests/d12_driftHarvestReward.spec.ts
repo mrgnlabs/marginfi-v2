@@ -211,7 +211,7 @@ describe("d12: Drift Harvest Reward", () => {
     const tokenABank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const driftUserAccount = await getDriftUserAccount(
       driftBankrunProgram,
-      tokenABank.driftUser
+      tokenABank.integrationAcc2
     );
     const tokenBPosition = driftUserAccount.spotPositions[2];
     assertBNEqual(
@@ -553,7 +553,7 @@ describe("d12: Drift Harvest Reward", () => {
         group: driftGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: ecosystem.tokenBMint.publicKey,
-        driftSpotMarket: driftTokenBSpotMarket,
+        integrationAcc1: driftTokenBSpotMarket,
         oracle: oracles.tokenBOracle.publicKey,
       },
       {
@@ -691,7 +691,7 @@ describe("d12: Drift Harvest Reward", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenBBank);
     const driftUserBefore = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const scaledBalanceBefore = getSpotPositionByMarket(
       driftUserBefore,
@@ -729,7 +729,7 @@ describe("d12: Drift Harvest Reward", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const scaledBalanceAfter = getSpotPositionByMarket(
       driftUserAfter,
@@ -844,7 +844,7 @@ describe("d12: Drift Harvest Reward", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenBBank);
     const driftUserBefore = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const scaledBalanceBefore = getSpotPositionByMarket(
       driftUserBefore,
@@ -936,7 +936,7 @@ describe("d12: Drift Harvest Reward", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const scaledBalanceAfter = getSpotPositionByMarket(
       driftUserAfter,

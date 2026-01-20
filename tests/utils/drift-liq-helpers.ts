@@ -160,7 +160,7 @@ export async function setupDriftLiqEnv(): Promise<DriftLiqEnv> {
           group: throwawayGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: driftSpotMarket,
+          integrationAcc1: driftSpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         { config: defaultConfig, seed }

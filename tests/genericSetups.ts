@@ -500,7 +500,7 @@ async function addGenericKaminoBank(
         group: throwawayGroup.publicKey,
         feePayer: groupAdmin.wallet.publicKey,
         bankMint: mint,
-        kaminoReserve: reserve,
+        integrationAcc1: reserve,
         kaminoMarket: market,
         oracle: oracle,
       },

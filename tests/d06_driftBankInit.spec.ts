@@ -92,7 +92,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          driftSpotMarket: usdcSpotMarket,
+          integrationAcc1: usdcSpotMarket,
           oracle: oracles.usdcOracle.publicKey,
         },
         {
@@ -166,7 +166,7 @@ describe("d06: Init Drift banks", () => {
     const [feeVault] = deriveFeeVault(mrgnID, bankKey);
     assertKeysEqual(bank.feeVault, feeVault);
 
-    assertKeysEqual(bank.driftSpotMarket, usdcSpotMarket);
+    assertKeysEqual(bank.integrationAcc1, usdcSpotMarket);
     const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
       mrgnID,
       bankKey
@@ -180,8 +180,8 @@ describe("d06: Init Drift banks", () => {
       DRIFT_PROGRAM_ID,
       liquidityVaultAuthority
     );
-    assertKeysEqual(bank.driftUser, driftUser);
-    assertKeysEqual(bank.driftUserStats, driftUserStats);
+    assertKeysEqual(bank.integrationAcc2, driftUser);
+    assertKeysEqual(bank.integrationAcc3, driftUserStats);
     assert.equal(config.assetTag, ASSET_TAG_DRIFT);
     assertKeysEqual(bank.config.oracleKeys[1], usdcSpotMarket);
 
@@ -192,7 +192,7 @@ describe("d06: Init Drift banks", () => {
 
     const driftUserAccount = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const usdcPosition = driftUserAccount.spotPositions[0];
     assert.equal(usdcPosition.marketIndex, USDC_MARKET_INDEX);
@@ -220,7 +220,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: user.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: tokenASpotMarket,
+          integrationAcc1: tokenASpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         {
@@ -365,7 +365,7 @@ describe("d06: Init Drift banks", () => {
     const bank = await bankrunProgram.account.bank.fetch(bankKey);
     const driftUserAccount = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
 
     // All non-USDC tokens are deposited to position 1
@@ -394,7 +394,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: user.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: tokenASpotMarket,
+          integrationAcc1: tokenASpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         {
@@ -420,7 +420,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: usdcSpotMarket,
+          integrationAcc1: usdcSpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         {
@@ -446,7 +446,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          driftSpotMarket: tokenASpotMarket, // wrong
+          integrationAcc1: tokenASpotMarket, // wrong
           oracle: oracles.usdcOracle.publicKey,
         },
         {
@@ -480,7 +480,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: tokenASpotMarket,
+          integrationAcc1: tokenASpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         {
@@ -510,7 +510,7 @@ describe("d06: Init Drift banks", () => {
           group: driftGroup.publicKey,
           feePayer: user.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          driftSpotMarket: usdcSpotMarket,
+          integrationAcc1: usdcSpotMarket,
           oracle: oracles.usdcOracle.publicKey,
         },
         {

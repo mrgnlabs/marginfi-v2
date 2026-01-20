@@ -116,7 +116,7 @@ describe("d09: Drift Liquidation", () => {
           group: throwawayGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          driftSpotMarket: driftSpotMarket,
+          integrationAcc1: driftSpotMarket,
           oracle: oracles.tokenAOracle.publicKey,
         },
         {
@@ -189,7 +189,7 @@ describe("d09: Drift Liquidation", () => {
     const bank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const driftUserBefore = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
@@ -217,7 +217,7 @@ describe("d09: Drift Liquidation", () => {
 
     const driftUserAfter = await getDriftUserAccount(
       driftBankrunProgram,
-      bank.driftUser
+      bank.integrationAcc2
     );
     const spotPositionAfter = driftUserAfter.spotPositions[1];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;
@@ -361,7 +361,7 @@ describe("d09: Drift Liquidation", () => {
     const driftBank = await bankrunProgram.account.bank.fetch(driftTokenABank);
     const driftUserBefore = await getDriftUserAccount(
       driftBankrunProgram,
-      driftBank.driftUser
+      driftBank.integrationAcc2
     );
     const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
@@ -504,7 +504,7 @@ describe("d09: Drift Liquidation", () => {
 
     const driftUser = await getDriftUserAccount(
       driftBankrunProgram,
-      driftBank.driftUser
+      driftBank.integrationAcc2
     );
     const spotPositionAfter = driftUser.spotPositions[1];
     const scaledBalanceAfter = spotPositionAfter.scaledBalance;

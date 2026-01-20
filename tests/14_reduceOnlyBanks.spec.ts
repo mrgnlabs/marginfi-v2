@@ -201,6 +201,7 @@ describe("Reduce-Only Bank Tests", () => {
       // Health pulse AFTER configuring bank to ReduceOnly
       await user.mrgnProgram.provider.sendAndConfirm!(
         new Transaction().add(
+          dummyTx(user.wallet.publicKey, users[1].wallet.publicKey),
           await healthPulse(user.mrgnProgram, {
             marginfiAccount: userAccount,
             remaining: composeRemainingAccounts([

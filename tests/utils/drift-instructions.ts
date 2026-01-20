@@ -23,7 +23,7 @@ export interface AddDriftBankAccounts {
   group: PublicKey;
   feePayer: PublicKey;
   bankMint: PublicKey;
-  driftSpotMarket: PublicKey;
+  integrationAcc1: PublicKey;
   oracle: PublicKey;
   tokenProgram?: PublicKey;
 }
@@ -53,7 +53,7 @@ export interface InitDriftUserArgs {
  * - group: The marginfi group to add the bank to (must be admin)
  * - feePayer: Account that pays for the transaction
  * - bankMint: The token mint that matches the Drift spot market mint
- * - driftSpotMarket: The Drift spot market account
+ * - integrationAcc1: The Drift spot market account
  *
  * Note: The oracle is specified in the config.oracle field, not as an account
  *
@@ -73,7 +73,7 @@ export const makeAddDriftBankIx = (
     isWritable: false,
   };
   const spotMarketMeta: AccountMeta = {
-    pubkey: accounts.driftSpotMarket,
+    pubkey: accounts.integrationAcc1,
     isSigner: false,
     isWritable: false,
   };
@@ -81,7 +81,7 @@ export const makeAddDriftBankIx = (
   const ix = program.methods
     .lendingPoolAddBankDrift(args.config, args.seed)
     .accounts({
-      driftSpotMarket: accounts.driftSpotMarket,
+      integrationAcc1: accounts.integrationAcc1,
       tokenProgram: accounts.tokenProgram || TOKEN_PROGRAM_ID,
       ...accounts,
     })
@@ -241,7 +241,7 @@ export const makeDriftWithdrawIx = async (
 
   // Load the drift spot market to get the market index
   const driftSpotMarket = await driftProgram.account.spotMarket.fetch(
-    bank.driftSpotMarket
+    bank.integrationAcc1
   );
   const marketIndex = driftSpotMarket.marketIndex;
 
@@ -352,7 +352,7 @@ export const makeDriftHarvestRewardIx = async (
         bank: accounts.bank,
         // feeState is auto-derived via seeds constraint
         driftState,
-        // drift_user and drift_user_stats are auto-included via has_one constraint
+        // integration_acc_2 and integration_acc_3 are auto-included via has_one constraint
         harvestDriftSpotMarket: accounts.harvestDriftSpotMarket,
         harvestDriftSpotMarketVault,
         driftSigner,

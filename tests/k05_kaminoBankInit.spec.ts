@@ -91,7 +91,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: groupAdmin.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          kaminoReserve: usdcReserve,
+          integrationAcc1: usdcReserve,
           kaminoMarket: market,
           oracle: oracles.usdcOracle.publicKey,
         },
@@ -147,17 +147,17 @@ describe("k05: Init Kamino banks", () => {
     assertKeysEqual(bank.feeVault, feeVault);
 
     // Kamino specific fields
-    assertKeysEqual(bank.kaminoReserve, usdcReserve);
+    assertKeysEqual(bank.integrationAcc1, usdcReserve);
     const [liquidityVaultAuthority] = deriveLiquidityVaultAuthority(
       mrgnID,
       bankKey
     );
     const [obligation] = deriveBaseObligation(liquidityVaultAuthority, market);
-    assertKeysEqual(bank.kaminoObligation, obligation);
+    assertKeysEqual(bank.integrationAcc2, obligation);
     assert.equal(config.assetTag, ASSET_TAG_KAMINO);
     assertKeysEqual(bank.config.oracleKeys[0], oracles.usdcOracle.publicKey);
     assertKeysEqual(bank.config.oracleKeys[1], usdcReserve);
-    assertKeysEqual(bank.kaminoReserve, usdcReserve);
+    assertKeysEqual(bank.integrationAcc1, usdcReserve);
 
     // Compare against the underlying Kamino reserve
     const usdcReserveData = await klendBankrunProgram.account.reserve.fetch(
@@ -319,7 +319,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: user.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          kaminoReserve: tokenAReserve,
+          integrationAcc1: tokenAReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },
@@ -384,7 +384,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: user.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          kaminoReserve: tokenAReserve,
+          integrationAcc1: tokenAReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },
@@ -411,7 +411,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          kaminoReserve: usdcReserve,
+          integrationAcc1: usdcReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },
@@ -432,7 +432,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          kaminoReserve: tokenAReserve,
+          integrationAcc1: tokenAReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },
@@ -461,7 +461,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.tokenAMint.publicKey,
-          kaminoReserve: tokenAReserve,
+          integrationAcc1: tokenAReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },
@@ -485,7 +485,7 @@ describe("k05: Init Kamino banks", () => {
           group: kaminoGroup.publicKey,
           feePayer: usr.wallet.publicKey,
           bankMint: ecosystem.usdcMint.publicKey,
-          kaminoReserve: tokenAReserve,
+          integrationAcc1: tokenAReserve,
           kaminoMarket: market,
           oracle: oracles.tokenAOracle.publicKey,
         },

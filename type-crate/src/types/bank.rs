@@ -120,23 +120,21 @@ pub struct Bank {
 
     pub _padding_0: [u8; 16],
 
-    /// Kamino banks only, otherwise Pubkey default
-    pub kamino_reserve: Pubkey,
-    /// Kamino banks only, otherwise Pubkey default
-    pub kamino_obligation: Pubkey,
+    /// Integration account slot 1 (default Pubkey for non-integrations).
+    /// - Kamino: reserve
+    /// - Drift: spot market
+    /// - Solend: reserve
+    pub integration_acc_1: Pubkey,
+    /// Integration account slot 2 (default Pubkey for non-integrations).
+    /// - Kamino: obligation
+    /// - Drift: user
+    /// - Solend: obligation
+    pub integration_acc_2: Pubkey,
+    /// Integration account slot 3 (default Pubkey for non-integrations).
+    /// - Drift: user stats
+    pub integration_acc_3: Pubkey,
 
-    /// Drift banks only, otherwise Pubkey default
-    pub drift_spot_market: Pubkey,
-    /// Drift banks only, otherwise Pubkey default
-    pub drift_user: Pubkey,
-    /// Drift banks only, otherwise Pubkey default
-    pub drift_user_stats: Pubkey,
-    /// Solend banks only, otherwise Pubkey default
-    pub solend_reserve: Pubkey,
-    /// Solend banks only, otherwise Pubkey default
-    pub solend_obligation: Pubkey,
-
-    pub _padding_1: [[u64; 2]; 5], // 8 * 2 * 5 = 80B
+    pub _padding_1: [[u64; 2]; 13], // 8 * 2 * 13 = 208B
 }
 
 impl Bank {
