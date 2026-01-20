@@ -118,7 +118,7 @@ describe("k10: Kamino Liquidation", () => {
       mrgnID,
       kaminoUsdcBank
     );
-    [kaminoObligation] = deriveBaseObligation(liquidityVaultAuthority, market);
+    [integrationAcc2] = deriveBaseObligation(liquidityVaultAuthority, market);
 
     tx = new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 2_000_000 }),
@@ -181,7 +181,7 @@ describe("k10: Kamino Liquidation", () => {
       await simpleRefreshObligation(
         klendBankrunProgram,
         market,
-        kaminoObligation,
+        integrationAcc2,
         [usdcReserve]
       ),
       await makeKaminoDepositIx(

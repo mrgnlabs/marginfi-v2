@@ -1291,7 +1291,7 @@ describe("d12: Drift Harvest Reward", () => {
   });
 });
 
-const getSpotPositionByMarket = (integrationAcc2: any, marketIndex: number) => {
+const getSpotPositionByMarket = (driftUser: any, marketIndex: number) => {
   const position = driftUser.spotPositions.find(
     (pos: { marketIndex: number }) => pos.marketIndex === marketIndex
   );
