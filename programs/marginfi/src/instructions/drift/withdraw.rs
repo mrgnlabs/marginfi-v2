@@ -12,8 +12,8 @@ use crate::{
         marginfi_group::MarginfiGroupImpl,
     },
     utils::{
-        fetch_asset_price_for_bank_low_bias, is_drift_asset_tag, validate_bank_state,
-        InstructionKind,
+        fetch_asset_price_for_bank_low_bias, fetch_unbiased_price_for_bank, is_drift_asset_tag,
+        validate_bank_state, InstructionKind,
     },
     MarginfiError, MarginfiResult,
 };
@@ -58,12 +58,13 @@ pub fn drift_withdraw<'info>(
 
     ctx.accounts.cpi_update_spot_market_cumulative_interest()?;
 
+    let clock = Clock::get()?;
+
     let bank_key = ctx.accounts.bank.key();
     let (token_amount, expected_scaled_balance_change) = {
         let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
         let mut bank = ctx.accounts.bank.load_mut()?;
         let mut group = ctx.accounts.group.load_mut()?;
-        let clock = Clock::get()?;
         authority_bump = bank.liquidity_vault_authority_bump;
 
         validate_bank_state(&bank, InstructionKind::FailsInPausedState)?;
@@ -247,7 +248,7 @@ pub fn drift_withdraw<'info>(
 
         // Note: during liquidation, we skip all health checks until the end of the transaction.
         if !marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
-            let (risk_result, _engine) = RiskEngine::check_account_init_health(
+            let (risk_result, engine) = RiskEngine::check_account_init_health(
                 &marginfi_account,
                 ctx.remaining_accounts,
                 &mut Some(&mut health_cache),
@@ -255,8 +256,23 @@ pub fn drift_withdraw<'info>(
             risk_result?;
 
             health_cache.program_version = PROGRAM_VERSION;
+            let bank_loader = &ctx.accounts.bank;
+
+            if let Some(engine) = engine {
+                if let Ok(price) = engine.get_unbiased_price_for_bank(&bank_loader.key()) {
+                    bank_loader.load_mut()?.update_cache_price(Some(price))?;
+                }
+            }
+
             health_cache.set_engine_ok(true);
             marginfi_account.health_cache = health_cache;
+        } else {
+            let mut bank = ctx.accounts.bank.load_mut()?;
+            let price_for_cache =
+                fetch_unbiased_price_for_bank(&bank_key, &bank, &clock, ctx.remaining_accounts)
+                    .ok();
+
+            bank.update_cache_price(price_for_cache)?;
         }
     }
 

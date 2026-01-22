@@ -1,5 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
+import { assert } from "chai";
 import {
   ecosystem,
   driftAccounts,
@@ -23,6 +24,7 @@ import {
 } from "./utils/drift-instructions";
 import {
   assertBNEqual,
+  assertI80F48Approx,
   getTokenBalance,
   assertBankrunTxFailed,
 } from "./utils/genericTests";
@@ -39,6 +41,7 @@ import {
 } from "./utils/drift-utils";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
 import { composeRemainingAccounts } from "./utils/user-instructions";
+import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
 
 describe("d08: Drift Withdraw Tests", () => {
   let driftUsdcBank: PublicKey;
@@ -246,6 +249,13 @@ describe("d08: Drift Withdraw Tests", () => {
 
     // Note: +1 is expected here due to rounding Drift applies to withdrawals
     assertBNEqual(scaledBalanceDecrease, scaledAmount.add(new BN(1)));
+
+    const bankAfter = await bankrunProgram.account.bank.fetch(driftTokenABank);
+    const expectedPrice = oracles.tokenAPrice;
+    const expectedConf =
+      expectedPrice * ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+    assertI80F48Approx(bankAfter.cache.lastOraclePrice, expectedPrice);
+    assertI80F48Approx(bankAfter.cache.lastOraclePriceConfidence, expectedConf);
 
     await assertBankBalance(
       marginfiAccount,
