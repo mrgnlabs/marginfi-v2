@@ -1,8 +1,8 @@
-use crate::{check, check_eq, errors::MarginfiError, prelude::MarginfiResult};
+use crate::{check, check_eq, constants::MAX_BPS, errors::MarginfiError, prelude::MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{ORDER_ACTIVE_TAGS, ORDER_TAG_PADDING},
+    constants::ORDER_ACTIVE_TAGS,
     types::{
         BalanceSide, ExecuteOrderBalanceRecord, ExecuteOrderRecord, MarginfiAccount, Order,
         OrderTrigger, OrderTriggerType, WrappedI80F48, MAX_EXECUTE_RECORD_BALANCES,
@@ -29,44 +29,59 @@ impl OrderImpl for Order {
     ) -> MarginfiResult {
         self.marginfi_account = marginfi_account;
         match trigger {
-            OrderTrigger::StopLoss { threshold } => {
+            OrderTrigger::StopLoss {
+                threshold,
+                max_slippage,
+            } => {
                 self.trigger = OrderTriggerType::StopLoss;
                 self.stop_loss = threshold;
+                self.max_slippage = max_slippage;
                 self.take_profit = WrappedI80F48::default();
                 // Threshold must be > 0
                 let val: I80F48 = self.stop_loss.into();
-                if val <= I80F48::ZERO {
-                    return Err(error!(MarginfiError::OrderTriggerValueNonPositive));
-                }
+                check!(
+                    val > I80F48::ZERO,
+                    MarginfiError::InvalidOrderTakeProfitOrStopLoss
+                );
+                check!(self.max_slippage < MAX_BPS, MarginfiError::InvalidSlippage);
             }
-            OrderTrigger::TakeProfit { threshold } => {
+            OrderTrigger::TakeProfit {
+                threshold,
+                max_slippage,
+            } => {
                 self.trigger = OrderTriggerType::TakeProfit;
                 self.take_profit = threshold;
+                self.max_slippage = max_slippage;
                 self.stop_loss = WrappedI80F48::default();
                 // Threshold must be > 0
                 let val: I80F48 = self.take_profit.into();
-                if val <= I80F48::ZERO {
-                    return Err(error!(MarginfiError::OrderTriggerValueNonPositive));
-                }
+                check!(
+                    val > I80F48::ZERO,
+                    MarginfiError::InvalidOrderTakeProfitOrStopLoss
+                );
+                check!(self.max_slippage < MAX_BPS, MarginfiError::InvalidSlippage);
             }
             OrderTrigger::Both {
                 stop_loss,
                 take_profit,
+                max_slippage,
             } => {
                 self.trigger = OrderTriggerType::Both;
                 self.stop_loss = stop_loss;
                 self.take_profit = take_profit;
-                // Both thresholds must be > 0
+                self.max_slippage = max_slippage;
+                // Both thresholds must be > 0 && tp > sl
                 let sl: I80F48 = self.stop_loss.into();
                 let tp: I80F48 = self.take_profit.into();
-                if sl <= I80F48::ZERO || tp <= I80F48::ZERO {
-                    return Err(error!(MarginfiError::OrderTriggerValueNonPositive));
-                }
+                check!(
+                    sl > I80F48::ZERO && tp > sl,
+                    MarginfiError::InvalidOrderTakeProfitOrStopLoss
+                );
+                check!(self.max_slippage < MAX_BPS, MarginfiError::InvalidSlippage);
             }
         }
 
         self.tags = tags;
-        self._tags_padding = [0; ORDER_TAG_PADDING];
         self.bump = bump;
 
         Ok(())
@@ -80,12 +95,15 @@ pub trait ExecuteOrderRecordImpl {
         executor: Pubkey,
         marginfi_account: &MarginfiAccount,
         order_tags: &[u16],
+        order_start_health: &I80F48,
     ) -> MarginfiResult;
 
-    fn verify_unchanged(
+    fn check_health_and_verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
         closed_order_balances_count: usize,
+        order_current_health: &I80F48,
+        is_healthy: bool,
     ) -> MarginfiResult;
 }
 
@@ -96,6 +114,7 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
         executor: Pubkey,
         marginfi_account: &MarginfiAccount,
         order_tags: &[u16],
+        order_start_health: &I80F48,
     ) -> MarginfiResult {
         self.order = order;
         self.executor = executor;
@@ -110,9 +129,10 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
                 continue;
             }
 
-            if idx >= self.balance_states.len() {
-                return Err(error!(MarginfiError::IllegalBalanceState));
-            }
+            check!(
+                idx < self.balance_states.len(),
+                MarginfiError::IllegalBalanceState
+            );
 
             // Skip balances that belong to this order, they can be changed by the keeper
             if balance.tag != 0 && order_tags.iter().any(|t| *t == balance.tag) {
@@ -142,17 +162,27 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
             idx += 1;
         }
 
+        self.order_start_health = (*order_start_health).into();
         self.inactive_balance_count = inactive_count;
         self.active_balance_count = idx.try_into().unwrap();
 
         Ok(())
     }
 
-    fn verify_unchanged(
+    fn check_health_and_verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
         closed_order_balances_count: usize,
+        order_current_health: &I80F48,
+        is_healthy: bool,
     ) -> MarginfiResult {
+        let order_start_health: I80F48 = self.order_start_health.into();
+
+        check!(
+            order_start_health <= *order_current_health || is_healthy,
+            MarginfiError::WorseHealthPostExecution
+        );
+
         let inactive_balance_count = marginfi_account
             .lending_account
             .balances
@@ -203,9 +233,9 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
         // This check is not strictly necessary since deposits are not allowed
         // during execution and the above has checked that the open balances are
         // still open and the same, but is left here as a sanity check.
-        check!(
-            self.inactive_balance_count as usize + closed_order_balances_count
-                == inactive_balance_count,
+        check_eq!(
+            self.inactive_balance_count as usize + closed_order_balances_count,
+            inactive_balance_count,
             MarginfiError::IllegalBalanceState
         );
 

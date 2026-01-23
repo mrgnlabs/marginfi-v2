@@ -24,8 +24,6 @@ import {
   setLiquidatorCloseFlagsIx,
   depositIx,
   borrowIx,
-  withdrawEmissionsIx,
-  repayIx,
   updateEmissionsDestination
 } from "./utils/user-instructions";
 import { deriveOrderPda, deriveExecuteOrderPda } from "./utils/pdas";
@@ -49,14 +47,12 @@ import { BankrunProvider } from "anchor-bankrun";
 let program: Program<Marginfi>;
 let provider: BankrunProvider;
 let wallet: Wallet;
+let keeperUser: MockUser;
+let keeperProgram: Program<Marginfi>;
+let keeperMarginfiAccount: PublicKey;
+let oracleBaseline: { tokenAPrice: number; wsolPrice: number; usdcPrice: number };
 
 describe("orders", () => {
-  before(() => {
-    provider = bankRunProvider;
-    program = bankrunProgram;
-    wallet = provider.wallet as Wallet;
-  });
-
 
   let user: MockUser;
   let userProgram: Program<Marginfi>;
@@ -70,11 +66,42 @@ describe("orders", () => {
   const depositSol = new BN(0.5 * 10 ** ecosystem.wsolDecimals);
   const borrowUsdc = new BN(9 * 10 ** ecosystem.usdcDecimals);
 
+  const captureOracleSnapshot = () => {
+    oracleBaseline = {
+      tokenAPrice: oracles.tokenAPrice,
+      wsolPrice: oracles.wsolPrice,
+      usdcPrice: oracles.usdcPrice,
+    };
+  };
+
+  const restoreOracles = async () => {
+    if (!oracleBaseline) return;
+
+    oracles.tokenAPrice = oracleBaseline.tokenAPrice;
+    oracles.wsolPrice = oracleBaseline.wsolPrice;
+    oracles.usdcPrice = oracleBaseline.usdcPrice;
+
+    const now = Math.floor(Date.now() / 1000);
+    const slot = new BN(now);
+    await refreshPullOracles(oracles, wallet.payer, slot, now);
+  };
+
   const stopLossThreshold = bigNumberToWrappedI80F48(100);
   const takeProfitThreshold = bigNumberToWrappedI80F48(250);
-  const highTakeProfit = bigNumberToWrappedI80F48(800);
+  const highTakeProfit = bigNumberToWrappedI80F48(50);
+  const maxSlippage = new BN(100);
 
   before(async () => {
+    // We make changes to the oracle so we need to revert the changes after.
+    captureOracleSnapshot();
+
+    provider = bankRunProvider;
+    program = bankrunProgram;
+    wallet = provider.wallet as Wallet;
+    keeperUser = users[1];
+    keeperProgram = keeperUser.mrgnProgram as Program<Marginfi>;
+    keeperMarginfiAccount = keeperUser.accounts.get(USER_ACCOUNT);
+
     user = users[0];
     userProgram = user.mrgnProgram as Program<Marginfi>;
     userMarginfiAccount = user.accounts.get(USER_ACCOUNT);
@@ -144,11 +171,16 @@ describe("orders", () => {
 
   });
 
+  after(async () => {
+    // Revert the changes after the tests
+    await restoreOracles();
+  });
+
   describe("order placement", () => {
     it("places an order with one asset/one liability - happy path", async () => {
       const bankKeys = [bankA, bankUsdc];
       const trigger: OrderTriggerArgs = {
-        stopLoss: { threshold: stopLossThreshold },
+        stopLoss: { threshold: stopLossThreshold, maxSlippage },
       };
 
       const ix = await placeOrderIx(program, {
@@ -202,7 +234,7 @@ describe("orders", () => {
             authority: user.wallet.publicKey,
             feePayer: user.wallet.publicKey,
             bankKeys: [bankA, bankA],
-            trigger: { stopLoss: { threshold: stopLossThreshold } },
+            trigger: { stopLoss: { threshold: stopLossThreshold, maxSlippage } },
           });
 
           await userProgram.provider.sendAndConfirm(new Transaction().add(ix));
@@ -220,7 +252,7 @@ describe("orders", () => {
             authority: user.wallet.publicKey,
             feePayer: user.wallet.publicKey,
             bankKeys: [bankA, bankSol],
-            trigger: { stopLoss: { threshold: stopLossThreshold } },
+            trigger: { stopLoss: { threshold: stopLossThreshold, maxSlippage } },
           });
 
           await userProgram.provider.sendAndConfirm(new Transaction().add(ix));
@@ -239,7 +271,7 @@ describe("orders", () => {
           authority: user.wallet.publicKey,
           feePayer: user.wallet.publicKey,
           bankKeys,
-          trigger: { both: { stopLoss: stopLossThreshold, takeProfit: takeProfitThreshold } },
+          trigger: { both: { stopLoss: stopLossThreshold, takeProfit: takeProfitThreshold, maxSlippage } },
         });
 
         await userProgram.provider.sendAndConfirm(new Transaction().add(ix));
@@ -254,7 +286,7 @@ describe("orders", () => {
         authority: user.wallet.publicKey,
         feePayer: user.wallet.publicKey,
         bankKeys,
-        trigger: { stopLoss: { threshold: stopLossThreshold } },
+        trigger: { stopLoss: { threshold: stopLossThreshold, maxSlippage } },
       });
 
       await userProgram.provider.sendAndConfirm(new Transaction().add(ix));
@@ -423,7 +455,127 @@ describe("orders", () => {
     let keeper: MockUser;
     let keeperProgram: Program<Marginfi>;
     let keeperTokenAata: PublicKey;
-    let keeperMarginfiAccount: PublicKey;
+    const confFactor = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
+
+    const buildRemaining = (includeUsdc = true, includeA = true, includeSol = true) => {
+      const pairs: [PublicKey, PublicKey][] = [];
+
+      if (includeUsdc) {
+        pairs.push([bankUsdc, oracles.usdcOracle.publicKey]);
+      }
+
+      if (includeA) {
+        pairs.push([bankA, oracles.tokenAOracle.publicKey]);
+      }
+
+      if (includeSol) {
+        pairs.push([bankSol, oracles.wsolOracle.publicKey]);
+      }
+
+      return composeRemainingAccounts(pairs);
+    };
+
+    const fetchPricingInputs = async () => {
+      const bankAAccount = await program.account.bank.fetch(bankA);
+      const bankUsdcAccount = await program.account.bank.fetch(bankUsdc);
+      const accBeforePricing = await program.account.marginfiAccount.fetch(userMarginfiAccount);
+
+      const balA = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankA));
+      const balUsdc = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankUsdc));
+
+      const assetShares = wrappedI80F48toBigNumber(balA.assetShares).toNumber();
+      const assetShareValue = wrappedI80F48toBigNumber(bankAAccount.assetShareValue).toNumber();
+      const assetNative = (assetShares * assetShareValue) / (10 ** bankAAccount.mintDecimals);
+
+      const liabShares = wrappedI80F48toBigNumber(balUsdc.liabilityShares).toNumber();
+      const liabShareValue = wrappedI80F48toBigNumber(bankUsdcAccount.liabilityShareValue).toNumber();
+      const liabNative = (liabShares * liabShareValue) / (10 ** bankUsdcAccount.mintDecimals);
+
+      return { assetNative, liabNative };
+    };
+
+    const computeBiasedPrice = (
+      assetNative: number,
+      liabNative: number,
+      threshold: number,
+      confFactor: number,
+      offset: number
+    ) => {
+      const biasedLiabValue = liabNative * (oracles.usdcPrice * (1 + confFactor));
+      const targetBiased = (threshold + offset) + biasedLiabValue;
+      const basePriceNeeded = targetBiased / assetNative;
+      return basePriceNeeded / (1 - confFactor);
+    };
+
+    const calcWithdrawAmount = (assetPrice: number) => {
+      const liabilityAmountFloat = Number(borrowUsdc) / 10 ** ecosystem.usdcDecimals;
+      const liabilityValue = liabilityAmountFloat * oracles.usdcPrice;
+      const assetAmountFloat = liabilityValue / assetPrice;
+      const assetAmountUnits = Math.ceil(assetAmountFloat * 10 ** ecosystem.tokenADecimals);
+      return new BN(assetAmountUnits);
+    };
+
+    const buildExecutionIxs = async (startRemaining: PublicKey[], endRemaining: PublicKey[], withdrawAmount: BN) => {
+      const [executeRecordPk] = deriveExecuteOrderPda(program.programId, orderPk);
+
+      const startIx = await startExecuteOrderIx(program, {
+        group: marginfiGroup.publicKey,
+        marginfiAccount: userMarginfiAccount,
+        feePayer: keeper.wallet.publicKey,
+        executor: keeper.wallet.publicKey,
+        order: orderPk,
+        remaining: startRemaining,
+      });
+
+      const withdrawEmissionsPermIx = await program.methods
+        .lendingAccountWithdrawEmissionsPermissionless()
+        .accountsPartial({
+          marginfiAccount: userMarginfiAccount,
+          bank: bankUsdc,
+          destinationAccount: userEmissionsAta,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+
+      const repayInstruction = await program.methods
+        .lendingAccountRepay(borrowUsdc, true)
+        .accountsPartial({
+          marginfiAccount: userMarginfiAccount,
+          authority: keeper.wallet.publicKey,
+          bank: bankUsdc,
+          signerTokenAccount: keeper.usdcAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
+
+      const withdrawRemaining = composeRemainingAccounts([
+        [bankA, oracles.tokenAOracle.publicKey],
+      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
+
+      const withdrawInstruction = await program.methods
+        .lendingAccountWithdraw(withdrawAmount, false)
+        .accountsPartial({
+          marginfiAccount: userMarginfiAccount,
+          authority: keeper.wallet.publicKey,
+          bank: bankA,
+          destinationTokenAccount: keeperTokenAata,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts(withdrawRemaining)
+        .instruction();
+
+      const endIx = await endExecuteOrderIx(program, {
+        group: marginfiGroup.publicKey,
+        marginfiAccount: userMarginfiAccount,
+        executor: keeper.wallet.publicKey,
+        order: orderPk,
+        executeRecord: executeRecordPk,
+        feeRecipient: keeper.wallet.publicKey,
+        remaining: endRemaining,
+      });
+
+      return { startIx, withdrawEmissionsPermIx, repayInstruction, withdrawInstruction, endIx };
+    };
 
     before(async () => {
 
@@ -432,7 +584,7 @@ describe("orders", () => {
         authority: user.wallet.publicKey,
         feePayer: user.wallet.publicKey,
         bankKeys,
-        trigger: { takeProfit: { threshold: highTakeProfit } },
+        trigger: { takeProfit: { threshold: highTakeProfit, maxSlippage } },
       });
 
       await userProgram.provider.sendAndConfirm(new Transaction().add(ixPlace));
@@ -493,108 +645,23 @@ describe("orders", () => {
     });
 
     it("fails when trigger not yet reached - should fail", async () => {
-      // Calibrate price just slightly below trigger, anything below this and above the health
-      // requirement would work, but the intention is to push it to the edge
-      const confFactor = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
-
-      const bankAAccount = await program.account.bank.fetch(bankA);
-      const bankUsdcAccount = await program.account.bank.fetch(bankUsdc);
-      const accBeforePricing = await program.account.marginfiAccount.fetch(userMarginfiAccount);
-
-      const balA = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankA));
-      const balUsdc = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankUsdc));
-
-      const assetShares = wrappedI80F48toBigNumber(balA.assetShares).toNumber();
-      const assetShareValue = wrappedI80F48toBigNumber(bankAAccount.assetShareValue).toNumber();
-      const assetNative = (assetShares * assetShareValue) / (10 ** bankAAccount.mintDecimals);
-
-      const liabShares = wrappedI80F48toBigNumber(balUsdc.liabilityShares).toNumber();
-      const liabShareValue = wrappedI80F48toBigNumber(bankUsdcAccount.liabilityShareValue).toNumber();
-      const liabNative = (liabShares * liabShareValue) / (10 ** bankUsdcAccount.mintDecimals);
-
+      const { assetNative, liabNative } = await fetchPricingInputs();
       const threshold = wrappedI80F48toBigNumber(highTakeProfit).toNumber();
-      const biasedLiabValue = liabNative * (oracles.usdcPrice * (1 + confFactor));
-
-      // This should cause `trigger - net` to be ~1 (slightly below threshold)
-      const targetBiased = (threshold - 1) + biasedLiabValue;
-      const basePriceNeeded = targetBiased / assetNative;
-      const biasedPrice = basePriceNeeded / (1 - confFactor);
+      const biasedPrice = computeBiasedPrice(assetNative, liabNative, threshold, confFactor, -1);
 
       oracles.tokenAPrice = biasedPrice;
       const slot = new BN(Math.floor(Date.now() / 1000));
       await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
 
-      const remaining = composeRemainingAccounts([
-        [bankUsdc, oracles.usdcOracle.publicKey],
-        [bankA, oracles.tokenAOracle.publicKey],
-        [bankSol, oracles.wsolOracle.publicKey],
-      ]);
-
-      const [executeRecordPk] = deriveExecuteOrderPda(program.programId, orderPk);
-
-      const startIx = await startExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        feePayer: keeper.wallet.publicKey,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        remaining,
-      });
-
-      const withdrawEmissionsPermIx = await program.methods
-        .lendingAccountWithdrawEmissionsPermissionless()
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          bank: bankUsdc,
-          destinationAccount: userEmissionsAta,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const repayInstruction = await program.methods
-        .lendingAccountRepay(borrowUsdc, true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankUsdc,
-          signerTokenAccount: keeper.usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      // Here we calculate how much of the other token(token A) the keeper would withdraw fairly
-      const liabilityAmountFloat = Number(borrowUsdc) / 10 ** ecosystem.usdcDecimals;
-      const liabilityValue = liabilityAmountFloat * oracles.usdcPrice;
-      const assetPrice = oracles.tokenAPrice;
-      const assetAmountFloat = liabilityValue / assetPrice;
-      const assetAmountUnits = Math.ceil(assetAmountFloat * 10 ** ecosystem.tokenADecimals);
-      const withdrawAmount = new BN(assetAmountUnits);
-
-      const withdrawRemaining = composeRemainingAccounts([
-        [bankA, oracles.tokenAOracle.publicKey],
-      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
-
-      const withdrawInstruction = await program.methods
-        .lendingAccountWithdraw(withdrawAmount, false)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankA,
-          destinationTokenAccount: keeperTokenAata,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(withdrawRemaining)
-        .instruction();
-
-      const endIx = await endExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        executeRecord: executeRecordPk,
-        feeRecipient: keeper.wallet.publicKey,
-        remaining,
-      });
+      const remaining = buildRemaining();
+      const withdrawAmount = calcWithdrawAmount(oracles.tokenAPrice);
+      const {
+        startIx,
+        withdrawEmissionsPermIx,
+        repayInstruction,
+        withdrawInstruction,
+        endIx,
+      } = await buildExecutionIxs(remaining, remaining, withdrawAmount);
 
       await expectFailedTxWithError(
         async () => {
@@ -617,74 +684,25 @@ describe("orders", () => {
     });
 
     it("fails when touching uninvolved balance - should fail", async () => {
+      const { assetNative, liabNative } = await fetchPricingInputs();
+      const threshold = wrappedI80F48toBigNumber(highTakeProfit).toNumber();
+      const biasedPrice = computeBiasedPrice(assetNative, liabNative, threshold, confFactor, 1);
 
-      // Move the price so the total value is above the trigger
-      oracles.tokenAPrice = oracles.tokenAPrice * 20;
+      // Place price above trigger
+      oracles.tokenAPrice = biasedPrice;
       const slot = new BN(Math.floor(Date.now() / 1000));
       await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
 
-      const remaining = composeRemainingAccounts([
-        [bankUsdc, oracles.usdcOracle.publicKey],
-        [bankA, oracles.tokenAOracle.publicKey],
-        [bankSol, oracles.wsolOracle.publicKey],
-      ]);
-
-      const [executeRecordPk] = deriveExecuteOrderPda(program.programId, orderPk);
-
-      const startIx = await startExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        feePayer: keeper.wallet.publicKey,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        remaining,
-      });
-
-      const withdrawEmissionsPermIx = await program.methods
-        .lendingAccountWithdrawEmissionsPermissionless()
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          bank: bankUsdc,
-          destinationAccount: userEmissionsAta,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const repayInstruction = await program.methods
-        .lendingAccountRepay(borrowUsdc, true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankUsdc,
-          signerTokenAccount: keeper.usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      // Here we calculate how much of the other token(token A) the keeper would withdraw fairly, it is the wSOL
-      // balance we touch unfairly in this case        
-      const liabilityAmountFloat = Number(borrowUsdc) / 10 ** ecosystem.usdcDecimals;
-      const liabilityValue = liabilityAmountFloat * oracles.usdcPrice;
-      const assetPrice = oracles.tokenAPrice;
-      const assetAmountFloat = liabilityValue / assetPrice;
-      const assetAmountUnits = Math.ceil(assetAmountFloat * 10 ** ecosystem.tokenADecimals);
-      const withdrawAmount = new BN(assetAmountUnits);
-
-      const withdrawRemaining = composeRemainingAccounts([
-        [bankA, oracles.tokenAOracle.publicKey],
-      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
-
-      const withdrawInstruction = await program.methods
-        .lendingAccountWithdraw(withdrawAmount, false)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankA,
-          destinationTokenAccount: keeperTokenAata,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(withdrawRemaining)
-        .instruction();
+      const startRemaining = buildRemaining();
+      const endRemaining = buildRemaining(false, true, true);
+      const withdrawAmount = calcWithdrawAmount(oracles.tokenAPrice);
+      const {
+        startIx,
+        withdrawEmissionsPermIx,
+        repayInstruction,
+        withdrawInstruction,
+        endIx,
+      } = await buildExecutionIxs(startRemaining, endRemaining, withdrawAmount);
 
       // Ensure the keeper has a wSOL ATA
       const keeperWsolAta = getAssociatedTokenAddressSync(ecosystem.wsolMint.publicKey, keeper.wallet.publicKey);
@@ -714,16 +732,6 @@ describe("orders", () => {
         .remainingAccounts(withdrawSolRemaining)
         .instruction();
 
-      const endIx = await endExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        executeRecord: executeRecordPk,
-        feeRecipient: keeper.wallet.publicKey,
-        remaining,
-      });
-
       await expectFailedTxWithError(
         async () => {
           await keeperProgram.provider.sendAndConfirm(
@@ -742,281 +750,30 @@ describe("orders", () => {
 
       oracles.tokenAPrice = 10; // Reset price
       await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
-
-    });
-
-    it("fails when health check fails after execution - should fail", async () => {
-      // Drain all SOL from the user 0's balance
-      const keeperWsolAta = getAssociatedTokenAddressSync(ecosystem.wsolMint.publicKey, keeper.wallet.publicKey);
-      const ensureKeeperWsolAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-        keeper.wallet.publicKey,
-        keeperWsolAta,
-        keeper.wallet.publicKey,
-        ecosystem.wsolMint.publicKey
-      );
-      await keeperProgram.provider.sendAndConfirm(new Transaction().add(ensureKeeperWsolAtaIx));
-      keeper.wsolAccount = keeperWsolAta;
-
-      const solWithdrawRemaining = composeRemainingAccounts([
-        [bankA, oracles.tokenAOracle.publicKey],
-        [bankUsdc, oracles.usdcOracle.publicKey],
-      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
-
-      const withdrawAllSolIx = await program.methods
-        .lendingAccountWithdraw(new BN(0), true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: user.wallet.publicKey,
-          bank: bankSol,
-          destinationTokenAccount: keeperWsolAta,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(solWithdrawRemaining)
-        .instruction();
-
-      await userProgram.provider.sendAndConfirm(new Transaction().add(withdrawAllSolIx));
-
-      // Top up bank liquidity via user 1 (keeper) so user 0 can borrow after withdrawing everything
-      const depositAmount = new BN(0.85 * 10 ** ecosystem.wsolDecimals);
-
-      const mintToKeeperIx = createMintToInstruction(
-        ecosystem.wsolMint.publicKey,
-        keeper.wsolAccount,
-        wallet.publicKey,
-        depositAmount.toNumber()
-      );
-      await program.provider.sendAndConfirm(new Transaction().add(mintToKeeperIx), [wallet.payer]);
-
-      const keeperDepositIx = await program.methods
-        .lendingAccountDeposit(depositAmount, false)
-        .accountsPartial({
-          marginfiAccount: keeperMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankSol,
-          signerTokenAccount: keeper.wsolAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      await keeperProgram.provider.sendAndConfirm(new Transaction().add(keeperDepositIx));
-
-      // Borrow a small amount of SOL so the account is unhealthy post-execution
-      const smallSolBorrow = new BN(Math.ceil(0.01 * 10 ** ecosystem.wsolDecimals));
-      const solOracleMeta = composeRemainingAccounts([[bankSol, oracles.wsolOracle.publicKey],
-      [bankA, oracles.tokenAOracle.publicKey],
-      [bankUsdc, oracles.usdcOracle.publicKey],]).map((pubkey) => ({
-        pubkey,
-        isSigner: false,
-        isWritable: false,
-      }));
-
-      const solBorrowIx = await program.methods
-        .lendingAccountBorrow(smallSolBorrow)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: user.wallet.publicKey,
-          bank: bankSol,
-          destinationTokenAccount: user.wsolAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(solOracleMeta)
-        .instruction();
-
-      await userProgram.provider.sendAndConfirm(new Transaction().add(solBorrowIx));
-
-      // Place price above trigger
-      oracles.tokenAPrice = oracles.tokenAPrice * 20;
-      const slot = new BN(Math.floor(Date.now() / 1000));
-      await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
-
-      const remaining = composeRemainingAccounts([
-        [bankUsdc, oracles.usdcOracle.publicKey],
-        [bankA, oracles.tokenAOracle.publicKey],
-        [bankSol, oracles.wsolOracle.publicKey],
-      ]);
-
-      const [executeRecordPk] = deriveExecuteOrderPda(program.programId, orderPk);
-
-      const startIx = await startExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        feePayer: keeper.wallet.publicKey,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        remaining,
-      });
-
-      const withdrawEmissionsPermIx = await program.methods
-        .lendingAccountWithdrawEmissionsPermissionless()
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          bank: bankUsdc,
-          destinationAccount: userEmissionsAta,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const repayInstruction = await program.methods
-        .lendingAccountRepay(borrowUsdc, true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankUsdc,
-          signerTokenAccount: keeper.usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const withdrawRemaining = composeRemainingAccounts([
-        [bankA, oracles.tokenAOracle.publicKey],
-      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
-
-      const withdrawInstruction = await program.methods
-        .lendingAccountWithdraw(new BN(0), true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankA,
-          destinationTokenAccount: keeperTokenAata,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(withdrawRemaining)
-        .instruction();
-
-      const endIx = await endExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        executeRecord: executeRecordPk,
-        feeRecipient: keeper.wallet.publicKey,
-        remaining,
-      });
-
-      await expectFailedTxWithError(
-        async () => {
-          await keeperProgram.provider.sendAndConfirm(
-            new Transaction()
-              .add(startIx)
-              .add(withdrawEmissionsPermIx)
-              .add(repayInstruction)
-              .add(withdrawInstruction)
-              .add(endIx)
-          );
-        },
-        "AccountNotHealthy",
-        6111
-      );
-
-      oracles.tokenAPrice = 10; // Reset price
-      await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
     });
 
     it("Take-profit!!! - happy path", async () => {
-      // Calibrate price just slightly above trigger, anything above this would work
-      // but the intention is to push it to the edge(as opposite from the previous trigger fail test)
-      const confFactor = ORACLE_CONF_INTERVAL * CONF_INTERVAL_MULTIPLE;
-
-      const bankAAccount = await program.account.bank.fetch(bankA);
-      const bankUsdcAccount = await program.account.bank.fetch(bankUsdc);
-      const accBeforePricing = await program.account.marginfiAccount.fetch(userMarginfiAccount);
-
-      const balA = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankA));
-      const balUsdc = accBeforePricing.lendingAccount.balances.find((b: any) => b.bankPk && b.bankPk.equals(bankUsdc));
-
-      const assetShares = wrappedI80F48toBigNumber(balA.assetShares).toNumber();
-      const assetShareValue = wrappedI80F48toBigNumber(bankAAccount.assetShareValue).toNumber();
-      const assetNative = (assetShares * assetShareValue) / (10 ** bankAAccount.mintDecimals);
-
-      const liabShares = wrappedI80F48toBigNumber(balUsdc.liabilityShares).toNumber();
-      const liabShareValue = wrappedI80F48toBigNumber(bankUsdcAccount.liabilityShareValue).toNumber();
-      const liabNative = (liabShares * liabShareValue) / (10 ** bankUsdcAccount.mintDecimals);
-
+      const { assetNative, liabNative } = await fetchPricingInputs();
       const threshold = wrappedI80F48toBigNumber(highTakeProfit).toNumber();
-      const biasedLiabValue = liabNative * (oracles.usdcPrice * (1 + confFactor));
-
-      // this should cause net to exceed trigger by ~1
-      const targetBiased = (threshold + 1) + biasedLiabValue;
-      const basePriceNeeded = targetBiased / assetNative;
-      const biasedPrice = basePriceNeeded / (1 - confFactor);
+      const biasedPrice = computeBiasedPrice(assetNative, liabNative, threshold, confFactor, 1);
 
       oracles.tokenAPrice = biasedPrice;
       const slot = new BN(Math.floor(Date.now() / 1000));
       await refreshPullOracles(oracles, wallet.payer, slot, Math.floor(Date.now() / 1000));
 
-      const remaining = composeRemainingAccounts([
-        [bankUsdc, oracles.usdcOracle.publicKey],
-        [bankA, oracles.tokenAOracle.publicKey],
-        [bankSol, oracles.wsolOracle.publicKey],
-      ]);
-
-      const [executeRecordPk] = deriveExecuteOrderPda(program.programId, orderPk);
-
       const orderBefore = await program.account.order.fetch(orderPk);
       const accBefore = await program.account.marginfiAccount.fetch(userMarginfiAccount);
 
-      const startIx = await startExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        feePayer: keeper.wallet.publicKey,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        remaining,
-      });
-
-      const withdrawEmissionsPermIx = await program.methods
-        .lendingAccountWithdrawEmissionsPermissionless()
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          bank: bankUsdc,
-          destinationAccount: userEmissionsAta,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const repayInstruction = await program.methods
-        .lendingAccountRepay(borrowUsdc, true)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankUsdc,
-          signerTokenAccount: keeper.usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction();
-
-      const liabilityAmountFloat = Number(borrowUsdc) / 10 ** ecosystem.usdcDecimals;
-      const liabilityValue = liabilityAmountFloat * oracles.usdcPrice;
-      const assetPrice = oracles.tokenAPrice;
-      const assetAmountFloat = liabilityValue / assetPrice;
-      const assetAmountUnits = Math.ceil(assetAmountFloat * 10 ** ecosystem.tokenADecimals);
-      const withdrawAmount = new BN(assetAmountUnits);
-
-      const withdrawRemaining = composeRemainingAccounts([
-        [bankA, oracles.tokenAOracle.publicKey],
-      ]).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
-
-      const withdrawInstruction = await program.methods
-        .lendingAccountWithdraw(withdrawAmount, false)
-        .accountsPartial({
-          marginfiAccount: userMarginfiAccount,
-          authority: keeper.wallet.publicKey,
-          bank: bankA,
-          destinationTokenAccount: keeperTokenAata,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(withdrawRemaining)
-        .instruction();
-
-      const endIx = await endExecuteOrderIx(program, {
-        group: marginfiGroup.publicKey,
-        marginfiAccount: userMarginfiAccount,
-        executor: keeper.wallet.publicKey,
-        order: orderPk,
-        executeRecord: executeRecordPk,
-        feeRecipient: keeper.wallet.publicKey,
-        remaining,
-      });
+      const startRemaining = buildRemaining();
+      const endRemaining = buildRemaining();
+      const withdrawAmount = calcWithdrawAmount(oracles.tokenAPrice);
+      const {
+        startIx,
+        withdrawEmissionsPermIx,
+        repayInstruction,
+        withdrawInstruction,
+        endIx,
+      } = await buildExecutionIxs(startRemaining, endRemaining, withdrawAmount);
 
       await keeperProgram.provider.sendAndConfirm(
         new Transaction()
@@ -1062,7 +819,9 @@ describe("orders", () => {
         assert.deepEqual(preBal, postBal, `pre balance to equal post balance ${preBank}`);
       }
 
-      // Compute asset-value estimate and assert it exceeds the trigger threshold
+      // Compute asset-value estimate and assert it exceeds the trigger threshold.
+      // We don't take advantage of the max-fee or slippage here, so we compare it 
+      // directly to the threshold.
       const singleAssetPrice = oracles.tokenAPrice;
       const singleAssetDecimals = ecosystem.tokenADecimals;
 

@@ -5,7 +5,7 @@ use fixtures::{
     assert_anchor_error, assert_custom_error, bank::BankFixture,
     marginfi_account::MarginfiAccountFixture, prelude::*, ui_to_native,
 };
-use marginfi::{prelude::MarginfiError, state::bank::BankVaultType};
+use marginfi::{constants::MAX_BPS, prelude::MarginfiError, state::bank::BankVaultType};
 use marginfi_type_crate::types::{OrderTrigger, WrappedI80F48};
 use solana_program_test::tokio;
 use solana_sdk::{
@@ -20,24 +20,27 @@ use solana_sdk::{
 use test_case::test_case;
 
 /// Helper to create an OrderTrigger with a stop-loss threshold.
-fn stop_loss_trigger(threshold: I80F48) -> OrderTrigger {
+fn stop_loss_trigger(threshold: I80F48, max_slippage: u16) -> OrderTrigger {
     OrderTrigger::StopLoss {
         threshold: WrappedI80F48::from(threshold),
+        max_slippage,
     }
 }
 
 /// Helper to create an OrderTrigger with a take-profit threshold.
 #[allow(dead_code)]
-fn take_profit_trigger(threshold: I80F48) -> OrderTrigger {
+fn take_profit_trigger(threshold: I80F48, max_slippage: u16) -> OrderTrigger {
     OrderTrigger::TakeProfit {
         threshold: WrappedI80F48::from(threshold),
+        max_slippage,
     }
 }
 
-fn both_trigger(stop_loss: I80F48, take_profit: I80F48) -> OrderTrigger {
+fn both_trigger(stop_loss: I80F48, take_profit: I80F48, max_slippage: u16) -> OrderTrigger {
     OrderTrigger::Both {
         stop_loss: WrappedI80F48::from(stop_loss),
         take_profit: WrappedI80F48::from(take_profit),
+        max_slippage,
     }
 }
 
@@ -196,6 +199,11 @@ async fn make_end_execute_ix(
             fee_recipient,
             order,
             execute_record,
+            fee_state: Pubkey::find_program_address(
+                &[marginfi_type_crate::constants::FEE_STATE_SEED.as_bytes()],
+                &marginfi::ID,
+            )
+            .0,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::MarginfiAccountEndExecuteOrder {}.data(),
@@ -387,14 +395,41 @@ async fn create_dual_asset_account(
     Ok(mfi_account_f)
 }
 
-#[test_case(BankMint::Usdc, 111.5, BankMint::Fixed, 50.0, BankMint::Sol, take_profit_trigger(fp!(12.5)))]
-#[test_case(BankMint::Fixed, 5.45, BankMint::Usdc, 9.0, BankMint::Sol, take_profit_trigger(fp!(2)))]
-#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 8.0, BankMint::Sol, take_profit_trigger(fp!(3)))]
-#[test_case(BankMint::Usdc, 111.5, BankMint::Fixed, 50.0, BankMint::Sol, both_trigger(fp!(5), fp!(12.5)))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, both_trigger(fp!(40), fp!(100)))]
-#[test_case(BankMint::Usdc, 150.0, BankMint::Fixed, 70.0, BankMint::Sol, stop_loss_trigger(fp!(5)))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, stop_loss_trigger(fp!(40)))]
-#[test_case(BankMint::Sol, 200.0, BankMint::Usdc, 50.0, BankMint::Fixed, stop_loss_trigger(fp!(1945)))]
+// With these cases our aim is to test the success of the execute order instruction for some edge cases
+// The below constraint always has to be satisfied:-
+// For take profit:-
+// Va_0 - Vl_0 >= tp (on entry)
+// Va_1 >= tp * (1 - slippage / MAX_BPS) (on leave)
+// Va_1 >= (Va_0 - Vl_0) * (1 - max_fee) (on leave)
+// Where Va_0, Va_1 are the values of the asset on entry and leave respectively, similarly for the liability
+// We don't use Vl_1, because the liability is closed.
+// MAX_BPS = 10_000, slippage is in bps and max_fee is in percentage.
+// Note that it is both possible for (tp * (1 - slippage / MAX_BPS)) < (Va_0 - Vl_0) * (1 - max_fee) and
+// also (Va_0 - Vl_0) * (1 - max_fee) < (tp * (1 - slippage / MAX_BPS)) though of course at different times.
+// Note also that the slippage check has more priority and Va_1 would be clamped to the max allowed by the
+// slippage where necessary as is enforced by the code.
+//
+// For stop loss:-
+// Va_0 - Vl_0 <= sl (on entry)
+// Va_1 >= (Va_0 - Vl_0) * (1 - slippage / MAX_BPS) (on leave)
+//
+// The Both case captures both and is distuiguished by Va_0 - Vl_0 >= tp, if that was true then the case was tp(on entry)
+// It can't be true when we came in through sl(on entry), because it is enforced in the code that sl < tp therefore
+// Va_0 - Vl_0 <= sl < tp
+//
+// Where relevant the tests involve scaling amount to be withdrawn in order to come close to breaking these constraints, doing so
+// in the failure cases, but just coming close in the success cases.
+// Where relevant(i.e tests that don't fail before that point) it is also checked that the account is left in an equal or more
+// healthy state or is healthy overall.
+
+#[test_case(BankMint::Usdc, 111.5, BankMint::Fixed, 50.0, BankMint::Sol, take_profit_trigger(fp!(12.5), 250))]
+#[test_case(BankMint::Fixed, 5.45, BankMint::Usdc, 9.0, BankMint::Sol, take_profit_trigger(fp!(2), 100))]
+#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 8.0, BankMint::Sol, take_profit_trigger(fp!(3), 15))]
+#[test_case(BankMint::Usdc, 111.5, BankMint::Fixed, 50.0, BankMint::Sol, both_trigger(fp!(5), fp!(12.5), 45))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, both_trigger(fp!(40), fp!(100), 0))] // Greedy user
+#[test_case(BankMint::Usdc, 150.0, BankMint::Fixed, 70.0, BankMint::Sol, stop_loss_trigger(fp!(5), 175))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, stop_loss_trigger(fp!(40), 80))]
+#[test_case(BankMint::Sol, 200.0, BankMint::Usdc, 50.0, BankMint::Fixed, stop_loss_trigger(fp!(1945), 155))]
 #[tokio::test]
 async fn execute_order_fails_pre_trigger_not_met(
     asset_mint: BankMint,
@@ -489,14 +524,15 @@ async fn execute_order_fails_pre_trigger_not_met(
     Ok(())
 }
 
-#[test_case(BankMint::Fixed, 7.0, BankMint::Usdc, 5.0, BankMint::Sol, take_profit_trigger(fp!(5.5)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(1490)))]
-#[test_case(BankMint::Fixed, 7.0, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(3)))]
-#[test_case(BankMint::Fixed, 7.0, BankMint::Usdc, 5.0, BankMint::Sol, both_trigger(fp!(10), fp!(3.5)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, both_trigger(fp!(600), fp!(1490)))]
-#[test_case(BankMint::Fixed, 12.5, BankMint::Usdc, 20.0, BankMint::Sol, stop_loss_trigger(fp!(10)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, stop_loss_trigger(fp!(600)))]
-#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, stop_loss_trigger(fp!(5)))]
+// See the comment over the first test
+#[test_case(BankMint::Fixed, 7.0, BankMint::Usdc, 5.0, BankMint::Sol, take_profit_trigger(fp!(5.5), 500), 1.1)] // Trigger the max fee check
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(1490), 1), 1.015)] // Trigger the slippage check
+#[test_case(BankMint::Fixed, 7.0, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(3), 0), 1.0376)] // Trigger the max fee check
+#[test_case(BankMint::Fixed, 7.0, BankMint::Usdc, 5.0, BankMint::Sol, both_trigger(fp!(5), fp!(9.0), 1000), 1.2)] // Trigger the slippage check
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, both_trigger(fp!(600), fp!(1490), 38), 1.002)]
+#[test_case(BankMint::Fixed, 12.5, BankMint::Usdc, 20.0, BankMint::Sol, stop_loss_trigger(fp!(10), 583), 1.0146)]
+#[test_case(BankMint::Sol, 250.0, BankMint::Usdc, 1803.0, BankMint::Fixed, stop_loss_trigger(fp!(862), 98), 1.0038)]
+#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, stop_loss_trigger(fp!(5), 0), 1.0001)] // Greedy user
 #[tokio::test]
 async fn execute_order_fails_post_trigger_not_met(
     asset_mint: BankMint,
@@ -505,6 +541,7 @@ async fn execute_order_fails_post_trigger_not_met(
     liability_borrow: f64,
     uninvolved_mint: BankMint,
     trigger: OrderTrigger,
+    withdraw_scale: f64,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -553,34 +590,10 @@ async fn execute_order_fails_post_trigger_not_met(
     )
     .await?;
 
-    let asset_value = price * asset_deposit;
-    let liab_value = estimate_withdraw_amount(
+    let withdraw_amt = estimate_withdraw_amount(
         default_price_for_mint(&liability_mint) * liability_borrow,
         price,
-    );
-    let withdraw_amt = match trigger {
-        OrderTrigger::TakeProfit { threshold } => {
-            let threshold: I80F48 = threshold.into();
-            let trigger_threshold = threshold.to_num::<f64>();
-
-            ((asset_value - trigger_threshold) / price) * 1.05 // Make it go past the threshold
-        }
-        OrderTrigger::StopLoss { threshold: _ } => {
-            liab_value * 1.05 // Make it go past the threshold
-        }
-        OrderTrigger::Both {
-            stop_loss: _,
-            take_profit,
-        } => {
-            if asset_value - liab_value >= Into::<I80F48>::into(take_profit).to_num::<f64>() {
-                let threshold: I80F48 = take_profit.into();
-                let trigger_threshold = threshold.to_num::<f64>();
-                ((asset_value - trigger_threshold) / price) * 1.05 // Make it go past the threshold
-            } else {
-                liab_value * 1.05 // Make it go past the threshold
-            }
-        }
-    };
+    ) * withdraw_scale;
 
     let withdraw_ix = make_withdraw_ix(
         &borrower_mfi_account_f,
@@ -615,14 +628,15 @@ async fn execute_order_fails_post_trigger_not_met(
     Ok(())
 }
 
-#[test_case(BankMint::Fixed, 25.5, BankMint::Usdc, 46.0, BankMint::Sol, take_profit_trigger(fp!(5)))]
-#[test_case(BankMint::Sol, 5.45, BankMint::Usdc, 50.0, BankMint::Fixed, take_profit_trigger(fp!(2)))]
-#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(2.5)))]
-#[test_case(BankMint::Fixed, 25.5, BankMint::Usdc, 46.0, BankMint::Sol, both_trigger(fp!(25), fp!(5)))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, both_trigger(fp!(60), fp!(2)))]
-#[test_case(BankMint::Usdc, 150.0, BankMint::Fixed, 65.0, BankMint::Sol, stop_loss_trigger(fp!(25)))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, stop_loss_trigger(fp!(60)))]
-#[test_case(BankMint::Sol, 40.0, BankMint::Usdc, 50.0, BankMint::Fixed, stop_loss_trigger(fp!(360)))]
+// See the comment over the first test
+#[test_case(BankMint::Fixed, 25.5, BankMint::Usdc, 46.0, BankMint::Sol, take_profit_trigger(fp!(5), 0))]
+#[test_case(BankMint::Sol, 5.45, BankMint::Usdc, 50.0, BankMint::Fixed, take_profit_trigger(fp!(2), 0))]
+#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(2.5), 0))]
+#[test_case(BankMint::Fixed, 25.5, BankMint::Usdc, 46.0, BankMint::Sol, both_trigger(fp!(2.5), fp!(5), 0))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, both_trigger(fp!(60), fp!(100), 0))]
+#[test_case(BankMint::Usdc, 150.0, BankMint::Fixed, 65.0, BankMint::Sol, stop_loss_trigger(fp!(25), 0))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Usdc, 150.0, BankMint::Sol, stop_loss_trigger(fp!(60), 0))]
+#[test_case(BankMint::Sol, 40.0, BankMint::Usdc, 50.0, BankMint::Fixed, stop_loss_trigger(fp!(360), 0))]
 #[tokio::test]
 async fn execute_order_fails_touch_uninvolved_balance(
     asset_mint: BankMint,
@@ -729,14 +743,15 @@ async fn execute_order_fails_touch_uninvolved_balance(
     Ok(())
 }
 
-#[test_case(BankMint::Fixed, 625.5, BankMint::Usdc, 1245.0, BankMint::Sol, take_profit_trigger(fp!(5.5)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(1490)))]
-#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(3)))]
-#[test_case(BankMint::Fixed, 625.5, BankMint::Usdc, 1245.0, BankMint::Sol, both_trigger(fp!(10), fp!(5.5)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, both_trigger(fp!(600), fp!(1490)))]
-#[test_case(BankMint::Fixed, 625.5, BankMint::Usdc, 1245.0, BankMint::Sol, stop_loss_trigger(fp!(10)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, stop_loss_trigger(fp!(600)))]
-#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, stop_loss_trigger(fp!(5)))]
+// See the comment over the first test
+#[test_case(BankMint::Fixed, 625.5, BankMint::Usdc, 1245.0, BankMint::Sol, take_profit_trigger(fp!(5.5), 250), 1.0002)]
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(1490), 5), 1.07445)]
+#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, take_profit_trigger(fp!(3), 1000), 1.018745)]
+#[test_case(BankMint::Fixed, 50.0, BankMint::Usdc, 72.5, BankMint::Sol, both_trigger(fp!(5), fp!(25), 350), 1.01895)]
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 1000.0, BankMint::Fixed, both_trigger(fp!(600), fp!(1000), 500), 1.025)]
+#[test_case(BankMint::Fixed, 625.5, BankMint::Usdc, 1245.0, BankMint::Sol, stop_loss_trigger(fp!(10), 679), 1.00032)]
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 100.0, BankMint::Fixed, stop_loss_trigger(fp!(1450), 25), 1.033)]
+#[test_case(BankMint::Fixed, 5.5, BankMint::Sol, 0.8, BankMint::Usdc, stop_loss_trigger(fp!(5), 588), 1.022)]
 #[tokio::test]
 async fn execute_order_fails_health_check(
     asset_mint: BankMint,
@@ -745,6 +760,7 @@ async fn execute_order_fails_health_check(
     liability_borrow: f64,
     uninvolved_mint: BankMint,
     trigger: OrderTrigger,
+    withdraw_scale: f64,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -775,6 +791,8 @@ async fn execute_order_fails_health_check(
     // Test
     // ---------------------------------------------------------------------
 
+    let price = default_price_for_mint(&asset_mint);
+
     let asset_bank_f = test_f.get_bank(&asset_mint);
     let liability_bank_f = test_f.get_bank(&liability_mint);
     let uninvolved_bank_f = test_f.get_bank(&uninvolved_mint);
@@ -791,7 +809,7 @@ async fn execute_order_fails_health_check(
 
     // seed SOL liquidity so the borrower can re-borrow after draining
     let sol_liquidity_provider = test_f.create_marginfi_account().await;
-    let sol_liquidity_seed = 0.75;
+    let sol_liquidity_seed = 5000;
     let sol_liquidity_account = uninvolved_bank_f
         .mint
         .create_token_account_and_mint_to(sol_liquidity_seed)
@@ -805,14 +823,13 @@ async fn execute_order_fails_health_check(
         )
         .await?;
 
-    // borrow a small amount of SOL to push post-execution health below zero
-    let small_sol_borrow = 0.01;
+    let asset_value = price * asset_deposit;
+    let liab_value = default_price_for_mint(&liability_mint) * liability_borrow;
+
+    // borrow an amount of SOL that would be left over after the keeper's withdrawal
+    let sol_borrow = (asset_value - liab_value) / default_price_for_mint(&uninvolved_mint);
     borrower_mfi_account_f
-        .try_bank_borrow(
-            keeper_uninvolved_account,
-            uninvolved_bank_f,
-            small_sol_borrow,
-        )
+        .try_bank_borrow(keeper_uninvolved_account, uninvolved_bank_f, sol_borrow)
         .await?;
 
     let (start_ix, execute_record) =
@@ -828,13 +845,18 @@ async fn execute_order_fails_health_check(
     )
     .await?;
 
+    let withdraw_amt = estimate_withdraw_amount(
+        default_price_for_mint(&liability_mint) * liability_borrow,
+        price,
+    ) * withdraw_scale;
+
     let withdraw_ix = make_withdraw_ix(
         &borrower_mfi_account_f,
         &asset_bank_f,
         keeper.pubkey(),
         keeper_asset_account,
-        0.0,
-        Some(true),
+        withdraw_amt,
+        None,
     )
     .await?;
 
@@ -844,7 +866,7 @@ async fn execute_order_fails_health_check(
         execute_record,
         keeper.pubkey(),
         keeper.pubkey(),
-        vec![liability_bank_f.key, asset_bank_f.key],
+        vec![liability_bank_f.key],
     )
     .await?;
 
@@ -857,18 +879,19 @@ async fn execute_order_fails_health_check(
     );
 
     let result = ctx.banks_client.process_transaction(tx).await;
-    assert_custom_error!(result.unwrap_err(), MarginfiError::AccountNotHealthy);
+    assert_custom_error!(result.unwrap_err(), MarginfiError::WorseHealthPostExecution);
     Ok(())
 }
 
-#[test_case(BankMint::Fixed, 500.0, BankMint::Usdc, 985.0, BankMint::Sol, take_profit_trigger(fp!(10)))]
-#[test_case(BankMint::Sol, 5.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(35)))]
-#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 9.0, BankMint::Sol, take_profit_trigger(fp!(0.5)))]
-#[test_case(BankMint::Fixed, 500.0, BankMint::Usdc, 985.0, BankMint::Sol, both_trigger(fp!(1100), fp!(10)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, both_trigger(fp!(1495), fp!(35)))]
-#[test_case(BankMint::Fixed, 1000.0, BankMint::Usdc, 985.0, BankMint::Sol, stop_loss_trigger(fp!(1100)))]
-#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, stop_loss_trigger(fp!(1495)))]
-#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 9.0, BankMint::Sol, stop_loss_trigger(fp!(2)))]
+// See the comment over the first test
+#[test_case(BankMint::Fixed, 500.0, BankMint::Usdc, 985.0, BankMint::Sol, take_profit_trigger(fp!(15), 500), 1.00075)]
+#[test_case(BankMint::Sol, 5.0, BankMint::Usdc, 10.0, BankMint::Fixed, take_profit_trigger(fp!(35), 0), 1.1975)] // Greedy user
+#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 9.0, BankMint::Sol, take_profit_trigger(fp!(0.5), 250), 1.0055)]
+#[test_case(BankMint::Fixed, 50.0, BankMint::Usdc, 72.5, BankMint::Sol, both_trigger(fp!(5), fp!(25), 350), 1.01895)]
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, both_trigger(fp!(1495), fp!(1500), 5), 1.07425)]
+#[test_case(BankMint::Fixed, 1000.0, BankMint::Usdc, 985.0, BankMint::Sol, stop_loss_trigger(fp!(1100), 25), 1.002575)]
+#[test_case(BankMint::Sol, 150.0, BankMint::Usdc, 10.0, BankMint::Fixed, stop_loss_trigger(fp!(1490), 0), 1.0)] // Greedy user
+#[test_case(BankMint::Fixed, 5.0, BankMint::Usdc, 9.0, BankMint::Sol, stop_loss_trigger(fp!(2), 35), 1.00035)]
 #[tokio::test]
 async fn execute_order_success(
     asset_mint: BankMint,
@@ -877,6 +900,7 @@ async fn execute_order_success(
     liability_borrow: f64,
     uninvolved_mint: BankMint,
     trigger: OrderTrigger,
+    withdraw_scale: f64,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -932,7 +956,7 @@ async fn execute_order_success(
     let withdraw_amt = estimate_withdraw_amount(
         default_price_for_mint(&liability_mint) * liability_borrow,
         price,
-    );
+    ) * withdraw_scale;
 
     let withdraw_ix = make_withdraw_ix(
         &borrower_mfi_account_f,
@@ -1026,12 +1050,20 @@ async fn execute_order_success(
         post_asset_shares.to_num::<f64>() / 10f64.powi(asset_bank_f.mint.mint.decimals as i32);
     let asset_value = asset_native * price;
     match trigger {
-        OrderTrigger::TakeProfit { threshold } => {
+        OrderTrigger::TakeProfit {
+            threshold,
+            max_slippage,
+        } => {
             let threshold: I80F48 = threshold.into();
             let trigger_threshold = threshold.to_num::<f64>();
-            assert!(asset_value >= trigger_threshold);
+            let max_slippage: f64 = max_slippage.into();
+            let max_bps: f64 = MAX_BPS.into();
+            assert!(asset_value >= (trigger_threshold) * (1.0 - (max_slippage / max_bps)));
         }
-        OrderTrigger::StopLoss { threshold: _ } => {
+        OrderTrigger::StopLoss {
+            threshold: _,
+            max_slippage,
+        } => {
             // For stop-loss ensure: new asset value >= (old asset value - old liability value)
             let pre_asset_shares: I80F48 = pre_asset.asset_shares.into();
             let pre_asset_native = pre_asset_shares.to_num::<f64>()
@@ -1043,15 +1075,21 @@ async fn execute_order_success(
                 / 10f64.powi(liability_bank_f.mint.mint.decimals as i32);
             let pre_liab_value = pre_liab_native * default_price_for_mint(&liability_mint);
 
-            assert!(asset_value >= (pre_asset_value - pre_liab_value));
+            let max_slippage: f64 = max_slippage.into();
+            let max_bps: f64 = MAX_BPS.into();
+            assert!(
+                asset_value
+                    >= (pre_asset_value - pre_liab_value) * (1.0 - (max_slippage / max_bps))
+            );
         }
         OrderTrigger::Both {
             stop_loss: _,
             take_profit,
+            max_slippage,
         } => {
             // take-profit
             let threshold: I80F48 = take_profit.into();
-            let trigger_threshold = threshold.to_num::<f64>();
+            let tp_threshold = threshold.to_num::<f64>();
 
             // stop-loss
             let pre_asset_shares: I80F48 = pre_asset.asset_shares.into();
@@ -1064,10 +1102,18 @@ async fn execute_order_success(
                 / 10f64.powi(liability_bank_f.mint.mint.decimals as i32);
             let pre_liab_value = pre_liab_native * default_price_for_mint(&liability_mint);
 
+            let is_take_profit = (pre_asset_value - pre_liab_value) >= tp_threshold;
+
+            let max_slippage: f64 = max_slippage.into();
+            let max_bps: f64 = MAX_BPS.into();
+
             // any
             assert!(
-                asset_value >= trigger_threshold
-                    || asset_value >= (pre_asset_value - pre_liab_value)
+                ((asset_value >= tp_threshold * (1.0 - (max_slippage / max_bps)))
+                    && is_take_profit)
+                    || ((asset_value
+                        >= (pre_asset_value - pre_liab_value) * (1.0 - (max_slippage / max_bps)))
+                        && !is_take_profit)
             );
         }
     }
@@ -1075,16 +1121,16 @@ async fn execute_order_success(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 200.0, BankMint::Sol, 6.0, fp!(50))]
-#[test_case(BankMint::Sol, 70.0, BankMint::Usdc, 500.0, fp!(100))]
-#[test_case(BankMint::Fixed, 700.0, BankMint::Usdc, 500.0, fp!(100))]
+#[test_case(BankMint::Usdc, 200.0, BankMint::Sol, 6.0, stop_loss_trigger(fp!(50), 0))]
+#[test_case(BankMint::Sol, 70.0, BankMint::Usdc, 500.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 700.0, BankMint::Usdc, 500.0, stop_loss_trigger(fp!(100), 0))]
 #[tokio::test]
 async fn place_order_success_one_asset_one_liability(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1114,7 +1160,6 @@ async fn place_order_success_one_asset_one_liability(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
 
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
@@ -1145,15 +1190,118 @@ async fn place_order_success_one_asset_one_liability(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 1_000.0, BankMint::Sol, 5.0)]
-#[test_case(BankMint::Sol, 5.0, BankMint::Usdc, 500.0)]
-#[test_case(BankMint::Fixed, 20.0, BankMint::Usdc, 500.0)]
+#[test_case(BankMint::Usdc, 200.0, BankMint::Sol, 6.0, stop_loss_trigger(fp!(0), 0))] // sl should be > 0
+#[test_case(BankMint::Sol, 70.0, BankMint::Usdc, 500.0, take_profit_trigger(fp!(0), 0))] // tp should be > 0
+#[test_case(BankMint::Fixed, 700.0, BankMint::Usdc, 500.0, both_trigger(fp!(0), fp!(1000.0), 0))] // sl should be > 0
+#[test_case(BankMint::Fixed, 800.0, BankMint::Usdc, 400.0, both_trigger(fp!(1500), fp!(1000.0), 0))] // tp should be > sl
+#[tokio::test]
+async fn place_order_fail_invalid_sl_or_tp(
+    asset_mint: BankMint,
+    asset_deposit: f64,
+    liability_mint: BankMint,
+    liability_borrow: f64,
+    trigger: OrderTrigger,
+) -> anyhow::Result<()> {
+    // ---------------------------------------------------------------------
+    // Setup
+    // ---------------------------------------------------------------------
+
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let asset_bank_f = test_f.get_bank(&asset_mint);
+    let liability_bank_f = test_f.get_bank(&liability_mint);
+
+    let borrower_mfi_account_f = create_borrower_with_positions(
+        &test_f,
+        asset_bank_f,
+        asset_deposit,
+        liability_bank_f,
+        liability_borrow,
+    )
+    .await?;
+
+    // ---------------------------------------------------------------------
+    // Test
+    // ---------------------------------------------------------------------
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
+    let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
+
+    let result = borrower_mfi_account_f
+        .try_place_order(bank_keys.clone(), trigger)
+        .await;
+
+    assert_custom_error!(
+        result.unwrap_err(),
+        MarginfiError::InvalidOrderTakeProfitOrStopLoss
+    );
+
+    Ok(())
+}
+
+#[test_case(BankMint::Fixed, 65.0, BankMint::Usdc, 5.0, take_profit_trigger(fp!(150), 10_001))] // slippage should be <= 10_000
+#[test_case(BankMint::Fixed, 70.0, BankMint::Usdc, 50.0, stop_loss_trigger(fp!(50), 10_002))] // slippage should be <= 10_000
+#[test_case(BankMint::Fixed, 27.0, BankMint::Usdc, 50.0, both_trigger(fp!(1), fp!(5), 10_003))] // slippage should be <= 10_000
+#[tokio::test]
+async fn place_order_fail_invalid_slippage(
+    asset_mint: BankMint,
+    asset_deposit: f64,
+    liability_mint: BankMint,
+    liability_borrow: f64,
+    trigger: OrderTrigger,
+) -> anyhow::Result<()> {
+    // ---------------------------------------------------------------------
+    // Setup
+    // ---------------------------------------------------------------------
+
+    let test_f = TestFixture::new(Some(TestSettings::all_banks_payer_not_admin())).await;
+    let asset_bank_f = test_f.get_bank(&asset_mint);
+    let liability_bank_f = test_f.get_bank(&liability_mint);
+
+    let borrower_mfi_account_f = create_borrower_with_positions(
+        &test_f,
+        asset_bank_f,
+        asset_deposit,
+        liability_bank_f,
+        liability_borrow,
+    )
+    .await?;
+
+    // ---------------------------------------------------------------------
+    // Test
+    // ---------------------------------------------------------------------
+
+    // set emissions destination to the authority before placing order
+    let authority = borrower_mfi_account_f.load().await.authority;
+    borrower_mfi_account_f
+        .try_set_emissions_destination(authority)
+        .await?;
+
+    let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
+
+    let result = borrower_mfi_account_f
+        .try_place_order(bank_keys.clone(), trigger)
+        .await;
+
+    assert_custom_error!(result.unwrap_err(), MarginfiError::InvalidSlippage);
+
+    Ok(())
+}
+
+#[test_case(BankMint::Usdc, 1_000.0, BankMint::Sol, 5.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Sol, 5.0, BankMint::Usdc, 500.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 20.0, BankMint::Usdc, 500.0, stop_loss_trigger(fp!(100), 0))]
 #[tokio::test]
 async fn place_order_fails_both_assets(
     first_asset_mint: BankMint,
     first_deposit: f64,
     second_asset_mint: BankMint,
     second_deposit: f64,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1183,7 +1331,6 @@ async fn place_order_fails_both_assets(
         .await?;
 
     let bank_keys = vec![first_bank_f.key, second_bank_f.key];
-    let trigger = stop_loss_trigger(fp!(100));
 
     let result = mfi_account_f.try_place_order(bank_keys, trigger).await;
 
@@ -1195,15 +1342,16 @@ async fn place_order_fails_both_assets(
     Ok(())
 }
 
-#[test_case(BankMint::Fixed, 1_000.0, BankMint::Sol, 5.0)]
-#[test_case(BankMint::Usdc, 500.0, BankMint::Fixed, 50.0)]
-#[test_case(BankMint::Sol, 10.0, BankMint::Usdc, 50.0)]
+#[test_case(BankMint::Fixed, 1_000.0, BankMint::Sol, 5.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Usdc, 500.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Sol, 10.0, BankMint::Usdc, 50.0, stop_loss_trigger(fp!(100), 0))]
 #[tokio::test]
 async fn place_order_fails_same_order_twice(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1233,12 +1381,11 @@ async fn place_order_fails_same_order_twice(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(fp!(100));
     borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
 
-    let trigger2 = both_trigger(fp!(50), fp!(200));
+    let trigger2 = both_trigger(fp!(50), fp!(200), 0);
     let result = borrower_mfi_account_f
         .try_place_order(bank_keys, trigger2)
         .await;
@@ -1248,16 +1395,16 @@ async fn place_order_fails_same_order_twice(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, fp!(80))]
-#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
+#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, stop_loss_trigger(fp!(80), 0))]
+#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, stop_loss_trigger(fp!(50), 0))]
 #[tokio::test]
 async fn close_order_success_authority(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1283,7 +1430,6 @@ async fn close_order_success_authority(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
@@ -1311,16 +1457,16 @@ async fn close_order_success_authority(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, fp!(80))]
-#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
+#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, stop_loss_trigger(fp!(80), 0))]
+#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, stop_loss_trigger(fp!(50), 0))]
 #[tokio::test]
 async fn keeper_close_order_success_after_clearing_side(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1346,7 +1492,6 @@ async fn keeper_close_order_success_after_clearing_side(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
@@ -1383,16 +1528,16 @@ async fn keeper_close_order_success_after_clearing_side(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
-#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, fp!(80))]
-#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
+#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 100.0, BankMint::Sol, 10.0, stop_loss_trigger(fp!(80), 0))]
+#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, stop_loss_trigger(fp!(50), 0))]
 #[tokio::test]
 async fn keeper_can_close_order_after_marginfi_account_closed(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1417,7 +1562,6 @@ async fn keeper_can_close_order_after_marginfi_account_closed(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
@@ -1470,16 +1614,16 @@ async fn keeper_can_close_order_after_marginfi_account_closed(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, fp!(100))]
-#[test_case(BankMint::Fixed, 150.0, BankMint::Sol, 20.0, fp!(80))]
-#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, fp!(50))]
+#[test_case(BankMint::Usdc, 300.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(100), 0))]
+#[test_case(BankMint::Fixed, 150.0, BankMint::Sol, 20.0, stop_loss_trigger(fp!(80), 0))]
+#[test_case(BankMint::Sol, 20.0, BankMint::Usdc, 75.0, stop_loss_trigger(fp!(50), 0))]
 #[tokio::test]
 async fn keeper_close_order_fails_active_tags(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1505,7 +1649,6 @@ async fn keeper_close_order_fails_active_tags(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
@@ -1530,9 +1673,9 @@ async fn keeper_close_order_fails_active_tags(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 1_000.0, BankMint::Sol, 5.0, BankMint::Sol, fp!(900))]
-#[test_case(BankMint::Usdc, 850.0, BankMint::Fixed, 50.0, BankMint::Usdc, fp!(600))]
-#[test_case(BankMint::Sol, 100.0, BankMint::Fixed, 400.0, BankMint::Sol, fp!(50))]
+#[test_case(BankMint::Usdc, 1_000.0, BankMint::Sol, 5.0, BankMint::Sol, stop_loss_trigger(fp!(900), 0))]
+#[test_case(BankMint::Usdc, 850.0, BankMint::Fixed, 50.0, BankMint::Usdc, stop_loss_trigger(fp!(600), 0))]
+#[test_case(BankMint::Sol, 100.0, BankMint::Fixed, 400.0, BankMint::Sol, stop_loss_trigger(fp!(50), 0))]
 #[tokio::test]
 async fn set_liquidator_close_order_flags_success(
     asset_mint: BankMint,
@@ -1540,7 +1683,7 @@ async fn set_liquidator_close_order_flags_success(
     liability_mint: BankMint,
     liability_borrow: f64,
     flagged_bank_mint: BankMint,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1567,7 +1710,6 @@ async fn set_liquidator_close_order_flags_success(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;
@@ -1606,16 +1748,16 @@ async fn set_liquidator_close_order_flags_success(
     Ok(())
 }
 
-#[test_case(BankMint::Usdc, 100.0, BankMint::Sol, 5.0, fp!(20))]
-#[test_case(BankMint::Usdc, 850.0, BankMint::Fixed, 50.0, fp!(600))]
-#[test_case(BankMint::Sol, 3.0, BankMint::Fixed, 10.0, fp!(5))]
+#[test_case(BankMint::Usdc, 100.0, BankMint::Sol, 5.0, stop_loss_trigger(fp!(20), 0))]
+#[test_case(BankMint::Usdc, 850.0, BankMint::Fixed, 50.0, stop_loss_trigger(fp!(600), 0))]
+#[test_case(BankMint::Sol, 3.0, BankMint::Fixed, 10.0, stop_loss_trigger(fp!(5), 0))]
 #[tokio::test]
 async fn keeper_close_order_success_after_set_flags(
     asset_mint: BankMint,
     asset_deposit: f64,
     liability_mint: BankMint,
     liability_borrow: f64,
-    trigger_threshold: I80F48,
+    trigger: OrderTrigger,
 ) -> anyhow::Result<()> {
     // ---------------------------------------------------------------------
     // Setup
@@ -1641,7 +1783,6 @@ async fn keeper_close_order_success_after_set_flags(
         .await?;
 
     let bank_keys = vec![asset_bank_f.key, liability_bank_f.key];
-    let trigger = stop_loss_trigger(trigger_threshold);
     let order_pda = borrower_mfi_account_f
         .try_place_order(bank_keys.clone(), trigger)
         .await?;

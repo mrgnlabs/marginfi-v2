@@ -1,3 +1,4 @@
+use crate::constants::MAX_BPS;
 use crate::events::{
     AccountEventHeader, KeeperCloseOrderEvent, MarginfiAccountCloseOrderEvent,
     MarginfiAccountPlaceOrderEvent, SetKeeperCloseFlagsEvent,
@@ -21,9 +22,10 @@ use anchor_lang::system_program;
 use anchor_lang::{prelude::*, solana_program::sysvar};
 use bytemuck::Zeroable;
 use fixed::types::I80F48;
-use marginfi_type_crate::constants::{ix_discriminators, ORDER_ACTIVE_TAGS};
+use marginfi_type_crate::constants::{ix_discriminators, FEE_STATE_SEED, ORDER_ACTIVE_TAGS};
 use marginfi_type_crate::types::{
-    BalanceSide, ExecuteOrderRecord, HealthCache, OrderTriggerType, ACCOUNT_IN_ORDER_EXECUTION,
+    BalanceSide, ExecuteOrderRecord, FeeState, HealthCache, OrderTriggerType, ACCOUNT_FROZEN,
+    ACCOUNT_IN_ORDER_EXECUTION,
 };
 use marginfi_type_crate::{
     constants::{EXECUTE_ORDER_SEED, ORDER_SEED},
@@ -46,8 +48,6 @@ pub fn place_order(
 
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
 
-    // TODO: Transfer SOL flat fee to the order account for order creation.
-
     check!(
         !marginfi_account.get_flag(ACCOUNT_DISABLED),
         MarginfiError::AccountDisabled
@@ -56,6 +56,11 @@ pub fn place_order(
     check!(
         !marginfi_account.get_flag(ACCOUNT_IN_FLASHLOAN),
         MarginfiError::AccountInFlashloan
+    );
+
+    check!(
+        !marginfi_account.get_flag(ACCOUNT_FROZEN),
+        MarginfiError::AccountFrozen
     );
 
     check!(
@@ -102,6 +107,7 @@ pub fn place_order(
         _ => return err!(MarginfiError::InvalidAssetOrLiabilitiesCount),
     };
 
+    // Reserve tags for the balances if necessary
     let balance_1_needs_tag = lending_account.balances[balance_index_1].tag == 0;
     let balance_2_needs_tag = lending_account.balances[balance_index_2].tag == 0;
 
@@ -232,9 +238,7 @@ pub fn keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
         )
     };
 
-    if !can_close {
-        return err!(MarginfiError::LiquidatorOrderCloseNotAllowed);
-    }
+    check!(can_close, MarginfiError::LiquidatorOrderCloseNotAllowed);
 
     emit!(KeeperCloseOrderEvent {
         header: AccountEventHeader {
@@ -310,24 +314,8 @@ pub fn start_execute_order<'info>(
 
     marginfi_account.set_flag(ACCOUNT_IN_ORDER_EXECUTION, false);
 
-    let mut health_cache = HealthCache::zeroed();
-
     let (order_assets_in_equity, order_liabs_in_equity, order_asset_count, order_liab_count) = {
         let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
-
-        let (assets, liabs) = risk_engine.get_account_health_components(
-            RiskRequirementType::Maintenance,
-            &mut Some(&mut health_cache),
-        )?;
-
-        let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
-
-        let healthy = account_health > I80F48::ZERO;
-
-        check!(
-            healthy, // If the account is not healthy it should be liquidated instead, regardless of the order.
-            MarginfiError::AccountNotHealthy
-        );
 
         risk_engine.get_tagged_account_health_components(&order.tags)?
     };
@@ -336,9 +324,6 @@ pub fn start_execute_order<'info>(
         order_asset_count + order_liab_count == ORDER_ACTIVE_TAGS,
         MarginfiError::LendingAccountBalanceNotFound
     );
-
-    health_cache.set_healthy(true); // We have checked the account to be healthy
-    marginfi_account.health_cache = health_cache;
 
     let net = order_assets_in_equity
         .checked_sub(order_liabs_in_equity)
@@ -359,9 +344,7 @@ pub fn start_execute_order<'info>(
             let sl: I80F48 = order.stop_loss.into();
             let tp: I80F48 = order.take_profit.into();
             check!(net <= sl || net >= tp, MarginfiError::OrderTriggerNotMet);
-            // This is only used if the stop loss was hit, and in the case of the
-            // take profit it serves as a guard, so the keeper would not rely on the
-            // sl case instead of tp.
+            // This is only used if the stop loss was hit.
             order.stop_loss = net.into();
         }
     }
@@ -369,12 +352,13 @@ pub fn start_execute_order<'info>(
     // Create execution record
     let mut execute_record = execute_record_loader.load_init()?;
 
-    // Store the order, executor as well as all the non-order balances.
+    // Store the order, executor, health of the order balances as well as all the active non-order balances.
     execute_record.initialize(
         order_loader.key(),
         executor.key(),
         &marginfi_account,
         &order.tags,
+        &net,
     )?;
 
     validate_instructions(
@@ -392,6 +376,7 @@ pub fn end_execute_order<'info>(
         marginfi_account: marginfi_account_loader,
         order: order_loader,
         execute_record: execute_record_loader,
+        fee_state: fee_state_loader,
         ..
     } = &ctx.accounts;
 
@@ -400,10 +385,14 @@ pub fn end_execute_order<'info>(
     let mut marginfi_account = marginfi_account_loader.load_mut()?;
     let order = order_loader.load()?;
     let execute_record = execute_record_loader.load()?;
+    let fee_state = fee_state_loader.load()?;
 
     let mut health_cache = HealthCache::zeroed();
 
-    let (order_assets_in_equity, _order_liabs_in_equity, _order_asset_count, order_liab_count) = {
+    let (
+        (order_assets_in_equity, _order_liabs_in_equity, _order_asset_count, order_liab_count),
+        is_healthy,
+    ) = {
         let risk_engine = RiskEngine::new(&marginfi_account, ctx.remaining_accounts)?;
 
         let (assets, liabs) = risk_engine.get_account_health_components(
@@ -413,55 +402,133 @@ pub fn end_execute_order<'info>(
 
         let account_health = assets.checked_sub(liabs).ok_or_else(math_error!())?;
 
-        let healthy = account_health > I80F48::ZERO;
+        let is_healthy = account_health >= I80F48::ZERO;
 
-        check!(
-            healthy, // The account should remain healthy
-            MarginfiError::AccountNotHealthy
-        );
+        health_cache.set_healthy(is_healthy);
 
-        risk_engine.get_tagged_account_health_components(&order.tags)?
+        (
+            risk_engine.get_tagged_account_health_components(&order.tags)?,
+            is_healthy,
+        )
     };
+
+    marginfi_account.health_cache = health_cache;
 
     check!(
         order_liab_count.eq(&0), // All order liabilities should be closed
         MarginfiError::OrderLiabilityNotClosed
     );
 
-    health_cache.set_healthy(true); // We have checked the account to be healthy
-    marginfi_account.health_cache = health_cache;
-
     let net = order_assets_in_equity;
 
+    // The user slippage constraint we want to enforce is:-
+    // net >= (1 - slippage/MAX_BPS) * (tp or sl)
+
+    // For the TP case another constraint(the max fee constraint) we want to enforce is:-
+    // net >= (1 - max_fee) * (start health)
+    // It may be possible that the value (1 - max_fee) * (start health) is less than the
+    // min allowed value based on the user's slippage constraint alone, in that case
+    // we clamp it to the slippage, allowing for that much.
+    // In the case where the value was greater we use (1 - max_fee) * (start health) instead.
+
     // Check that the liquidator did not over-withdraw.
+
+    let slippage_frac = || -> MarginfiResult<I80F48> {
+        let slippage: I80F48 = order.max_slippage.into();
+        Ok(I80F48::ONE
+            .checked_sub(
+                slippage
+                    .checked_div(MAX_BPS.into())
+                    .ok_or_else(math_error!())?,
+            )
+            .ok_or_else(math_error!())?)
+    };
+
+    let max_fee_frac = || -> MarginfiResult<I80F48> {
+        let max_fee: I80F48 = fee_state.order_execution_max_fee.into();
+        Ok(I80F48::ONE.checked_sub(max_fee).ok_or_else(math_error!())?)
+    };
+
+    let start_health = || -> I80F48 { execute_record.order_start_health.into() };
+
     match order.trigger {
         OrderTriggerType::StopLoss => {
             let sl: I80F48 = order.stop_loss.into();
-            check!(net >= sl, MarginfiError::OrderTriggerNotMet); // This check is different from the trigger check.
+            let allowed_sl = sl
+                .checked_mul((slippage_frac)()?)
+                .ok_or_else(math_error!())?;
+
+            check!(net >= allowed_sl, MarginfiError::OrderTriggerNotMet);
         }
         OrderTriggerType::TakeProfit => {
             let tp: I80F48 = order.take_profit.into();
-            // If the liquidator cacthes it as `net > tp`, then they can keep at most `net - tp`.
-            check!(net >= tp, MarginfiError::OrderTriggerNotMet);
+            let allowed_tp = tp
+                .checked_mul((slippage_frac)()?)
+                .ok_or_else(math_error!())?;
+
+            let allowed_diff = (start_health)()
+                .checked_mul((max_fee_frac)()?)
+                .ok_or_else(math_error!())?;
+
+            check!(
+                ((net >= allowed_diff) && (allowed_diff >= allowed_tp))
+                    || ((net >= allowed_tp) && (allowed_tp >= allowed_diff)),
+                MarginfiError::OrderTriggerNotMet
+            );
         }
         OrderTriggerType::Both => {
             let sl: I80F48 = order.stop_loss.into();
             let tp: I80F48 = order.take_profit.into();
-            check!(net >= sl || net >= tp, MarginfiError::OrderTriggerNotMet); // Same as in both comments above.
+            let start_health = start_health();
+
+            // This check relies on sl being < tp, which is enforced in the code to tell them apart
+            if start_health >= tp {
+                let allowed_tp = tp
+                    .checked_mul((slippage_frac)()?)
+                    .ok_or_else(math_error!())?;
+
+                let allowed_diff = start_health
+                    .checked_mul((max_fee_frac)()?)
+                    .ok_or_else(math_error!())?;
+
+                check!(
+                    ((net >= allowed_diff) && (allowed_diff >= allowed_tp))
+                        || ((net >= allowed_tp) && (allowed_tp >= allowed_diff)),
+                    MarginfiError::OrderTriggerNotMet
+                );
+            } else {
+                let allowed_sl = sl
+                    .checked_mul((slippage_frac)()?)
+                    .ok_or_else(math_error!())?;
+
+                check!(net >= allowed_sl, MarginfiError::OrderTriggerNotMet);
+            }
         }
     }
 
-    // Only one asset and liab are currently involved in a balance, with the single liability being closed.
+    // Only one asset and liab are currently involved in a balance, with the
+    // single liability being closed.
     let closed_order_balances_count = 1;
 
+    // order_liab_in_equity = 0
+    let order_current_health = order_assets_in_equity;
+
     // Check that the non-order balances remain unchanged, including inactive ones.
-    execute_record.verify_unchanged(&marginfi_account, closed_order_balances_count)?;
+    // Also check that the account is at least as healthy as it was at the start of execution,
+    // If it wasn't since the user specified the slippage, we at least make sure the account is
+    // still health after execution to avoid the position taking on more risk.
+    execute_record.check_health_and_verify_unchanged(
+        &marginfi_account,
+        closed_order_balances_count,
+        &order_current_health,
+        is_healthy,
+    )?;
 
     // At this point we know that all non order balances were not touched and the order
     // balances that were touched:-
     // 1) Is still above or equal to the trigger price(in equity terms).
-    // 2) Did not make the account unhealthy as it was healthy at the
-    //    start of this execution process, so it should not have changed.
+    // 2) Did not make the account less healthy and if at all we did, the account is
+    //    still healthy overall.
 
     marginfi_account.unset_flag(ACCOUNT_IN_ORDER_EXECUTION, false);
 
@@ -600,6 +667,7 @@ pub struct StartExecuteOrder<'info> {
             let acc = marginfi_account.load()?;
             !acc.get_flag(ACCOUNT_IN_ORDER_EXECUTION)
                 && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_FROZEN)
                 && !acc.get_flag(ACCOUNT_DISABLED)
         } @MarginfiError::UnexpectedOrderExecutionState
     )]
@@ -663,6 +731,7 @@ pub struct EndExecuteOrder<'info> {
             let acc = marginfi_account.load()?;
             acc.get_flag(ACCOUNT_IN_ORDER_EXECUTION)
                 && !acc.get_flag(ACCOUNT_IN_FLASHLOAN)
+                && !acc.get_flag(ACCOUNT_FROZEN)
                 && !acc.get_flag(ACCOUNT_DISABLED)
         } @MarginfiError::UnexpectedOrderExecutionState
     )]

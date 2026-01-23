@@ -216,19 +216,21 @@ pub enum MarginfiError {
     InvalidBalanceCount,
     #[msg("Liquidator not allowed to close order")] // 6106
     LiquidatorOrderCloseNotAllowed,
-    #[msg("Order trigger values must be greater than zero")] // 6107
-    OrderTriggerValueNonPositive,
-    #[msg("Order trigger is yet to be met")] // 6108
+    #[msg("Order trigger is yet to be met")] // 6107
     OrderTriggerNotMet,
     #[msg("Order execution state issue. Check the necessary invariants i.e not in flashloan or disabled e.t.c")]
-    // 6109
+    // 6108
     UnexpectedOrderExecutionState,
-    #[msg("Order liability not closed")] // 6110
+    #[msg("Order liability not closed")] // 6109
     OrderLiabilityNotClosed,
-    #[msg("Invalid asset or liabilities count")] // 6111
+    #[msg("Invalid asset or liabilities count")] // 6110
     InvalidAssetOrLiabilitiesCount,
-    #[msg("Account is not healthy")] // 6112
-    AccountNotHealthy,
+    #[msg("Account health can only worsen if account is healthy")] // 6111
+    WorseHealthPostExecution,
+    #[msg("TP must be > 0, SL must be > 0 and TP > SL if both are set")] // 6112
+    InvalidOrderTakeProfitOrStopLoss,
+    #[msg("Max slippage must be less than 10000 bps")] // 6113
+    InvalidSlippage,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -486,12 +488,13 @@ impl From<u32> for MarginfiError {
             6104 => MarginfiError::DuplicateBalance,
             6105 => MarginfiError::InvalidBalanceCount,
             6106 => MarginfiError::LiquidatorOrderCloseNotAllowed,
-            6107 => MarginfiError::OrderTriggerValueNonPositive,
-            6108 => MarginfiError::OrderTriggerNotMet,
-            6109 => MarginfiError::UnexpectedOrderExecutionState,
-            6110 => MarginfiError::OrderLiabilityNotClosed,
-            6111 => MarginfiError::InvalidAssetOrLiabilitiesCount,
-            6112 => MarginfiError::AccountNotHealthy,
+            6107 => MarginfiError::OrderTriggerNotMet,
+            6108 => MarginfiError::UnexpectedOrderExecutionState,
+            6109 => MarginfiError::OrderLiabilityNotClosed,
+            6110 => MarginfiError::InvalidAssetOrLiabilitiesCount,
+            6111 => MarginfiError::WorseHealthPostExecution,
+            6112 => MarginfiError::InvalidOrderTakeProfitOrStopLoss,
+            6113 => MarginfiError::InvalidSlippage,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

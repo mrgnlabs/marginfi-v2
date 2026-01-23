@@ -754,9 +754,9 @@ export const purgeDeveleragedBalance = (
 // ---------------------------------------------------------------------------
 
 export type OrderTriggerArgs =
-  | { stopLoss: { threshold: WrappedI80F48 } }
-  | { takeProfit: { threshold: WrappedI80F48 } }
-  | { both: { stopLoss: WrappedI80F48; takeProfit: WrappedI80F48 } };
+  | { stopLoss: { threshold: WrappedI80F48; maxSlippage: BN } }
+  | { takeProfit: { threshold: WrappedI80F48; maxSlippage: BN } }
+  | { both: { stopLoss: WrappedI80F48; takeProfit: WrappedI80F48; maxSlippage: BN } };
 
 export type PlaceOrderArgs = {
   marginfiAccount: PublicKey;
@@ -764,9 +764,11 @@ export type PlaceOrderArgs = {
   feePayer: PublicKey;
   bankKeys: PublicKey[];
   trigger: OrderTriggerArgs;
+  feeState?: PublicKey;
+  globalFeeWallet?: PublicKey;
 };
 
-export const placeOrderIx = (
+export const placeOrderIx = async (
   program: Program<Marginfi>,
   args: PlaceOrderArgs
 ) => {

@@ -31,17 +31,20 @@ unsafe impl Pod for OrderTriggerType {}
 pub enum OrderTrigger {
     StopLoss {
         threshold: WrappedI80F48,
+        max_slippage: u16,
     },
     TakeProfit {
         threshold: WrappedI80F48,
+        max_slippage: u16,
     },
     Both {
         stop_loss: WrappedI80F48,
         take_profit: WrappedI80F48,
+        max_slippage: u16,
     },
 }
 
-assert_struct_size!(Order, 192);
+assert_struct_size!(Order, 224);
 assert_struct_align!(Order, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy), derive(Default, PartialEq, Eq))]
@@ -51,14 +54,15 @@ pub struct Order {
     pub marginfi_account: Pubkey,
     pub stop_loss: WrappedI80F48,
     pub take_profit: WrappedI80F48,
+    pub max_slippage: u16,
     /// Active tags (currently 2). Remaining capacity is stored in padding for layout compatibility.
     /// Padding byte `ORDER_TAG_PADDING - 1` stores the tag count for forward compatibility.
     pub tags: [u16; ORDER_ACTIVE_TAGS],
-    pub _tags_padding: [u8; ORDER_TAG_PADDING],
+    _tags_padding: [u8; ORDER_TAG_PADDING],
     pub trigger: OrderTriggerType,
     pub bump: u8,
-    _reserved0: [u8; 5],
-    _reserved1: [u64; 11],
+    _reserved0: [u8; 3],
+    _reserved1: [u64; 15],
 }
 
 impl Order {
@@ -72,7 +76,7 @@ pub const MAX_EXECUTE_RECORD_BALANCES: usize = MAX_LENDING_ACCOUNT_BALANCES - 2;
 
 // Records key information about the account during order execution.
 // It is closed after the order completes with funds returned to the executor.
-assert_struct_size!(ExecuteOrderRecord, 856);
+assert_struct_size!(ExecuteOrderRecord, 872);
 assert_struct_align!(ExecuteOrderRecord, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy))]
@@ -87,6 +91,7 @@ pub struct ExecuteOrderRecord {
     pub active_balance_count: u8,
     pub inactive_balance_count: u8,
     _reserved0: [u8; 6],
+    pub order_start_health: WrappedI80F48,
 }
 
 // This is used to ensure the balance state after execution stays the same.
