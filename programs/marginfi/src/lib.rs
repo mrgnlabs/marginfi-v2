@@ -20,8 +20,8 @@ pub mod utils;
 use anchor_lang::prelude::*;
 use instructions::*;
 use marginfi_type_crate::types::{
-    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, WrappedI80F48,
-    MAX_EMODE_ENTRIES,
+    BankConfigCompact, BankConfigOpt, EmodeEntry, InterestRateConfigOpt, OrderTrigger,
+    WrappedI80F48, MAX_EMODE_ENTRIES,
 };
 use prelude::*;
 
@@ -282,6 +282,40 @@ pub mod marginfi {
         marginfi_account::initialize_account_pda(ctx, account_index, third_party_id)
     }
 
+    pub fn marginfi_account_place_order(
+        ctx: Context<PlaceOrder>,
+        mint_keys: Vec<Pubkey>,
+        trigger: OrderTrigger,
+    ) -> MarginfiResult {
+        marginfi_account::place_order(ctx, mint_keys, trigger)
+    }
+
+    pub fn marginfi_account_close_order(ctx: Context<CloseOrder>) -> MarginfiResult {
+        marginfi_account::close_order(ctx)
+    }
+
+    pub fn marginfi_account_keeper_close_order(ctx: Context<KeeperCloseOrder>) -> MarginfiResult {
+        marginfi_account::keeper_close_order(ctx)
+    }
+
+    pub fn marginfi_account_set_keeper_close_flags(
+        ctx: Context<SetKeeperCloseFlags>,
+        bank_keys_opt: Option<Vec<Pubkey>>,
+    ) -> MarginfiResult {
+        marginfi_account::set_keeper_close_flags(ctx, bank_keys_opt)
+    }
+
+    pub fn marginfi_account_start_execute_order<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartExecuteOrder<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::start_execute_order(ctx)
+    }
+
+    pub fn marginfi_account_end_execute_order<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EndExecuteOrder<'info>>,
+    ) -> MarginfiResult {
+        marginfi_account::end_execute_order(ctx)
+    }
     pub fn lending_account_deposit<'info>(
         ctx: Context<'_, '_, 'info, 'info, LendingAccountDeposit<'info>>,
         amount: u64,
@@ -472,9 +506,11 @@ pub mod marginfi {
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
         liquidation_flat_sol_fee: u32,
+        order_init_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
         liquidation_max_fee: WrappedI80F48,
+        order_execution_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::initialize_fee_state(
             ctx,
@@ -482,9 +518,11 @@ pub mod marginfi {
             fee_wallet,
             bank_init_flat_sol_fee,
             liquidation_flat_sol_fee,
+            order_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_execution_max_fee,
         )
     }
 
@@ -495,9 +533,11 @@ pub mod marginfi {
         fee_wallet: Pubkey,
         bank_init_flat_sol_fee: u32,
         liquidation_flat_sol_fee: u32,
+        order_init_flat_sol_fee: u32,
         program_fee_fixed: WrappedI80F48,
         program_fee_rate: WrappedI80F48,
         liquidation_max_fee: WrappedI80F48,
+        order_execution_max_fee: WrappedI80F48,
     ) -> MarginfiResult {
         marginfi_group::edit_fee_state(
             ctx,
@@ -505,9 +545,11 @@ pub mod marginfi {
             fee_wallet,
             bank_init_flat_sol_fee,
             liquidation_flat_sol_fee,
+            order_init_flat_sol_fee,
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_execution_max_fee,
         )
     }
 
