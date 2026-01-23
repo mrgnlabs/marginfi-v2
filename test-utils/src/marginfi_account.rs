@@ -6,7 +6,7 @@ use fixed::types::I80F48;
 use kamino_mocks::kamino_lending::client as kamino;
 use marginfi::state::bank::BankVaultType;
 use marginfi_type_crate::types::OracleSetup;
-use marginfi_type_crate::types::{Bank, MarginfiAccount, Order, OrderTrigger};
+use marginfi_type_crate::types::{Bank, FeeState, MarginfiAccount, Order, OrderTrigger};
 use solana_program::{instruction::Instruction, sysvar};
 use solana_program_test::{BanksClient, BanksClientError, ProgramTestContext};
 use solana_sdk::{
@@ -1317,6 +1317,26 @@ impl MarginfiAccountFixture {
         trigger: OrderTrigger,
     ) -> std::result::Result<Pubkey, BanksClientError> {
         let marginfi_account = self.load().await;
+        // Compute fee_state PDA and fetch the global_fee_wallet from it so we can pass both
+        // accounts to the PlaceOrder instruction.
+        let (fee_state_key, _bump) = Pubkey::find_program_address(
+            &[marginfi_type_crate::constants::FEE_STATE_SEED.as_bytes()],
+            &marginfi::ID,
+        );
+
+        // Clone banks_client so we don't hold the RefCell borrow across await points.
+        let banks_client = {
+            let ctx = self.ctx.borrow();
+            ctx.banks_client.clone()
+        };
+        let fee_state_account = banks_client
+            .get_account(fee_state_key)
+            .await?
+            .expect("fee_state account must exist for tests");
+        let fee_state_data: FeeState =
+            FeeState::try_deserialize(&mut &fee_state_account.data[..]).expect("invalid fee_state");
+        let global_fee_wallet = fee_state_data.global_fee_wallet;
+
         let ctx = self.ctx.borrow();
 
         let (order_pda, _) = find_order_pda(&self.key, &bank_keys);
@@ -1329,6 +1349,8 @@ impl MarginfiAccountFixture {
                 fee_payer: ctx.payer.pubkey(),
                 authority: ctx.payer.pubkey(),
                 order: order_pda,
+                fee_state: fee_state_key,
+                global_fee_wallet,
                 system_program: system_program::ID,
             }
             .to_account_metas(Some(true)),

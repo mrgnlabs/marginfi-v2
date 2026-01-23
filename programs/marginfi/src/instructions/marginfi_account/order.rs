@@ -40,6 +40,7 @@ pub fn place_order(
     let PlaceOrder {
         marginfi_account: marginfi_account_loader,
         order: order_loader,
+        fee_state: fee_state_loader,
         ..
     } = &ctx.accounts;
 
@@ -132,6 +133,16 @@ pub fn place_order(
     let mut order = order_loader.load_init()?;
 
     order.initialize(marginfi_account_key, trigger, tags, order_bump)?;
+
+    let fee_state = fee_state_loader.load()?;
+    let order_init_flat_sol_fee = fee_state.order_init_flat_sol_fee;
+
+    if order_init_flat_sol_fee > 0 {
+        anchor_lang::system_program::transfer(
+            ctx.accounts.transfer_flat_fee(),
+            order_init_flat_sol_fee as u64,
+        )?;
+    }
 
     emit!(MarginfiAccountPlaceOrderEvent {
         header: AccountEventHeader {
@@ -490,7 +501,33 @@ pub struct PlaceOrder<'info> {
     )]
     pub order: AccountLoader<'info, Order>,
 
+    // Note: there is just one FeeState per program, so no further check is required.
+    #[account(
+        seeds = [FEE_STATE_SEED.as_bytes()],
+        bump,
+        has_one = global_fee_wallet @ MarginfiError::InvalidFeeWallet
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
+
+    /// CHECK: The fee admin's native SOL wallet, validated against fee state
+    #[account(mut)]
+    pub global_fee_wallet: AccountInfo<'info>,
+
     pub system_program: Program<'info, System>,
+}
+
+impl<'info> PlaceOrder<'info> {
+    fn transfer_flat_fee(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {
+        CpiContext::new(
+            self.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer {
+                from: self.fee_payer.to_account_info(),
+                to: self.global_fee_wallet.to_account_info(),
+            },
+        )
+    }
 }
 
 #[derive(Accounts)]
@@ -653,6 +690,13 @@ pub struct EndExecuteOrder<'info> {
         close = fee_recipient
     )]
     pub execute_record: AccountLoader<'info, ExecuteOrderRecord>,
+
+    // Note: there is just one FeeState per program, so no further check is required.
+    #[account(
+        seeds = [FEE_STATE_SEED.as_bytes()],
+        bump,
+    )]
+    pub fee_state: AccountLoader<'info, FeeState>,
 }
 
 impl Hashable for EndExecuteOrder<'_> {

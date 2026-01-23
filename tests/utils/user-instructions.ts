@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import { Marginfi } from "../../target/types/marginfi";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { deriveExecuteOrderPda, deriveOrderPda } from "./pdas";
+import { deriveExecuteOrderPda, deriveGlobalFeeState, deriveOrderPda } from "./pdas";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 
 export type AccountInitArgs = {
@@ -776,11 +776,17 @@ export const placeOrderIx = (
     args.bankKeys
   );
 
+  const feeState = args.feeState ?? deriveGlobalFeeState(program.programId)[0];
+  const globalFeeWallet = args.globalFeeWallet
+    ?? (await program.account.feeState.fetch(feeState)).globalFeeWallet;
+
   const accounts = {
     authority: args.authority,
     marginfiAccount: args.marginfiAccount,
     feePayer: args.feePayer,
     order: orderPda,
+    feeState,
+    globalFeeWallet,
   };
 
   return program.methods
@@ -902,12 +908,14 @@ export type EndExecuteOrderArgs = {
   executeRecord: PublicKey;
   feeRecipient: PublicKey;
   remaining: PublicKey[];
+  feeState?: PublicKey;
 };
 
 export const endExecuteOrderIx = (
   program: Program<Marginfi>,
   args: EndExecuteOrderArgs
 ) => {
+  const feeState = args.feeState ?? deriveGlobalFeeState(program.programId)[0];
   const rem: AccountMeta[] = args.remaining.map((pubkey) => ({
     pubkey,
     isSigner: false,
@@ -921,6 +929,7 @@ export const endExecuteOrderIx = (
     feeRecipient: args.feeRecipient,
     order: args.order,
     executeRecord: args.executeRecord,
+    feeState,
   };
 
   return program.methods
