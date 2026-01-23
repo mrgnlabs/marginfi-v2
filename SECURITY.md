@@ -6,13 +6,15 @@ marginfi offers bug bounties for marginfi's on-chain program code. Bugs related 
 ​
 |Severity|Bounty|
 |-----------|-------------|
-|Critical|10% of the value of the hack, up to $500,000|
+|Critical|2% of the value of the hack, up to $500,000. Minimum $50,000|
 |High|$10,000 to $50,000 per bug, assessed on a case by case basis|
 |Medium/Low|$1,000 to $5,000 per bug, assessed on a case by case basis|
 ​
 
 The severity scale is based on [Immunefi's classification system](https://immunefi.com/immunefi-vulnerability-severity-classification-system-v2-3/). 
 Note that these are simply guidelines for the severity of the bugs. Each bug bounty submission will be evaluated on a case-by-case basis.
+
+Critical bounties may be paid in up to 80\% token, with the rest in USDC. Others are paid in USDC.
 
 ## Infrastructure Bug Bounties
 Bug bounties for infrastructure components (networking, UI, SDK) are first-come-first-serve. The bounty amount is at the discretion of the team based on severity.
