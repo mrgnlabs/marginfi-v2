@@ -41,8 +41,8 @@ use {
         },
         types::{
             make_points, BalanceSide, Bank, BankConfigCompact, BankConfigOpt, BankOperationalState,
-            InterestRateConfig, MarginfiAccount, MarginfiGroup, Order, OrderTrigger, OracleSetup,
-            RatePoint, WrappedI80F48, CURVE_POINTS, INTEREST_CURVE_SEVEN_POINT,
+            FeeState, InterestRateConfig, MarginfiAccount, MarginfiGroup, OracleSetup,
+            OrderTrigger, RatePoint, WrappedI80F48, CURVE_POINTS, INTEREST_CURVE_SEVEN_POINT,
         },
     },
     pyth_solana_receiver_sdk::price_update::PriceUpdateV2,
@@ -976,10 +976,13 @@ pub fn initialize_fee_state(
     program_fee_fixed: f64,
     program_fee_rate: f64,
     liquidation_max_fee: f64,
+    order_init_flat_sol_fee: u32,
+    order_execution_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
     let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
+    let order_execution_max_fee: WrappedI80F48 = I80F48::from_num(order_execution_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1001,6 +1004,8 @@ pub fn initialize_fee_state(
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         })
         .instructions()?;
 
@@ -1029,10 +1034,13 @@ pub fn edit_fee_state(
     program_fee_fixed: f64,
     program_fee_rate: f64,
     liquidation_max_fee: f64,
+    order_init_flat_sol_fee: u32,
+    order_execution_max_fee: f64,
 ) -> Result<()> {
     let program_fee_fixed: WrappedI80F48 = I80F48::from_num(program_fee_fixed).into();
     let program_fee_rate: WrappedI80F48 = I80F48::from_num(program_fee_rate).into();
     let liquidation_max_fee: WrappedI80F48 = I80F48::from_num(liquidation_max_fee).into();
+    let order_execution_max_fee: WrappedI80F48 = I80F48::from_num(order_execution_max_fee).into();
 
     let rpc_client = config.mfi_program.rpc();
 
@@ -1053,6 +1061,8 @@ pub fn edit_fee_state(
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         })
         .instructions()?;
 
@@ -1159,7 +1169,7 @@ pub fn bank_get(config: Config, bank_pk: Option<Pubkey>) -> Result<()> {
         let current_timestamp = current_timestamp.as_secs() as i64;
 
         bank.accrue_interest(current_timestamp, &group)?;
-        bank.update_bank_cache(&group, None)?;
+        bank.update_bank_cache(&group)?;
         println!(" Cranking interest at: {:?}", current_timestamp);
 
         print_bank(&address, &bank);
@@ -2572,7 +2582,14 @@ pub fn marginfi_account_place_order(
 
     let (order_pda, _bump) = find_order_pda(&marginfi_account_pk, &bank_keys, &config.program_id);
 
-    println!("Placing order for marginfi account: {}", marginfi_account_pk);
+    // Fee state PDA is single-instance; load it to get the global fee wallet required by the ix.
+    let fee_state_pk = find_fee_state_pda(&config.program_id).0;
+    let fee_state: FeeState = config.mfi_program.account(fee_state_pk)?;
+
+    println!(
+        "Placing order for marginfi account: {}",
+        marginfi_account_pk
+    );
     println!("Bank 1: {}", bank_1);
     println!("Bank 2: {}", bank_2);
     println!("Order PDA: {}", order_pda);
@@ -2585,6 +2602,8 @@ pub fn marginfi_account_place_order(
             fee_payer: signer.pubkey(),
             authority: signer.pubkey(),
             order: order_pda,
+            fee_state: fee_state_pk,
+            global_fee_wallet: fee_state.global_fee_wallet,
             system_program: system_program::id(),
         }
         .to_account_metas(Some(true)),
@@ -2621,12 +2640,6 @@ pub fn marginfi_account_close_order(
     let rpc_client = config.mfi_program.rpc();
 
     let marginfi_account_pk = profile.get_marginfi_account();
-    let group_pk = profile.marginfi_group.ok_or_else(|| {
-        anyhow!(
-            "Marginfi group does not exist for profile [{}]",
-            profile.name
-        )
-    })?;
 
     // Default fee_recipient to signer if not provided
     let fee_recipient = fee_recipient.unwrap_or(signer.pubkey());
@@ -2637,7 +2650,6 @@ pub fn marginfi_account_close_order(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::CloseOrder {
-            group: group_pk,
             marginfi_account: marginfi_account_pk,
             authority: signer.pubkey(),
             order: order_pk,
@@ -2673,12 +2685,6 @@ pub fn marginfi_account_set_keeper_close_flags(
     let rpc_client = config.mfi_program.rpc();
 
     let marginfi_account_pk = profile.get_marginfi_account();
-    let group_pk = profile.marginfi_group.ok_or_else(|| {
-        anyhow!(
-            "Marginfi group does not exist for profile [{}]",
-            profile.name
-        )
-    })?;
 
     match &bank_keys_opt {
         Some(keys) => {
@@ -2695,15 +2701,11 @@ pub fn marginfi_account_set_keeper_close_flags(
     let ix = Instruction {
         program_id: config.program_id,
         accounts: marginfi::accounts::SetKeeperCloseFlags {
-            group: group_pk,
             marginfi_account: marginfi_account_pk,
             authority: signer.pubkey(),
         }
         .to_account_metas(Some(true)),
-        data: marginfi::instruction::MarginfiAccountSetKeeperCloseFlags {
-            bank_keys_opt,
-        }
-        .data(),
+        data: marginfi::instruction::MarginfiAccountSetKeeperCloseFlags { bank_keys_opt }.data(),
     };
 
     let recent_blockhash = rpc_client.get_latest_blockhash()?;

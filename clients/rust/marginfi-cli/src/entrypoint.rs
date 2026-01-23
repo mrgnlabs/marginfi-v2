@@ -13,8 +13,7 @@ use fixed::types::I80F48;
 use marginfi_type_crate::types::{
     make_points, Balance, Bank, BankConfig, BankConfigOpt, BankOperationalState,
     InterestRateConfig, InterestRateConfigOpt, LendingAccount, MarginfiAccount, MarginfiGroup,
-    RatePoint, RiskTier, WrappedI80F48, ACCOUNT_FLAG_DEPRECATED,
-    OrderTrigger, CURVE_POINTS,
+    OrderTrigger, RatePoint, RiskTier, WrappedI80F48, CURVE_POINTS,
 };
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use rand::Rng;
@@ -167,6 +166,10 @@ pub enum GroupCommand {
         program_fee_rate: f64,
         #[clap(long)]
         liquidation_max_fee: f64,
+        #[clap(long)]
+        order_init_flat_sol_fee: u32,
+        #[clap(long)]
+        order_execution_max_fee: f64,
     },
     EditFeeState {
         #[clap(long)]
@@ -183,6 +186,18 @@ pub enum GroupCommand {
         program_fee_rate: f64,
         #[clap(long)]
         liquidation_max_fee: f64,
+        #[clap(
+            long,
+            help = "Flat SOL fee (lamports) when creating an order",
+            default_value = "0"
+        )]
+        order_init_flat_sol_fee: u32,
+        #[clap(
+            long,
+            help = "Max order execution fee (as a decimal, e.g. 0.05 for 5%)",
+            default_value = "0"
+        )]
+        order_execution_max_fee: f64,
     },
     ConfigGroupFee {
         #[clap(
@@ -280,6 +295,7 @@ impl OrderTriggerTypeArg {
         self,
         stop_loss: Option<f64>,
         take_profit: Option<f64>,
+        max_slippage_bps: u16,
     ) -> Result<OrderTrigger> {
         match self {
             OrderTriggerTypeArg::StopLoss => {
@@ -288,6 +304,7 @@ impl OrderTriggerTypeArg {
                 })?;
                 Ok(OrderTrigger::StopLoss {
                     threshold: I80F48::from_num(threshold).into(),
+                    max_slippage: max_slippage_bps,
                 })
             }
             OrderTriggerTypeArg::TakeProfit => {
@@ -296,6 +313,7 @@ impl OrderTriggerTypeArg {
                 })?;
                 Ok(OrderTrigger::TakeProfit {
                     threshold: I80F48::from_num(threshold).into(),
+                    max_slippage: max_slippage_bps,
                 })
             }
             OrderTriggerTypeArg::Both => {
@@ -308,6 +326,7 @@ impl OrderTriggerTypeArg {
                 Ok(OrderTrigger::Both {
                     stop_loss: I80F48::from_num(sl).into(),
                     take_profit: I80F48::from_num(tp).into(),
+                    max_slippage: max_slippage_bps,
                 })
             }
         }
@@ -569,6 +588,9 @@ pub enum AccountCommand {
         /// Take profit threshold value (required for take-profit and both)
         #[clap(long)]
         take_profit: Option<f64>,
+        /// Max slippage in basis points (bps). Required by program; defaults to 0 if omitted.
+        #[clap(long)]
+        max_slippage_bps: u16,
     },
     CloseOrder {
         /// The order account to close
@@ -807,6 +829,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         } => processor::initialize_fee_state(
             config,
             admin,
@@ -816,6 +840,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         ),
         GroupCommand::EditFeeState {
             new_admin,
@@ -825,6 +851,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         } => processor::edit_fee_state(
             config,
             new_admin,
@@ -834,6 +862,8 @@ fn group(subcmd: GroupCommand, global_options: &GlobalOptions) -> Result<()> {
             program_fee_fixed,
             program_fee_rate,
             liquidation_max_fee,
+            order_init_flat_sol_fee,
+            order_execution_max_fee,
         ),
         GroupCommand::ConfigGroupFee { enable_program_fee } => {
             processor::config_group_fee(config, profile, enable_program_fee)
@@ -1066,8 +1096,10 @@ fn process_account_subcmd(subcmd: AccountCommand, global_options: &GlobalOptions
             trigger_type,
             stop_loss,
             take_profit,
+            max_slippage_bps,
         } => {
-            let trigger = trigger_type.into_order_trigger(stop_loss, take_profit)?;
+            let trigger =
+                trigger_type.into_order_trigger(stop_loss, take_profit, max_slippage_bps)?;
             processor::marginfi_account_place_order(&profile, &config, bank_1, bank_2, trigger)
         }
         AccountCommand::CloseOrder {

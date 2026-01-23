@@ -6,13 +6,15 @@ use {
     log::error,
     marginfi::{bank_authority_seed, bank_seed, state::bank::BankVaultType},
     marginfi_type_crate::{
-        constants::{EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED, ORDER_SEED},
+        constants::{
+            EMISSIONS_AUTH_SEED, EMISSIONS_TOKEN_ACCOUNT_SEED, FEE_STATE_SEED, ORDER_SEED,
+        },
         types::{Bank, BankConfig, MarginfiAccount},
     },
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
-        hash::hashv,
-        instruction::AccountMeta, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+        hash::hashv, instruction::AccountMeta, pubkey::Pubkey, signature::Signature,
+        transaction::Transaction,
     },
     std::collections::HashMap,
 };
@@ -118,7 +120,6 @@ pub fn find_order_pda(
     bank_keys: &[Pubkey],
     program_id: &Pubkey,
 ) -> (Pubkey, u8) {
-
     let mut slices: Vec<&[u8]> = bank_keys.iter().map(|pk| pk.as_ref()).collect();
     slices.sort_unstable();
     let bank_keys_hash = hashv(&slices).to_bytes();
