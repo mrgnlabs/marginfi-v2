@@ -40,16 +40,32 @@ import {
   USDC_SCALING_FACTOR,
 } from "./utils/drift-utils";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { composeRemainingAccounts } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  composeRemainingAccountsByBalances,
+} from "./utils/user-instructions";
 import { CONF_INTERVAL_MULTIPLE, ORACLE_CONF_INTERVAL } from "./utils/types";
 
 describe("d08: Drift Withdraw Tests", () => {
   let driftUsdcBank: PublicKey;
   let driftTokenABank: PublicKey;
+  let driftBalanceAccountGroups: PublicKey[][] = [];
 
   before(async () => {
     driftUsdcBank = driftAccounts.get(DRIFT_USDC_BANK);
     driftTokenABank = driftAccounts.get(DRIFT_TOKEN_A_BANK);
+    driftBalanceAccountGroups = [
+      [
+        driftUsdcBank,
+        oracles.usdcOracle.publicKey,
+        driftAccounts.get(DRIFT_USDC_SPOT_MARKET),
+      ],
+      [
+        driftTokenABank,
+        oracles.tokenAOracle.publicKey,
+        driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
+      ],
+    ];
   });
 
   it("(user 0) Withdraws all of USDC from Drift - happy path", async () => {
@@ -65,6 +81,13 @@ describe("d08: Drift Withdraw Tests", () => {
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
+    const marginfiAccountState =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
+    const remaining = composeRemainingAccountsByBalances(
+      marginfiAccountState.lendingAccount.balances,
+      driftBalanceAccountGroups,
+      driftUsdcBank
+    );
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
@@ -76,13 +99,7 @@ describe("d08: Drift Withdraw Tests", () => {
       {
         amount: new BN(0),
         withdraw_all: true,
-        remaining: composeRemainingAccounts([
-          [
-            driftTokenABank,
-            oracles.tokenAOracle.publicKey,
-            driftAccounts.get(DRIFT_TOKEN_A_SPOT_MARKET),
-          ],
-        ]),
+        remaining,
       },
       driftBankrunProgram
     );
@@ -128,6 +145,13 @@ describe("d08: Drift Withdraw Tests", () => {
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
 
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
+    const marginfiAccountState =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
+    const remaining = composeRemainingAccountsByBalances(
+      marginfiAccountState.lendingAccount.balances,
+      driftBalanceAccountGroups,
+      driftUsdcBank
+    );
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
@@ -138,13 +162,7 @@ describe("d08: Drift Withdraw Tests", () => {
       {
         amount: new BN(0),
         withdraw_all: true,
-        remaining: composeRemainingAccounts([
-          [
-            driftUsdcBank,
-            oracles.usdcOracle.publicKey,
-            driftAccounts.get(DRIFT_USDC_SPOT_MARKET),
-          ],
-        ]),
+        remaining,
       },
       driftBankrunProgram
     );
@@ -480,6 +498,13 @@ describe("d08: Drift Withdraw Tests", () => {
     const spotPositionBefore = driftUserBefore.spotPositions[1];
     const scaledBalanceBefore = spotPositionBefore.scaledBalance;
     const marginfiAccount = user.accounts.get(USER_ACCOUNT_D);
+    const marginfiAccountState =
+      await bankrunProgram.account.marginfiAccount.fetch(marginfiAccount);
+    const remaining = composeRemainingAccountsByBalances(
+      marginfiAccountState.lendingAccount.balances,
+      driftBalanceAccountGroups,
+      driftTokenABank
+    );
     const withdrawIx = await makeDriftWithdrawIx(
       user.mrgnBankrunProgram,
       {
@@ -491,7 +516,7 @@ describe("d08: Drift Withdraw Tests", () => {
       {
         amount: new BN(0),
         withdraw_all: true,
-        remaining: [],
+        remaining,
       },
       driftBankrunProgram
     );

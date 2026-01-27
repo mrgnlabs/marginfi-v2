@@ -7,10 +7,12 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{
-            account_not_frozen_for_authority, calc_value, is_signer_authorized, BankAccountWrapper,
+            account_not_frozen_for_authority, calc_value, is_signer_authorized,
+            validate_remaining_accounts_for_balances_close_last, BankAccountWrapper,
             LendingAccountImpl, MarginfiAccountImpl, RiskEngine,
         },
         marginfi_group::MarginfiGroupImpl,
+        rate_limiter::{should_skip_rate_limit, BankRateLimiterImpl, GroupRateLimiterImpl},
     },
     utils::{
         assert_within_one_token, fetch_asset_price_for_bank_low_bias,
@@ -86,6 +88,15 @@ pub fn kamino_withdraw<'info>(
     let collateral_amount;
     let bank_key = ctx.accounts.bank.key();
     let bank_mint = ctx.accounts.bank.load()?.mint;
+    if withdraw_all {
+        let marginfi_account = ctx.accounts.marginfi_account.load()?;
+        // Require remaining accounts for all active balances, including the one being closed.
+        validate_remaining_accounts_for_balances_close_last(
+            &marginfi_account.lending_account,
+            ctx.remaining_accounts,
+            &bank_key,
+        )?;
+    }
     let mut marginfi_account = ctx.accounts.marginfi_account.load_mut()?;
     let clock = Clock::get()?;
 
@@ -100,7 +111,11 @@ pub fn kamino_withdraw<'info>(
         );
 
         let in_receivership = marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP);
-        let price = if in_receivership {
+
+        // Fetch oracle price for rate limiting and deleverage tracking
+        // When group rate limiter is enabled, oracle is required
+        let group_rate_limit_enabled = group.rate_limiter.is_enabled();
+        let price = if in_receivership || group_rate_limit_enabled {
             let price = fetch_asset_price_for_bank_low_bias(
                 &bank_key,
                 &bank,
@@ -109,11 +124,12 @@ pub fn kamino_withdraw<'info>(
             )?;
 
             // Validate price is non-zero during liquidation/deleverage to prevent exploits with stale oracles
-            check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+            if in_receivership {
+                check!(price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
+            }
 
             price
         } else {
-            // TODO: force users to always pass the oracle, even in case of withdraw_all, to correctly update withdrawn equity.
             I80F48::ZERO
         };
 
@@ -129,6 +145,35 @@ pub fn kamino_withdraw<'info>(
             bank_account.withdraw(I80F48::from_num(amount))?;
             amount
         };
+
+        // Rate limiting tracks net outflow; skip for flashloan/liquidation/deleverage flows.
+        let rate_limit_amount = if withdraw_all {
+            collateral_amount
+        } else {
+            amount
+        };
+        if !should_skip_rate_limit(marginfi_account.account_flags) {
+            // Bank-level rate limiting (native tokens)
+            if bank.rate_limiter.is_enabled() {
+                bank.rate_limiter
+                    .try_record_outflow(rate_limit_amount, clock.unix_timestamp)?;
+            }
+
+            // Group-level rate limiting (USD) - use fresh oracle price
+            if group_rate_limit_enabled {
+                check!(price > I80F48::ZERO, MarginfiError::InvalidRateLimitPrice);
+                let usd_value = calc_value(
+                    I80F48::from_num(rate_limit_amount),
+                    price,
+                    bank.get_balance_decimals(),
+                    None,
+                )?;
+                group
+                    .rate_limiter
+                    .try_record_outflow(usd_value.to_num::<u64>(), clock.unix_timestamp)?;
+            }
+        }
+
         // Note: we only care about the withdraw limit in case of deleverage
         if marginfi_account.get_flag(ACCOUNT_IN_DELEVERAGE) {
             let withdrawn_equity = calc_value(
