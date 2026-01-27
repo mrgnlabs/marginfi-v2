@@ -2,6 +2,7 @@ use crate::{
     bank_authority_seed, bank_seed,
     state::{
         bank::BankVaultType,
+        bank_config::BankConfigImpl,
         marginfi_account::get_remaining_accounts_per_bank,
         price::{
             OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter,
@@ -388,6 +389,38 @@ pub fn fetch_unbiased_price_for_bank<'info>(
     )?;
 
     Ok(price)
+}
+
+/// Fetch a rate-limit price for inflow accounting (deposit/repay).
+///
+/// Prefers a live oracle price when available, but falls back to the cached price
+/// to avoid blocking inflows when oracles are omitted. Cached prices must be fresh.
+pub fn fetch_rate_limit_price_for_inflow<'info>(
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> MarginfiResult<I80F48> {
+    if !remaining_accounts.is_empty() {
+        if let Ok(price) =
+            fetch_asset_price_for_bank_low_bias(bank_key, bank, clock, remaining_accounts)
+        {
+            if price > I80F48::ZERO {
+                return Ok(price);
+            }
+        }
+    }
+
+    let cached_price: I80F48 = bank.cache.last_oracle_price.into();
+    let cached_ts = bank.cache.last_oracle_price_timestamp;
+    let max_age = bank.config.get_oracle_max_age() as i64;
+    let age = clock.unix_timestamp.saturating_sub(cached_ts);
+
+    if cached_price <= I80F48::ZERO || cached_ts == 0 || age < 0 || age > max_age {
+        return err!(MarginfiError::InvalidRateLimitPrice);
+    }
+
+    Ok(cached_price)
 }
 
 /// Locate a bank's oracle information from a properly formatted slice of remaining accounts.

@@ -31,7 +31,10 @@ import { MockUser, USER_ACCOUNT_K } from "./utils/mocks";
 import { processBankrunTransaction } from "./utils/tools";
 import { getTokenBalance, assertBankrunTxFailed } from "./utils/genericTests";
 import { wrappedI80F48toBigNumber } from "@mrgnlabs/mrgn-common";
-import { composeRemainingAccounts } from "./utils/user-instructions";
+import {
+  composeRemainingAccounts,
+  composeRemainingAccountsByBalances,
+} from "./utils/user-instructions";
 import {
   makeKaminoDepositIx,
   makeKaminoWithdrawIx,
@@ -1318,11 +1321,6 @@ describe("k15: Kamino - Marginfi Deposits & Withdrawals", () => {
 
     for (const balance of marginfiAccount.lendingAccount.balances) {
       if (balance.active === 1) {
-        // KEY: Skip the bank we're withdrawing from if doing final withdrawal
-        if (isFinalWithdrawal && balance.bankPk.equals(bank)) {
-          continue;
-        }
-
         // Include all active Kamino banks with proper pattern
         if (balance.bankPk.equals(kaminoAccounts.get(KAMINO_USDC_BANK)!)) {
           activePositions.push([
@@ -1388,7 +1386,13 @@ describe("k15: Kamino - Marginfi Deposits & Withdrawals", () => {
         {
           amount: isFinalWithdrawal ? new BN(0) : amount,
           isFinalWithdrawal,
-          remaining: composeRemainingAccounts(activePositions),
+          remaining: isFinalWithdrawal
+            ? composeRemainingAccountsByBalances(
+                marginfiAccount.lendingAccount.balances,
+                activePositions,
+                bank
+              )
+            : activePositions.flat(),
         }
       ),
       // dummy tx to trick bankrun

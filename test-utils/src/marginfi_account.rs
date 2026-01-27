@@ -294,21 +294,16 @@ impl MarginfiAccountFixture {
             .data(),
         };
 
-        let exclude_vec = match withdraw_all.unwrap_or(false) {
-            true => {
-                if is_liquidate {
-                    vec![]
-                } else {
-                    vec![bank.key]
-                }
-            }
-            false => vec![],
-        };
-        ix.accounts.extend_from_slice(
-            &self
-                .load_observation_account_metas(vec![], exclude_vec)
-                .await,
-        );
+        if withdraw_all.unwrap_or(false) {
+            ix.accounts.extend_from_slice(
+                &self
+                    .load_observation_account_metas_close_last(bank.key, vec![], vec![])
+                    .await,
+            );
+        } else {
+            ix.accounts
+                .extend_from_slice(&self.load_observation_account_metas(vec![], vec![]).await);
+        }
 
         ix
     }
@@ -555,7 +550,7 @@ impl MarginfiAccountFixture {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
-        Instruction {
+        let mut ix = Instruction {
             program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountRepay {
@@ -563,7 +558,17 @@ impl MarginfiAccountFixture {
                 repay_all,
             }
             .data(),
+        };
+
+        if repay_all.unwrap_or(false) {
+            ix.accounts.extend_from_slice(
+                &self
+                    .load_observation_account_metas(vec![bank.key], vec![])
+                    .await,
+            );
         }
+
+        ix
     }
 
     async fn make_bank_repay_ix_internal<T: Into<f64>>(
@@ -590,7 +595,7 @@ impl MarginfiAccountFixture {
             accounts.push(AccountMeta::new_readonly(bank.mint.key, false));
         }
 
-        Instruction {
+        let mut ix = Instruction {
             program_id: marginfi::ID,
             accounts,
             data: marginfi::instruction::LendingAccountRepay {
@@ -598,7 +603,17 @@ impl MarginfiAccountFixture {
                 repay_all,
             }
             .data(),
+        };
+
+        if repay_all.unwrap_or(false) {
+            ix.accounts.extend_from_slice(
+                &self
+                    .load_observation_account_metas(vec![bank.key], vec![])
+                    .await,
+            );
         }
+
+        ix
     }
 
     pub async fn try_bank_repay<T: Into<f64>>(
@@ -963,6 +978,79 @@ impl MarginfiAccountFixture {
                 metas
             })
             .collect::<Vec<_>>();
+        account_metas
+    }
+
+    pub async fn load_observation_account_metas_close_last(
+        &self,
+        close_bank: Pubkey,
+        include_banks: Vec<Pubkey>,
+        exclude_banks: Vec<Pubkey>,
+    ) -> Vec<AccountMeta> {
+        let marginfi_account = self.load().await;
+        let mut bank_pks = marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter_map(|balance| {
+                if balance.is_active() {
+                    Some(balance.bank_pk)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        for bank_pk in include_banks {
+            if !bank_pks.contains(&bank_pk) {
+                bank_pks.push(bank_pk);
+            }
+        }
+        bank_pks.retain(|bank_pk| !exclude_banks.contains(bank_pk));
+
+        let mut other_banks: Vec<Pubkey> = bank_pks
+            .into_iter()
+            .filter(|pk| *pk != close_bank)
+            .collect();
+        other_banks.sort_by(|a, b| b.cmp(a));
+
+        let mut ordered = other_banks;
+        if !exclude_banks.contains(&close_bank) {
+            ordered.push(close_bank);
+        }
+
+        let mut banks = vec![];
+        for bank_pk in ordered.clone() {
+            let bank = load_and_deserialize::<Bank>(self.ctx.clone(), &bank_pk).await;
+            banks.push(bank);
+        }
+
+        let account_metas = banks
+            .iter()
+            .zip(ordered.iter())
+            .flat_map(|(bank, bank_pk)| {
+                let mut metas = vec![AccountMeta {
+                    pubkey: *bank_pk,
+                    is_signer: false,
+                    is_writable: false,
+                }];
+
+                if bank.config.oracle_setup != OracleSetup::Fixed {
+                    let oracle_key = {
+                        let oracle_key = bank.config.oracle_keys[0];
+                        get_oracle_id_from_feed_id(oracle_key).unwrap_or(oracle_key)
+                    };
+
+                    metas.push(AccountMeta {
+                        pubkey: oracle_key,
+                        is_signer: false,
+                        is_writable: false,
+                    });
+                }
+                metas
+            })
+            .collect::<Vec<_>>();
+
         account_metas
     }
 

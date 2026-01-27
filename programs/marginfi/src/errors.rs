@@ -210,6 +210,16 @@ pub enum MarginfiError {
     ZeroWithdrawalLimit,
     #[msg("Account is frozen by the group admin")] // 6103
     AccountFrozen,
+    #[msg("Bank hourly rate limit exceeded: try again later")] // 6104
+    BankHourlyRateLimitExceeded,
+    #[msg("Bank daily rate limit exceeded: try again later")] // 6105
+    BankDailyRateLimitExceeded,
+    #[msg("Group hourly rate limit exceeded: try again later")] // 6106
+    GroupHourlyRateLimitExceeded,
+    #[msg("Group daily rate limit exceeded: try again later")] // 6107
+    GroupDailyRateLimitExceeded,
+    #[msg("Invalid rate limit price: pass oracle or pre-crank cache")] // 6108
+    InvalidRateLimitPrice,
 
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
@@ -463,6 +473,12 @@ impl From<u32> for MarginfiError {
             6100 => MarginfiError::FixedOraclePriceNegative,
             6101 => MarginfiError::DailyWithdrawalLimitExceeded,
             6102 => MarginfiError::ZeroWithdrawalLimit,
+            6103 => MarginfiError::AccountFrozen,
+            6104 => MarginfiError::BankHourlyRateLimitExceeded,
+            6105 => MarginfiError::BankDailyRateLimitExceeded,
+            6106 => MarginfiError::GroupHourlyRateLimitExceeded,
+            6107 => MarginfiError::GroupDailyRateLimitExceeded,
+            6108 => MarginfiError::InvalidRateLimitPrice,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,

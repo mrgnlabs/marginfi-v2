@@ -317,3 +317,29 @@ export async function getBankrunTime(ctx: ProgramTestContext): Promise<number> {
   const clock = await ctx.banksClient.getClock();
   return Number(clock.unixTimestamp);
 }
+
+/**
+ * Advance the bankrun clock by a specified number of seconds.
+ * This is useful for testing time-dependent features like rate limiting,
+ * emissions, and interest accrual.
+ *
+ * @param ctx - The bankrun ProgramTestContext
+ * @param seconds - Number of seconds to advance the clock
+ * @returns The new unix timestamp after advancing
+ */
+export async function advanceBankrunClock(
+  ctx: ProgramTestContext,
+  seconds: number
+): Promise<number> {
+  const { Clock } = await import("solana-bankrun");
+  const clock = await ctx.banksClient.getClock();
+  const newClock = new Clock(
+    clock.slot + BigInt(1),
+    clock.epochStartTimestamp,
+    clock.epoch,
+    clock.leaderScheduleEpoch,
+    clock.unixTimestamp + BigInt(seconds)
+  );
+  ctx.setClock(newClock);
+  return Number(newClock.unixTimestamp);
+}

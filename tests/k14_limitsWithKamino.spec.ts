@@ -33,6 +33,7 @@ import { defaultBankConfigOptRaw, newEmodeEntry } from "./utils/types";
 import {
   borrowIx,
   composeRemainingAccounts,
+  composeRemainingAccountsByBalances,
   depositIx,
   liquidateIx,
 } from "./utils/user-instructions";
@@ -304,9 +305,9 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
     const withdrawBank = kaminoBanks[0];
     const replacementBank = kaminoBanks[MAX_KAMINO_POSITIONS];
 
-    // Remaining accounts exclude the bank being closed
+    // Remaining accounts include all active banks; closing bank ordered last.
     const remainingPositions = [];
-    for (let i = 1; i < MAX_KAMINO_POSITIONS; i++) {
+    for (let i = 0; i < MAX_KAMINO_POSITIONS; i++) {
       remainingPositions.push([
         kaminoBanks[i],
         oracles.tokenAOracle.publicKey,
@@ -325,6 +326,32 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
       withdrawObligation
     );
 
+    const userAccBefore =
+      await bankrunProgram.account.marginfiAccount.fetch(userAccount);
+    const withdrawRemaining = composeRemainingAccountsByBalances(
+      userAccBefore.lendingAccount.balances,
+      remainingPositions,
+      withdrawBank
+    );
+    const withdrawIx = await makeKaminoWithdrawIx(
+      user.mrgnBankrunProgram,
+      {
+        marginfiAccount: userAccount,
+        authority: user.wallet.publicKey,
+        bank: withdrawBank,
+        destinationTokenAccount: user.tokenAAccount,
+        lendingMarket: market,
+        reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
+        obligationFarmUserState: withdrawUserState,
+        reserveFarmState: farmState,
+      },
+      {
+        amount: new BN(0),
+        isFinalWithdrawal: true,
+        remaining: withdrawRemaining,
+      }
+    );
+
     const withdrawTx = new Transaction().add(
       await simpleRefreshReserve(
         klendBankrunProgram,
@@ -338,24 +365,8 @@ describe("k14: Limits on number of accounts, with Kamino and emode", () => {
         withdrawObligation,
         [tokenAReserve]
       ),
-      await makeKaminoWithdrawIx(
-        user.mrgnBankrunProgram,
-        {
-          marginfiAccount: userAccount,
-          authority: user.wallet.publicKey,
-          bank: withdrawBank,
-          destinationTokenAccount: user.tokenAAccount,
-          lendingMarket: market,
-          reserveLiquidityMint: ecosystem.tokenAMint.publicKey,
-          obligationFarmUserState: withdrawUserState,
-          reserveFarmState: farmState,
-        },
-        {
-          amount: new BN(0),
-          isFinalWithdrawal: true,
-          remaining: composeRemainingAccounts(remainingPositions),
-        }
-      )
+      // For withdrawAll, include all active balances, with the closing bank last.
+      withdrawIx
     );
     await processBankrunTransaction(bankrunContext, withdrawTx, [user.wallet]);
 
