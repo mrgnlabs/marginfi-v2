@@ -1,7 +1,7 @@
 use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
 use crate::{
     allocator::{heap_pos, heap_restore},
-    check, debug, math_error,
+    check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     state::{bank::BankImpl, bank_config::BankConfigImpl},
     utils::NumTraitsWithTolerance,
@@ -289,6 +289,11 @@ impl<'a, 'info> Iterator for EmodeConfigIterator<'a, 'info> {
             let bank_ai = self.remaining_ais.get(self.account_index)?;
             let bank_al = AccountLoader::<Bank>::try_from(bank_ai).ok()?;
             let bank = bank_al.load().ok()?;
+
+            if balance.bank_pk != *bank_ai.key {
+                return None;
+            }
+
             let num_accounts = get_remaining_accounts_per_bank(&bank).ok()?;
 
             // Advance indices
@@ -379,6 +384,13 @@ pub fn get_health_components<'info>(
             .ok_or(MarginfiError::InvalidBankAccount)?;
         let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
         let bank = bank_al.load()?;
+
+        check_eq!(
+            balance.bank_pk,
+            *bank_ai.key,
+            MarginfiError::InvalidBankAccount
+        );
+
         let num_accounts = get_remaining_accounts_per_bank(&bank)?;
 
         // Load oracle (this is the heap-intensive operation)
@@ -587,6 +599,13 @@ fn check_account_risk_tiers<'info>(
             .ok_or(MarginfiError::InvalidBankAccount)?;
         let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
         let bank = bank_al.load()?;
+
+        check_eq!(
+            balance.bank_pk,
+            *bank_ai.key,
+            MarginfiError::InvalidBankAccount
+        );
+
         let num_accounts = get_remaining_accounts_per_bank(&bank)?;
 
         if !balance.is_empty(BalanceSide::Liabilities) {
