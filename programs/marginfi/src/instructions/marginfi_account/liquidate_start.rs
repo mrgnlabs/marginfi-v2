@@ -125,6 +125,7 @@ pub fn validate_instructions(
         JUP_KEY,
         TITAN_KEY,
         ASSOCIATED_TOKEN_KEY,
+        DRIFT_PROGRAM_ID,
     ];
     let ixes = load_and_validate_instructions(sysvar, Some(allowed_program_ids))?;
     validate_ix_first(
