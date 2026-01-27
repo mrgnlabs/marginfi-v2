@@ -122,6 +122,7 @@ pub fn validate_instructions(
         COMPUTE_PROGRAM_KEY,
         id_crate::ID,
         kamino_mocks::kamino_lending::ID,
+        DRIFT_PROGRAM_ID,
         JUP_KEY,
         TITAN_KEY,
         ASSOCIATED_TOKEN_KEY,
