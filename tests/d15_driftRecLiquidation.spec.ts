@@ -62,7 +62,7 @@ const THROWAWAY_GROUP_SEED_D15 = Buffer.from(
   "MARGINFI_GROUP_SEED_123400000015",
 );
 const STARTING_SEED = 150;
-const HOURS_IN_SECONDS = 1 * 60 * 60;
+const TIME_TO_WAIT = 0.1 * 60 * 60;
 
 describe("d15: Drift rec liquidation", () => {
   let throwawayGroup: Keypair;
@@ -354,11 +354,11 @@ describe("d15: Drift rec liquidation", () => {
     );
   });
 
-  it("A few hours elapse", async () => {
-    const slotsToAdvance = HOURS_IN_SECONDS * 0.4;
+  it("Some time elapses", async () => {
+    const slotsToAdvance = TIME_TO_WAIT * 0.4;
     const clock = await banksClient.getClock();
     const { epoch, slot } = await getEpochAndSlot(banksClient);
-    const timeTarget = clock.unixTimestamp + BigInt(HOURS_IN_SECONDS);
+    const timeTarget = clock.unixTimestamp + BigInt(TIME_TO_WAIT);
     const targetUnix = BigInt(timeTarget);
     const newClock = new Clock(
       BigInt(slot + slotsToAdvance),
