@@ -1,28 +1,30 @@
-use super::price::{OraclePriceFeedAdapter, OraclePriceType, PriceAdapter, PriceBias};
+use super::price::{
+    OraclePriceFeedAdapter, OraclePriceType, OraclePriceWithConfidence, PriceAdapter, PriceBias,
+};
 use crate::{
     check, check_eq, debug, math_error,
     prelude::{MarginfiError, MarginfiResult},
     state::{bank::BankImpl, bank_config::BankConfigImpl},
-    utils::NumTraitsWithTolerance,
+    utils::{is_integration_asset_tag, NumTraitsWithTolerance},
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{
-        ASSET_TAG_DEFAULT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD,
-        EMISSIONS_FLAG_BORROW_ACTIVE, EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48,
-        MAX_KAMINO_POSITIONS, MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
+        ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_KAMINO, ASSET_TAG_SOL, ASSET_TAG_SOLEND,
+        ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, EMISSIONS_FLAG_BORROW_ACTIVE,
+        EMISSIONS_FLAG_LENDING_ACTIVE, EXP_10_I80F48, MAX_INTEGRATION_POSITIONS,
+        MIN_EMISSIONS_START_TIME, SECONDS_PER_YEAR, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
-        reconcile_emode_configs, Balance, BalanceSide, Bank, EmodeConfig, HealthCache,
-        LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
-        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
+        reconcile_emode_configs, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig,
+        HealthCache, LendingAccount, MarginfiAccount, OracleSetup, RiskTier, ACCOUNT_DISABLED,
+        ACCOUNT_FROZEN, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_RECEIVERSHIP,
     },
 };
 use std::cmp::{max, min};
 
-/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 2 for most others (bank, oracle), 3
-/// for Kamino (bank, oracle, reserve), 1 for Fixed
+/// 4 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool), 3 for `ASSET_TAG_KAMINO`, `ASSET_TAG_DRIFT`, and `ASSET_TAG_SOLEND`, 2 for most others (bank, oracle), 1 for Fixed
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
     if bank.config.oracle_setup == OracleSetup::Fixed {
         Ok(1)
@@ -36,7 +38,7 @@ pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
-        ASSET_TAG_KAMINO => Ok(3),
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND => Ok(3),
         ASSET_TAG_STAKED => Ok(4),
         _ => err!(MarginfiError::AssetTagMismatch),
     }
@@ -48,6 +50,48 @@ pub trait MarginfiAccountImpl {
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
     fn can_be_closed(&self) -> bool;
+}
+
+/// Checks if a signer is authorized to perform actions on a marginfi account.
+///
+/// Returns `true` if the signer is authorized, `false` otherwise.
+///
+/// Authorization rules (checked in order):
+/// 1. If `allow_receivership` is true and the account is in receivership → `true`
+/// 2. If the account is frozen → `true` only if signer is the group admin
+/// 3. Otherwise → `true` only if signer is the account authority
+pub fn is_signer_authorized(
+    marginfi_account: &MarginfiAccount,
+    group_admin: Pubkey,
+    signer: Pubkey,
+    allow_receivership: bool,
+) -> bool {
+    if allow_receivership && marginfi_account.get_flag(ACCOUNT_IN_RECEIVERSHIP) {
+        return true;
+    }
+
+    if marginfi_account.get_flag(ACCOUNT_FROZEN) {
+        return group_admin == signer;
+    }
+
+    marginfi_account.authority == signer
+}
+
+/// Checks if the account authority is allowed to act on their account based on frozen status.
+///
+/// Returns `true` if the action is allowed, `false` if blocked.
+///
+/// Returns `false` when both conditions are met:
+/// - The account is frozen
+/// - The signer is the account authority
+///
+/// This is intentionally separate from [`is_signer_authorized`] to return a distinct
+/// `AccountFrozen` error in the instruction context  rather than `Unauthorized`.
+pub fn account_not_frozen_for_authority(
+    marginfi_account: &MarginfiAccount,
+    signer: Pubkey,
+) -> bool {
+    !(marginfi_account.get_flag(ACCOUNT_FROZEN) && marginfi_account.authority == signer)
 }
 
 impl MarginfiAccountImpl for MarginfiAccount {
@@ -246,6 +290,16 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
     ) -> MarginfiResult<(I80F48, I80F48, u32)> {
         match bank.config.risk_tier {
             RiskTier::Collateral => {
+                // ReduceOnly banks should not be counted as collateral for new loans (Initial checks)
+                // but should maintain their value for existing positions (Maintenance checks)
+                if matches!(
+                    (bank.config.operational_state, requirement_type),
+                    (BankOperationalState::ReduceOnly, RequirementType::Initial)
+                ) {
+                    debug!("ReduceOnly bank assets worth 0 for Initial margin");
+                    return Ok((I80F48::ZERO, I80F48::ZERO, 0));
+                }
+
                 let (price_feed, err_code) = self.try_get_price_feed();
 
                 if matches!(
@@ -296,11 +350,10 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
                             .ok_or_else(math_error!())?;
                     }
                 }
-
                 let value = calc_value(
                     bank.get_asset_amount(self.balance.asset_shares.into())?,
                     lower_price,
-                    bank.mint_decimals,
+                    bank.get_balance_decimals(),
                     Some(asset_weight),
                 )?;
 
@@ -335,7 +388,7 @@ impl<'info> BankAccountWithPriceFeed<'_, 'info> {
         let value = calc_value(
             bank.get_liability_amount(self.balance.liability_shares.into())?,
             higher_price,
-            bank.mint_decimals,
+            bank.get_balance_decimals(),
             Some(liability_weight),
         )?;
 
@@ -569,6 +622,28 @@ impl<'info> RiskEngine<'_, 'info> {
         }
 
         Ok((total_assets, total_liabilities))
+    }
+
+    pub fn get_unbiased_price_for_bank(
+        &self,
+        bank_pk: &Pubkey,
+    ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let bank_account = self
+            .bank_accounts_with_price
+            .iter()
+            .find(|b| b.balance.bank_pk == *bank_pk)
+            .ok_or_else(|| error!(MarginfiError::BankAccountNotFound))?;
+
+        let bank = bank_account.bank.load()?;
+        let (price_feed_res, _) = bank_account.try_get_price_feed();
+        let price_feed = price_feed_res?;
+
+        let price = price_feed.get_price_and_confidence_of_type(
+            OraclePriceType::RealTime,
+            bank.config.oracle_max_confidence,
+        )?;
+
+        Ok(price)
     }
 
     /// Errors if risk account's liabilities exceed their assets.
@@ -887,17 +962,17 @@ impl<'a> BankAccountWrapper<'a> {
                 Ok(Self { balance, bank })
             }
             None => {
-                // Enforce Kamino position limit before creating a new Kamino position
-                if bank.config.asset_tag == ASSET_TAG_KAMINO {
-                    let kamino_position_count = lending_account
+                // Enforce integration position limit before creating a new integration position
+                if is_integration_asset_tag(bank.config.asset_tag) {
+                    let integration_position_count = lending_account
                         .balances
                         .iter()
-                        .filter(|b| b.is_active() && b.bank_asset_tag == ASSET_TAG_KAMINO)
+                        .filter(|b| b.is_active() && is_integration_asset_tag(b.bank_asset_tag))
                         .count();
 
                     check!(
-                        kamino_position_count < MAX_KAMINO_POSITIONS,
-                        MarginfiError::KaminoPositionLimitExceeded
+                        integration_position_count < MAX_INTEGRATION_POSITIONS,
+                        MarginfiError::IntegrationPositionLimitExceeded
                     );
                 }
 
@@ -1286,7 +1361,7 @@ impl<'a> BankAccountWrapper<'a> {
             let emissions = calc_emissions(
                 period,
                 balance_amount,
-                self.bank.mint_decimals as usize,
+                self.bank.get_balance_decimals() as usize,
                 emissions_rate,
             )?;
 

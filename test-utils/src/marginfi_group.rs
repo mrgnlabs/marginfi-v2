@@ -67,10 +67,7 @@ impl MarginfiGroupFixture {
                     system_program: system_program::id(),
                 }
                 .to_account_metas(Some(true)),
-                data: MarginfiGroupInitialize {
-                    is_arena_group: false,
-                }
-                .data(),
+                data: marginfi::instruction::MarginfiGroupInitialize {}.data(),
             };
 
             let configure_marginfi_group_ix = Instruction {
@@ -91,7 +88,8 @@ impl MarginfiGroupFixture {
                     new_emissions_admin: admin,
                     new_metadata_admin: admin,
                     new_risk_admin: admin,
-                    is_arena_group: false,
+                    emode_max_init_leverage: None,
+                    emode_max_maint_leverage: None,
                 }
                 .data(),
             };
@@ -711,6 +709,42 @@ impl MarginfiGroupFixture {
         Ok(())
     }
 
+    pub async fn try_pulse_bank_price_cache(
+        &self,
+        bank: &BankFixture,
+    ) -> Result<(), BanksClientError> {
+        let bank_state = bank.load().await;
+
+        let mut accounts = marginfi::accounts::LendingPoolPulseBankPriceCache {
+            group: self.key,
+            bank: bank.key,
+        }
+        .to_account_metas(Some(true));
+
+        // For non-fixed oracle setups, add the primary oracle account as remaining
+        if bank_state.config.oracle_setup != OracleSetup::Fixed {
+            let oracle_key = bank_state.config.oracle_keys[0];
+            accounts.push(AccountMeta::new_readonly(oracle_key, false));
+        }
+
+        let ctx = self.ctx.borrow_mut();
+
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts,
+            data: LendingPoolPulseBankPriceCache {}.data(),
+        };
+
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey().clone()),
+            &[&ctx.payer],
+            ctx.last_blockhash,
+        );
+
+        ctx.banks_client.process_transaction(tx).await
+    }
+
     pub async fn try_update(
         &self,
         new_admin: Pubkey,
@@ -720,7 +754,32 @@ impl MarginfiGroupFixture {
         new_emissions_admin: Pubkey,
         new_metadata_admin: Pubkey,
         new_risk_admin: Pubkey,
-        is_arena_group: bool,
+    ) -> Result<(), BanksClientError> {
+        self.try_update_with_emode_leverage(
+            new_admin,
+            new_emode_admin,
+            new_curve_admin,
+            new_limit_admin,
+            new_emissions_admin,
+            new_metadata_admin,
+            new_risk_admin,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn try_update_with_emode_leverage(
+        &self,
+        new_admin: Pubkey,
+        new_emode_admin: Pubkey,
+        new_curve_admin: Pubkey,
+        new_limit_admin: Pubkey,
+        new_emissions_admin: Pubkey,
+        new_metadata_admin: Pubkey,
+        new_risk_admin: Pubkey,
+        emode_max_init_leverage: Option<WrappedI80F48>,
+        emode_max_maint_leverage: Option<WrappedI80F48>,
     ) -> Result<(), BanksClientError> {
         let ix = Instruction {
             program_id: marginfi::ID,
@@ -737,7 +796,8 @@ impl MarginfiGroupFixture {
                 new_emissions_admin,
                 new_metadata_admin,
                 new_risk_admin,
-                is_arena_group,
+                emode_max_init_leverage,
+                emode_max_maint_leverage,
             }
             .data(),
         };
