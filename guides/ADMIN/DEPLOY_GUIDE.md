@@ -20,6 +20,17 @@ Steps:
 ```
 solana program set-buffer-authority <BUFFER> --new-buffer-authority <MULTISIG> -k ~/keys/mainnet-deploy.json
 ```
+* Remember to send any residual funds to a hardware wallet:
+```
+solana balance <DEPLOY_WALLET>
+>> N SOL
+
+solana transfer \                                          
+  --from ~/keys/mainnet-deploy.json \
+  <HARDWARE_WALLET> \
+  <N>>
+```
+
 * Back up the current working program somewhere with `solana -um program dump MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA mfi_backup.so`
 * Click the pending upgrade to start a vote.
 * Execute after the vote passes.
