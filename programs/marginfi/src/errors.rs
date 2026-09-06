@@ -511,7 +511,7 @@ pub enum MarginfiError {
     RebalanceStaleExecutionSeq, // 6716
     #[msg("Rebalance allowlist contains a bank the account owes into")]
     RebalanceAllowlistLiability, // 6717
-                                 // ************** END AUTO-REBALANCE ERRORS
+    // ************** END AUTO-REBALANCE ERRORS
     // ************** BEGIN SCOPE ERRORS (starting at 6800)
     #[msg("Scope oracle account is not owned by the Scope program or is malformed")]
     ScopeInvalidAccount = 800, // 6800
@@ -797,7 +797,7 @@ impl From<u32> for MarginfiError {
             6614 => MarginfiError::PremiumEntryNotFound,
             6615 => MarginfiError::PremiumSnapshotUnavailable,
 
-             // Scope-Oracle-specific errors (starting at 6610)
+            // Scope-Oracle-specific errors (starting at 6610)
             6800 => MarginfiError::ScopeInvalidAccount,
             6801 => MarginfiError::ScopeInvalidEntry,
             6802 => MarginfiError::ScopeStalePrice,
