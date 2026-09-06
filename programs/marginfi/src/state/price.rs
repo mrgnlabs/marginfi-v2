@@ -124,53 +124,6 @@ fn check_primary_oracle_key(
     Ok(())
 }
 
-fn expected_staked_onramp(bank: &Bank) -> MarginfiResult<Pubkey> {
-    if bank.config.oracle_keys[3] != Pubkey::default() {
-        return Ok(bank.config.oracle_keys[3]);
-    }
-
-    check!(
-        bank.integration_acc_1 != Pubkey::default(),
-        MarginfiError::StakePoolValidationFailed
-    );
-
-    Ok(derive_staked_onramp_from_vote(bank.integration_acc_1))
-}
-
-fn staked_pool_net_asset_value(
-    pool_stake_info: &AccountInfo,
-    pool_onramp_info: &AccountInfo,
-    rent: &Rent,
-) -> MarginfiResult<u64> {
-    let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
-    let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
-
-    let main_stake_value = pool_stake_info
-        .lamports()
-        .saturating_sub(pool_rent_exempt_reserve);
-    let onramp_value = pool_onramp_info
-        .lamports()
-        .saturating_sub(onramp_rent_exempt_reserve);
-
-    Ok(main_stake_value.saturating_add(onramp_value))
-}
-
-// To be removed once SVSP update is rolled out (likely in 1.10)
-fn legacy_staked_pool_delegated_value(pool_stake_info: &AccountInfo) -> MarginfiResult<u64> {
-    let stake_state = try_from_slice_unchecked::<StakeStateV2>(&pool_stake_info.data.borrow())?;
-    let (_, stake) = match stake_state {
-        StakeStateV2::Stake(meta, stake, _) => (meta, stake),
-        _ => return err!(MarginfiError::StakePoolValidationFailed),
-    };
-
-    // Legacy pricing subtracts single-pool's initial non-refundable 1 SOL bootstrap stake.
-    Ok(stake
-        .delegation
-        .stake
-        .checked_sub(1_000_000_000)
-        .ok_or_else(math_error!())?)
-}
-
 pub(crate) fn load_kamino_reserve<'info>(
     bank_config: &BankConfig,
     reserve_info: &'info AccountInfo<'info>,
