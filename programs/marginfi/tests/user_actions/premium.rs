@@ -1751,12 +1751,13 @@ async fn premium_reopened_liability_pays_nothing_for_debt_free_gap() -> anyhow::
     Ok(())
 }
 
-/// Withdrawing during an oracle outage is NOT blocked: the premium refresh no-ops on the
-/// incomplete pass and the old rate persists (re-priced later by pulse). Blocking would let a
-/// dead-oracle collateral freeze a healthy withdraw; keeping a stale rate is safe since premium
-/// is still charged and projected.
+/// Withdrawing during an oracle outage is NOT blocked — but since the pass is incomplete, the
+/// snapshot RATCHETS: the unpriceable leg is priced at its full pair rate and the rate can only
+/// move up (never diluted down). This closes the "withdraw the cheap collateral while the
+/// tagged leg's oracle is out" freeze; a later clean refresh re-prices freely (down included),
+/// so honest outages overcharge forward-only for roughly one pulse interval.
 #[tokio::test]
-async fn premium_withdraw_keeps_old_rate_when_collateral_oracle_stale() -> anyhow::Result<()> {
+async fn premium_withdraw_during_oracle_outage_ratchets_not_blocked() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![
             TestBankSetting {
@@ -1834,20 +1835,20 @@ async fn premium_withdraw_keeps_old_rate_when_collateral_oracle_stale() -> anyho
     let rate_before = snapshot_percent(usdc_balance(&account, &usdc_bank_f.key));
     assert!((rate_before - 0.5).abs() < 0.001);
 
-    // Tagged SOL oracle goes stale; the withdraw soft-skips it and still passes on the untagged
-    // SolEq. The premium refresh can't run (incomplete pass), but the withdraw is NOT blocked.
+    // Tagged SOL oracle goes stale; the withdraw soft-skips it for health and still passes on
+    // the untagged SolEq. The withdraw is NOT blocked — the snapshot ratchets to the
+    // unpriceable SOL leg's full pair rate instead of silently keeping the diluted 0.5%.
     advance_clock_with_feeds(&test_f, 3_600, &[PYTH_USDC_FEED, PYTH_SOL_EQUIVALENT_FEED]).await;
 
     borrower
         .try_bank_withdraw(borrower_sol_eq.key, sol_eq_bank_f, 10, None)
         .await?;
 
-    // The snapshot is untouched (old rate kept, not zeroed) — premium keeps being charged.
     let account = borrower.load().await;
     let rate_after = snapshot_percent(usdc_balance(&account, &usdc_bank_f.key));
     assert!(
-        (rate_after - rate_before).abs() < 1e-9,
-        "rate should be unchanged: {} -> {}",
+        (rate_after - 1.0).abs() < 0.001,
+        "rate should ratchet {} -> 1.0%, got {}",
         rate_before,
         rate_after
     );
@@ -3079,5 +3080,116 @@ async fn premium_reactivation_before_touch_retains_materialized_receivable() -> 
         I80F48!(100)
     );
 
+    Ok(())
+}
+
+/// Finding: a withdraw that supplies a wrong oracle for a premium-tagged collateral leg used
+/// to freeze the (diluted) snapshot. Now it ratchets to the unpriceable leg's full pair rate.
+#[tokio::test]
+async fn premium_withdraw_with_bad_oracle_ratchets_instead_of_freezing() -> anyhow::Result<()> {
+    use solana_sdk::transaction::Transaction;
+
+    let test_f = TestFixture::new(Some(TestSettings {
+        banks: vec![
+            TestBankSetting {
+                mint: BankMint::Usdc,
+                config: Some(BankConfig {
+                    interest_rate_config: zero_interest_config(),
+                    ..*DEFAULT_USDC_TEST_BANK_CONFIG
+                }),
+            },
+            TestBankSetting {
+                mint: BankMint::Sol,
+                config: Some(BankConfig {
+                    asset_weight_init: I80F48!(1).into(),
+                    ..*DEFAULT_SOL_TEST_BANK_CONFIG
+                }),
+            },
+            TestBankSetting {
+                mint: BankMint::SolEquivalent,
+                config: Some(BankConfig {
+                    asset_weight_init: I80F48!(1).into(),
+                    ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+                }),
+            },
+        ],
+        protocol_fees: false,
+    }))
+    .await;
+    advance_clock(&test_f, 1_700_000_000).await;
+    let group_f = &test_f.marginfi_group;
+    group_f
+        .try_configure_group_premium(entry(TAG_SOL, TAG_STABLE, 1.0))
+        .await?;
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_eq_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
+    group_f
+        .try_configure_bank_premium(usdc_bank_f, TAG_STABLE, true)
+        .await?;
+    group_f
+        .try_configure_bank_premium(test_f.get_bank(&BankMint::Sol), TAG_SOL, true)
+        .await?;
+
+    // Tagged SOL + equal untagged SolEq -> diluted 0.5% snapshot.
+    let (_lender, borrower, _) = setup_borrower(&test_f, 1_000.0).await;
+    let sol_eq_account = test_f
+        .sol_equivalent_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    borrower
+        .try_bank_deposit(sol_eq_account.key, sol_eq_bank_f, 999, None)
+        .await?;
+    borrower.try_lending_account_pulse_health().await?;
+    let account = borrower.load().await;
+    assert!((snapshot_percent(usdc_balance(&account, &usdc_bank_f.key)) - 0.5).abs() < 0.001);
+
+    // Withdraw 1 SolEq while passing a WRONG oracle account for the tagged SOL leg. Health
+    // soft-zeroes SOL and still passes on SolEq; pre-fix the premium refresh silently
+    // no-opped and the 0.5% survived.
+    let payer = test_f.payer();
+    let withdraw_dest = test_f
+        .sol_equivalent_mint
+        .create_empty_token_account()
+        .await;
+    let mut ix = borrower
+        .make_withdraw_ix_with_authority(withdraw_dest.key, sol_eq_bank_f, 1.0, None, payer)
+        .await;
+    let mut tampered = 0;
+    for meta in ix.accounts.iter_mut() {
+        if meta.pubkey == PYTH_SOL_FEED {
+            meta.pubkey = Pubkey::new_unique();
+            tampered += 1;
+        }
+    }
+    assert_eq!(tampered, 1, "expected exactly one SOL oracle meta");
+    {
+        let ctx = test_f.context.borrow_mut();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            ctx.banks_client.get_latest_blockhash().await?,
+        );
+        ctx.banks_client.process_transaction(tx).await?;
+    }
+
+    // Ratcheted to the unpriceable SOL leg's full pair rate.
+    let account = borrower.load().await;
+    let rate = snapshot_percent(usdc_balance(&account, &usdc_bank_f.key));
+    assert!(
+        (rate - 1.0).abs() < 0.001,
+        "bad-oracle withdraw must ratchet to 1.0%, got {}",
+        rate
+    );
+
+    // A clean permissionless pulse recomputes freely back down to the true weighted rate.
+    borrower.try_lending_account_pulse_health().await?;
+    let account = borrower.load().await;
+    let rate = snapshot_percent(usdc_balance(&account, &usdc_bank_f.key));
+    assert!(
+        (rate - 0.5).abs() < 0.001,
+        "clean pulse must restore the true rate, got {}",
+        rate
+    );
     Ok(())
 }

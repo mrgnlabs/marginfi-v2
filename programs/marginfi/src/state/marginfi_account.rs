@@ -7,6 +7,7 @@ use crate::{
     state::premium::{
         accrued_premium_total, premium_elapsed_seconds, BalancePremiumImpl, PremiumScratch,
         PremiumScratchEntry, SCRATCH_ASSET, SCRATCH_LIABILITY, SCRATCH_PREMIUM_ACTIVE,
+        SCRATCH_UNPRICEABLE,
     },
     utils::{is_integration_asset_tag, NumTraitsWithTolerance},
 };
@@ -626,6 +627,7 @@ fn collect_premium_scratch_entry(
     bank: &Bank,
     premium_price: I80F48,
     balance_index: usize,
+    unpriceable: bool,
 ) -> MarginfiResult {
     match balance.get_side() {
         Some(BalanceSide::Assets) => {
@@ -641,12 +643,16 @@ fn collect_premium_scratch_entry(
             } else {
                 I80F48::ZERO
             };
+            let mut flags = SCRATCH_ASSET;
+            if unpriceable {
+                flags |= SCRATCH_UNPRICEABLE;
+            }
             scratch.push(PremiumScratchEntry {
                 value: usd_value,
                 activated_at: 0,
                 premium_tag: bank.premium_tag,
                 balance_index: balance_index as u8,
-                flags: SCRATCH_ASSET,
+                flags,
             });
         }
         Some(BalanceSide::Liabilities) => {
@@ -1116,7 +1122,7 @@ pub fn get_health_components<'info>(
             get_remaining_accounts_per_bank(&bank)?
         };
 
-        let (asset_val, liab_val, price, err_code, premium_price) = if is_cached {
+        let (asset_val, liab_val, price, err_code, premium_price, leg_unpriceable) = if is_cached {
             let (asset_val, liab_val, price) = calc_weighted_value_cached_for_balance(
                 balance,
                 &bank,
@@ -1124,7 +1130,7 @@ pub fn get_health_components<'info>(
                 &reconciled_emode_config,
             )?;
             // Premium weights reuse the biased health price, same as the live branch.
-            (asset_val, liab_val, price, 0, price)
+            (asset_val, liab_val, price, 0, price, false)
         } else {
             // Load oracle (this is the heap-intensive operation)
             let oracle_ai_idx = account_index + 1;
@@ -1153,8 +1159,11 @@ pub fn get_health_components<'info>(
             // A countable collateral leg the premium weighting cannot price. The health pass
             // may not flag this itself (ReduceOnly + Initial soft-zeroes; stale-skip only
             // sets err_code), so mark the scratch directly — an incomplete pass must never
-            // write rates.
-            if need_premium_price && price_adapter_result.is_err() {
+            // plainly write rates (the withdraw paths ratchet instead). Zero-weight legs
+            // (`need_premium_price == false`) can't affect the mix, so their broken oracle
+            // doesn't taint the pass.
+            let leg_unpriceable = need_premium_price && price_adapter_result.is_err();
+            if leg_unpriceable {
                 if let Some(scratch) = premium_scratch.as_mut() {
                     scratch.unpriceable_leg = true;
                 }
@@ -1173,16 +1182,25 @@ pub fn get_health_components<'info>(
             }
 
             // Calculate weighted value for this position
-            calc_weighted_value_for_balance(
-                balance,
-                &bank,
-                &price_adapter_result,
-                requirement_type,
-                &reconciled_emode_config,
-                &mut liq_cache,
-                position_index,
-                need_premium_price,
-            )?
+            let (asset_val, liab_val, price, err_code, premium_price) =
+                calc_weighted_value_for_balance(
+                    balance,
+                    &bank,
+                    &price_adapter_result,
+                    requirement_type,
+                    &reconciled_emode_config,
+                    &mut liq_cache,
+                    position_index,
+                    need_premium_price,
+                )?;
+            (
+                asset_val,
+                liab_val,
+                price,
+                err_code,
+                premium_price,
+                leg_unpriceable,
+            )
         };
 
         // Record error index if applicable
@@ -1206,7 +1224,14 @@ pub fn get_health_components<'info>(
         let liab_premium_val =
             calc_premium_liab_value(balance, &bank, requirement_type, price, now)?;
         if let Some(scratch) = premium_scratch.as_mut() {
-            collect_premium_scratch_entry(scratch, balance, &bank, premium_price, balance_index)?;
+            collect_premium_scratch_entry(
+                scratch,
+                balance,
+                &bank,
+                premium_price,
+                balance_index,
+                leg_unpriceable,
+            )?;
         }
 
         debug!(

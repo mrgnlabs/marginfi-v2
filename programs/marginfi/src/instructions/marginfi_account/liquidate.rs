@@ -598,7 +598,7 @@ fn check_liquidatee_health_and_refresh_premium<'info>(
         pre_liquidation_health,
         &mut Some(&mut premium_scratch),
     )?;
-    liquidatee_marginfi_account.update_premium_snapshots(group, &premium_scratch, now)?;
+    liquidatee_marginfi_account.update_premium_snapshots(group, &premium_scratch, now, false)?;
     Ok(post_liquidation_health)
 }
 
@@ -637,7 +637,7 @@ fn check_liquidator_health_and_refresh_premium<'info>(
         &mut None,
         &mut Some(&mut premium_scratch),
     )?;
-    liquidator_marginfi_account.update_premium_snapshots(group, &premium_scratch, now)?;
+    liquidator_marginfi_account.update_premium_snapshots(group, &premium_scratch, now, false)?;
 
     if !premium_scratch.complete && liab_info.premium_active {
         let balance = liquidator_marginfi_account
