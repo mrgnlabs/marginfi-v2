@@ -633,6 +633,7 @@ fn collect_premium_scratch_entry(
         Some(BalanceSide::Assets) => {
             let usd_value = if premium_price > I80F48::ZERO
                 && !matches!(bank.config.risk_tier, RiskTier::Isolated)
+                && I80F48::from(bank.config.asset_weight_maint) > I80F48::ZERO
             {
                 calc_value(
                     bank.get_asset_amount(balance.asset_shares.into())?,
@@ -1154,7 +1155,8 @@ pub fn get_health_components<'info>(
             let need_premium_price = premium_scratch.is_some()
                 && price_for_premium
                 && matches!(balance.get_side(), Some(BalanceSide::Assets))
-                && !matches!(bank.config.risk_tier, RiskTier::Isolated);
+                && !matches!(bank.config.risk_tier, RiskTier::Isolated)
+                && I80F48::from(bank.config.asset_weight_maint) > I80F48::ZERO;
 
             // A countable collateral leg the premium weighting cannot price. The health pass
             // may not flag this itself (ReduceOnly + Initial soft-zeroes; stale-skip only
@@ -2609,12 +2611,13 @@ impl<'a> BankAccountWrapper<'a> {
         // Below EMPTY_BALANCE_THRESHOLD health treats the liability as empty, so clear the
         // premium too — otherwise a book-transfer that leaves dust (liquidation) strands a
         // receivable that health never projects.
-        // INVARIANT: any reachable state where this fires during liquidation must revert
-        // upstream — `check_post_liquidation_conditions` rejects a fully-closed liability with
-        // `ExhaustedLiability` via the SAME `Balance::is_empty` predicate, which is what makes
-        // this write-off safe (it can only commit where the receivable was already settled or
-        // legitimately forgiven). If full close ever becomes legal in liquidation, premium must
-        // settle first — receivership's `repay_all` path is the model.
+        // INVARIANT: every liquidation path that can close a liability settles premium BEFORE
+        // this fires. The liquidatee's liab_bank leg cannot close (`ExhaustedLiability` uses
+        // the SAME `Balance::is_empty` predicate); the LIQUIDATOR's asset_bank leg — the one
+        // reachable full close — settles via `settle_premium` in `lending_account_liquidate`
+        // before the credit lands here; receivership's `repay_all` settles likewise. So this
+        // write-off only ever clears a receivable that was already settled or legitimately
+        // forgiven (bankruptcy / tokenless repayment / asset-side flips).
         if had_liabs && balance.is_empty(BalanceSide::Liabilities) {
             balance.write_off_premium();
         }

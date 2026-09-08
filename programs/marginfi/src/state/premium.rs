@@ -49,6 +49,12 @@
 //! * **Crank-order variance** — [`BalancePremiumImpl::claim_premium`] uses the liability
 //!   amount at claim time, so claiming before vs. after interest accrual differs by a
 //!   second-order term.
+//! * **Zero-health collateral excluded from the mix** — Isolated and `asset_weight_maint == 0`
+//!   banks contribute no premium weight (they back no health, so they must not dilute the
+//!   rate). Emode-only (base 0/0) collateral therefore contributes none either.
+//! * **Ratchet on unpriceable withdraw passes** — see the `ratchet_on_incomplete` flag on
+//!   [`MarginfiAccountPremiumImpl::update_premium_snapshots`]: genuine outages overcharge
+//!   forward-only until the next clean refresh.
 
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;

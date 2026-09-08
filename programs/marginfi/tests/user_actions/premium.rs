@@ -3082,6 +3082,76 @@ async fn premium_reactivation_before_touch_retains_materialized_receivable() -> 
 
     Ok(())
 }
+
+/// Finding: a Collateral-tier bank with 0/0 asset weights backs no health, so it must not
+/// tilt the premium mix either (pre-fix its raw USD diluted the rate at zero health cost).
+#[tokio::test]
+async fn premium_zero_weight_collateral_does_not_dilute_the_mix() -> anyhow::Result<()> {
+    let test_f = TestFixture::new(Some(TestSettings {
+        banks: vec![
+            TestBankSetting {
+                mint: BankMint::Usdc,
+                config: Some(BankConfig {
+                    interest_rate_config: zero_interest_config(),
+                    ..*DEFAULT_USDC_TEST_BANK_CONFIG
+                }),
+            },
+            TestBankSetting {
+                mint: BankMint::Sol,
+                config: Some(BankConfig {
+                    asset_weight_init: I80F48!(1).into(),
+                    ..*DEFAULT_SOL_TEST_BANK_CONFIG
+                }),
+            },
+            // Collateral tier, but weightless: legal per config validation.
+            TestBankSetting {
+                mint: BankMint::SolEquivalent,
+                config: Some(BankConfig {
+                    asset_weight_init: I80F48!(0).into(),
+                    asset_weight_maint: I80F48!(0).into(),
+                    ..*DEFAULT_SOL_EQUIVALENT_TEST_BANK_CONFIG
+                }),
+            },
+        ],
+        protocol_fees: false,
+    }))
+    .await;
+    advance_clock(&test_f, 1_700_000_000).await;
+    let group_f = &test_f.marginfi_group;
+    group_f
+        .try_configure_group_premium(entry(TAG_SOL, TAG_STABLE, 1.0))
+        .await?;
+    let usdc_bank_f = test_f.get_bank(&BankMint::Usdc);
+    let sol_eq_bank_f = test_f.get_bank(&BankMint::SolEquivalent);
+    group_f
+        .try_configure_bank_premium(usdc_bank_f, TAG_STABLE, true)
+        .await?;
+    group_f
+        .try_configure_bank_premium(test_f.get_bank(&BankMint::Sol), TAG_SOL, true)
+        .await?;
+
+    let (_lender, borrower, _) = setup_borrower(&test_f, 1_000.0).await;
+
+    // Equal USD of 0/0-weight collateral: pre-fix this halved the rate to 0.5%.
+    let sol_eq_account = test_f
+        .sol_equivalent_mint
+        .create_token_account_and_mint_to(1_000)
+        .await;
+    borrower
+        .try_bank_deposit(sol_eq_account.key, sol_eq_bank_f, 999, None)
+        .await?;
+    borrower.try_lending_account_pulse_health().await?;
+
+    let account = borrower.load().await;
+    let rate = snapshot_percent(usdc_balance(&account, &usdc_bank_f.key));
+    assert!(
+        (rate - 1.0).abs() < 0.0001,
+        "0/0-weight collateral must not dilute: {} != 1.0%",
+        rate
+    );
+    Ok(())
+}
+
 /// Finding: the liquidator's seized-collateral credit settles their accrued premium in the
 /// asset bank (vault-backed, like a repay) instead of writing it off when the credit closes
 /// their principal.
