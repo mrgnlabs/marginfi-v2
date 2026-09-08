@@ -373,36 +373,27 @@ pub fn is_allowed_cpi_for_third_party_id(
     Ok(current_ixn.program_id == allowed_program)
 }
 
-pub fn check_no_durable_nonce(sysvar: &AccountInfo) -> MarginfiResult<()> {
-    let ixes = load_and_validate_instructions(sysvar, None)?;
+/// Rejects the transaction if any of its instructions is the system program's
+/// `AdvanceNonceAccount`.
+///
+/// A durable-nonce transaction is signed once and can be held for an unbounded time before it is
+/// submitted, so an admin signature would no longer reflect the admin's intent at signing time.
+/// The runtime only treats a transaction as nonced when `AdvanceNonceAccount` is instruction 0
+/// (`SanitizedMessage::get_durable_nonce`, matching on the data prefix `[4, 0, 0, 0]`), but admin
+/// operations have no reason to advance a nonce at any position, so the whole transaction is
+/// scanned rather than relying on that detail.
+pub fn check_no_durable_nonce(sysvar: &AccountInfo) -> MarginfiResult {
+    const ADVANCE_NONCE_ACCOUNT_DATA: [u8; 4] = 4u32.to_le_bytes();
 
-    if ixes.is_empty() {
-        return Ok(());
-    }
+    let advances_nonce = load_and_validate_instructions(sysvar, None)?
+        .iter()
+        .any(|ix| {
+            ix.program_id == anchor_lang::solana_program::system_program::ID
+                && ix.data.get(..4) == Some(&ADVANCE_NONCE_ACCOUNT_DATA)
+        });
+    check!(!advances_nonce, MarginfiError::DurableNonceNotAllowed);
 
-    let first_ix = &ixes[0];
-
-    if first_ix.program_id != anchor_lang::solana_program::system_program::ID {
-        return Ok(());
-    }
-
-    if first_ix.data.len() < 4 {
-        return Ok(());
-    }
-
-    const ADVANCE_NONCE_ACCOUNT_DISCRIMINATOR: u32 = 4;
-    let discriminator = u32::from_le_bytes([
-        first_ix.data[0],
-        first_ix.data[1],
-        first_ix.data[2],
-        first_ix.data[3],
-    ]);
-
-    if discriminator == ADVANCE_NONCE_ACCOUNT_DISCRIMINATOR {
-        err!(MarginfiError::DurableNonceNotAllowed)
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 #[cfg(test)]

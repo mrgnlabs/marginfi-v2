@@ -8,7 +8,6 @@ use marginfi_type_crate::constants::{
 };
 use pretty_assertions::assert_eq;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
-use solana_instructions_sysvar;
 use solana_program_test::*;
 use solana_sdk::signature::Keypair;
 use solana_sdk::{signer::Signer, transaction::Transaction};

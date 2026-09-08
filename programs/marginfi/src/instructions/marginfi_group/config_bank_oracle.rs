@@ -109,6 +109,8 @@ pub fn lending_pool_configure_bank_oracle_scope(
     oracle: Pubkey,
     entry_index: u16,
 ) -> MarginfiResult {
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
+
     let mut bank = ctx.accounts.bank.load_mut()?;
 
     if bank.get_flag(FREEZE_SETTINGS) {
