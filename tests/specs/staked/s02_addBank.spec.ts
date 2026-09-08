@@ -11,6 +11,7 @@ import {
   addBank,
   addBankPermissionless,
   backfillStakedBankValidatorVoteAccount,
+  configureBankOracle,
   disableStakedOracles,
   enableStakedOracleOnramp,
   groupInitialize,
@@ -51,6 +52,7 @@ import {
   defaultBankConfig,
   defaultStakedInterestSettings,
   makeRatePoints,
+  ORACLE_SETUP_PYTH_LST,
   ORACLE_SETUP_PYTH_PUSH,
   STAKED_ORACLE_PRICE_USES_ONRAMP,
   STAKED_ORACLE_DISABLED,
@@ -273,6 +275,24 @@ describe("Init group and add banks with asset category flags", () => {
 
     const bank = await bankrunProgram.account.bank.fetch(bankKey);
     assert.equal(bank.config.assetTag, ASSET_TAG_SOL);
+  });
+
+  it("(admin) Tries to configure LST oracle setup on the SOL bank - should fail", async () => {
+    let tx = new Transaction().add(
+      await configureBankOracle(groupAdmin.mrgnBankrunProgram, {
+        bank: bankKeypairSol.publicKey,
+        type: ORACLE_SETUP_PYTH_LST,
+        oracle: oracles.wsolOracle.publicKey,
+        remaining: [Keypair.generate().publicKey],
+      }),
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    // InvalidOracleSetup
+    assertBankrunTxFailed(
+      await banksClient.tryProcessTransaction(tx),
+      "0x1789",
+    );
   });
 
   it("(admin) Tries to add staked bank WITH permission - should fail", async () => {
@@ -663,6 +683,23 @@ describe("Init group and add banks with asset category flags", () => {
     // assert.approximately(now, bank.lastUpdate.toNumber(), 2);
   });
 
+  it("(admin) Tries to configure a plain Pyth feed on a staked bank - should fail", async () => {
+    let tx = new Transaction().add(
+      await configureBankOracle(groupAdmin.mrgnBankrunProgram, {
+        bank: validators[0].bank,
+        type: ORACLE_SETUP_PYTH_PUSH,
+        oracle: oracles.wsolOracle.publicKey,
+      }),
+    );
+    tx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
+    tx.sign(groupAdmin.wallet);
+    // InvalidOracleSetup
+    assertBankrunTxFailed(
+      await banksClient.tryProcessTransaction(tx),
+      "0x1789",
+    );
+  });
+
   it("(permissionless) Add staked collateral bank (validator 1) - happy path", async () => {
     const [bankKey] = deriveBankWithSeed(
       program.programId,
@@ -943,7 +980,7 @@ describe("Init group and add banks with asset category flags", () => {
     assertBankrunTxFailed(result, 6052);
   });
 
-  it("(permissionless) Pulse staked bank (validator 0) with no on-ramp balance - same price as before, but multiplier changes", async () => {
+  it("(permissionless) Pulse staked bank (validator 0) with no on-ramp balance - same price, same multiplier", async () => {
     const tx = new Transaction().add(
       await pulseBankPrice(groupAdmin.mrgnBankrunProgram, {
         bank: validators[0].bank,
@@ -967,15 +1004,14 @@ describe("Init group and add banks with asset category flags", () => {
       bank.cache.priceMultiplier,
     ).toNumber();
 
-    // The price multiplier grows by 1/40 because we now account for that one initial SOL
-    // in the stake pool. So the total NAV becomes 41 (1 + 4x deposits of 10 SOL to v0 in s01 test)
-    // and the math is changing from:
+    // The total NAV is 41 (1 + 4x deposits of 10 SOL to v0 in s01 test). SVSP prices against a
+    // notional supply of raw + 1 SOL phantom, so bootstrap and phantom cancel:
     // BEFORE: (41 - 1) / 40 = 1
-    // AFTER:  (41 + 0) / 40 = 1.025, where "+ 0" is for currently-zero on-ramp balance
-    assert.approximately(priceMultiplierWithoutOnRamp, 1.025, 0.000001);
+    // AFTER:  (41 + 0) / (40 + 1) = 1, where "+ 0" is for currently-zero on-ramp balance
+    assert.approximately(priceMultiplierWithoutOnRamp, 1.0, 0.000001);
   });
 
-  it("(user 0) Adds 9 SOL to the validator 0's on-ramp pool - multiplier changes again", async () => {
+  it("(user 0) Adds 9 SOL to the validator 0's on-ramp pool - multiplier changes", async () => {
     let tx = new Transaction();
     tx.add(
       SystemProgram.transfer({
@@ -990,7 +1026,7 @@ describe("Init group and add banks with asset category flags", () => {
 
     const priceMultiplierWithOnRamp = await fetchLstPriceMultiplier();
 
-    // (41 + 9) / 40 = 1.25
-    assert.approximately(priceMultiplierWithOnRamp, 1.25, 0.000001);
+    // (41 + 9) / (40 + 1) = 50 / 41 = 1.2195...
+    assert.approximately(priceMultiplierWithOnRamp, 50 / 41, 0.000001);
   });
 });

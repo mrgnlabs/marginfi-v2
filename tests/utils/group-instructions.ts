@@ -4,6 +4,7 @@ import { Marginfi } from "../../target/types/marginfi";
 import {
   deriveBankWithSeed,
   deriveOnRampPool,
+  deriveSameAssetEmodeRegistry,
   deriveStakedSettings,
 } from "./pdas";
 import {
@@ -12,6 +13,7 @@ import {
   EmodeEntry,
   I80F48_ZERO,
   MAX_EMODE_ENTRIES,
+  ORACLE_SETUP_FIXED,
   SINGLE_POOL_PROGRAM_ID,
   StakedSettingsConfig,
   StakedSettingsEdit,
@@ -158,6 +160,8 @@ export type GroupConfigureArgs = {
   marginfiGroup: PublicKey;
   emodeMaxInitLeverage?: WrappedI80F48 | null;
   emodeMaxMaintLeverage?: WrappedI80F48 | null;
+  sameAssetEmodeInitLeverage?: WrappedI80F48 | null;
+  sameAssetEmodeMaintLeverage?: WrappedI80F48 | null;
 };
 
 export const groupConfigure = async (
@@ -176,6 +180,8 @@ export const groupConfigure = async (
   const newRiskAdmin = args.newRiskAdmin ?? group.riskAdmin;
   const emodeMaxInitLeverage = args.emodeMaxInitLeverage ?? null;
   const emodeMaxMaintLeverage = args.emodeMaxMaintLeverage ?? null;
+  const sameAssetEmodeInitLeverage = args.sameAssetEmodeInitLeverage ?? null;
+  const sameAssetEmodeMaintLeverage = args.sameAssetEmodeMaintLeverage ?? null;
 
   const ix = program.methods
     .marginfiGroupConfigure(
@@ -189,6 +195,8 @@ export const groupConfigure = async (
       newRiskAdmin,
       emodeMaxInitLeverage,
       emodeMaxMaintLeverage,
+      sameAssetEmodeInitLeverage,
+      sameAssetEmodeMaintLeverage,
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,
@@ -219,6 +227,53 @@ export const groupInitialize = (
     .instruction();
 
   return ix;
+};
+
+export type ResizeGroupAccountArgs = {
+  group: PublicKey;
+  /** Funds the rent for the added account space. */
+  payer: PublicKey;
+};
+
+/**
+ * (permissionless) Resize a group account to the v2 layout size. Errors if the account is
+ * already at (or above) the target size.
+ */
+export const resizeGroupAccount = (
+  program: Program<Marginfi>,
+  args: ResizeGroupAccountArgs,
+) => {
+  return program.methods
+    .lendingPoolResizeGroupAccount()
+    .accounts({
+      group: args.group,
+      payer: args.payer,
+      // systemProgram: hard coded key
+    })
+    .instruction();
+};
+
+export type ResizeGlobalFeeStateArgs = {
+  /** Funds the rent for the added account space. */
+  payer: PublicKey;
+};
+
+/**
+ * (permissionless) Resize the fee-state account to the v2 layout size. Errors if the account
+ * is already at (or above) the target size.
+ */
+export const resizeGlobalFeeState = (
+  program: Program<Marginfi>,
+  args: ResizeGlobalFeeStateArgs,
+) => {
+  return program.methods
+    .resizeGlobalFeeState()
+    .accounts({
+      // feeState: derived from constant seed
+      payer: args.payer,
+      // systemProgram: hard coded key
+    })
+    .instruction();
 };
 
 export type ConfigureBankArgs = {
@@ -288,11 +343,40 @@ export type ConfigureBankOracleArgs = {
   bank: PublicKey;
   type: number;
   oracle: PublicKey;
+  // Extra oracle accounts appended after the primary feed, e.g. the Marinade State / SPL StakePool
+  // for the mSOL/LST setups. Omit for single-oracle setups.
+  remaining?: PublicKey[];
 };
 
 export const configureBankOracle = (
   program: Program<Marginfi>,
   args: ConfigureBankOracleArgs,
+) => {
+  const metas: AccountMeta[] = [args.oracle, ...(args.remaining ?? [])].map(
+    (pubkey) => ({ pubkey, isSigner: false, isWritable: false }),
+  );
+
+  const ix = program.methods
+    .lendingPoolConfigureBankOracle(args.type, args.oracle)
+    .accounts({
+      bank: args.bank,
+    })
+    .remainingAccounts(metas)
+    .instruction();
+  return ix;
+};
+
+export type ConfigureBankOracleScopeArgs = {
+  bank: PublicKey;
+  /** The scope feed's OraclePrices account */
+  oracle: PublicKey;
+  /** Which of the 512 entries in that account prices this bank */
+  entryIndex: number;
+};
+
+export const configureBankOracleScope = (
+  program: Program<Marginfi>,
+  args: ConfigureBankOracleScopeArgs,
 ) => {
   const oracleMeta: AccountMeta = {
     pubkey: args.oracle,
@@ -300,14 +384,13 @@ export const configureBankOracle = (
     isWritable: false,
   };
 
-  const ix = program.methods
-    .lendingPoolConfigureBankOracle(args.type, args.oracle)
+  return program.methods
+    .lendingPoolConfigureBankOracleScope(args.oracle, args.entryIndex)
     .accounts({
       bank: args.bank,
     })
     .remainingAccounts([oracleMeta])
     .instruction();
-  return ix;
 };
 
 export type EmissionsDepositArgs = {
@@ -392,9 +475,10 @@ export type EditGlobalFeeStateArgs = {
   liquidationMaxFee?: WrappedI80F48 | null;
   orderExecutionMaxFee?: WrappedI80F48 | null;
   pauseDelegateAdmin?: PublicKey | null; // undefined = no-op, null = clear
+  accountTransferFee?: number | null; // u32, in lamports; 0 => use default
 };
 
-// TODO add test for this
+// Covered by e05_panicMode "(fee admin) edits all global fee fields and restores them".
 export const editGlobalFeeState = (
   program: Program<Marginfi>,
   args: EditGlobalFeeStateArgs,
@@ -416,6 +500,7 @@ export const editGlobalFeeState = (
       args.liquidationMaxFee ?? null,
       args.orderExecutionMaxFee ?? null,
       pauseDelegateAdminArg,
+      args.accountTransferFee ?? null
     )
     .accounts({
       globalFeeAdmin: args.admin,
@@ -887,11 +972,13 @@ export const handleBankruptcy = (
 
 export type CloseBankArgs = {
   bank: PublicKey;
+  /** Admin escape hatch: skip the CLOSE_ENABLED_FLAG + open-position checks. */
+  forceClose?: boolean;
 };
 
 export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
   const ix = program.methods
-    .lendingPoolCloseBank()
+    .lendingPoolCloseBank(args.forceClose ?? null)
     .accounts({
       // group: args.group, // implied from bank
       bank: args.bank,
@@ -899,6 +986,25 @@ export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
     })
     .instruction();
   return ix;
+};
+
+export type ClearCircuitBreakerArgs = {
+  bank: PublicKey;
+  /** If true, also zero the EMA reference so the next pulse reseeds from live oracle data. */
+  reseedReference?: boolean;
+};
+
+export const clearCircuitBreaker = async (
+  program: Program<Marginfi>,
+  args: ClearCircuitBreakerArgs
+) => {
+  return program.methods
+    .lendingPoolClearCircuitBreaker(args.reseedReference ?? false)
+    .accounts({
+      bank: args.bank,
+      // group + riskAdmin: inferred from has_one + signer
+    })
+    .instruction();
 };
 
 export type PanicPauseArgs = {
@@ -977,9 +1083,31 @@ export const initBankMetadata = (
   return ix;
 };
 
+export type InitSameAssetEmodeRegistryArgs = {
+  group: PublicKey;
+  signer: PublicKey;
+};
+
+export const initSameAssetEmodeRegistry = (
+  program: Program<Marginfi>,
+  args: InitSameAssetEmodeRegistryArgs,
+) => {
+  const ix = program.methods
+    .lendingPoolInitSameAssetEmodeRegistry()
+    .accounts({
+      group: args.group,
+      signer: args.signer,
+      // sameAssetEmodeRegistry,
+    })
+    .instruction();
+
+  return ix;
+};
+
 export type SetFixedPriceArgs = {
   bank: PublicKey;
   price: number;
+  setup?: number;
   remaining?: PublicKey[];
 };
 
@@ -992,13 +1120,40 @@ export const setFixedPrice = (
   });
 
   const ix = program.methods
-    .lendingPoolSetFixedOraclePrice(bigNumberToWrappedI80F48(args.price))
+    .lendingPoolSetOraclePrice(
+      bigNumberToWrappedI80F48(args.price),
+      args.setup ?? ORACLE_SETUP_FIXED,
+    )
     .accounts({
       // group: // implied from bank
       // admin: // implied from group
       bank: args.bank,
     })
     .remainingAccounts(oracleMeta)
+    .instruction();
+
+  return ix;
+};
+
+export type SetBankSameAssetEmodeEligibilityArgs = {
+  // group: PublicKey;
+  signer: PublicKey;
+  bank: PublicKey;
+  enabled: boolean;
+};
+
+export const setBankSameAssetEmodeEligibility = (
+  program: Program<Marginfi>,
+  args: SetBankSameAssetEmodeEligibilityArgs,
+) => {
+  const ix = program.methods
+    .lendingPoolSetBankSameAssetEmodeEligibility(args.enabled)
+    .accounts({
+      // group: args.group,
+      signer: args.signer,
+      bank: args.bank,
+      // sameAssetEmodeRegistry,
+    })
     .instruction();
 
   return ix;
@@ -1045,7 +1200,7 @@ export const writeBankMetadata = (
   const ix = program.methods
     .writeBankMetadata(
       tickerBuf, // Option<Vec<u8>> -> Some(Buffer) | None(null)
-      descBuf, // Option<Vec<u8>> -> Some(Buffer) | None(null)
+      descBuf // Option<Vec<u8>> -> Some(Buffer) | None(null)
     )
     .accounts({
       // group: implied
@@ -1098,7 +1253,7 @@ export const writeBankMetadataPreInit = (
     .writeBankMetadataPreInit(
       args.bankSeed,
       tickerBuf, // Option<Vec<u8>> -> Some(Buffer) | None(null)
-      descBuf, // Option<Vec<u8>> -> Some(Buffer) | None(null)
+      descBuf // Option<Vec<u8>> -> Some(Buffer) | None(null)
     )
     .accounts({
       group: args.group,

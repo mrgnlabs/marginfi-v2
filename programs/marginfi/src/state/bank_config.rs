@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::{
-    constants::{MAX_PYTH_ORACLE_AGE, ORACLE_MIN_AGE, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE},
-    types::{BankConfig, OracleSetup, RequirementType, RiskTier},
+    constants::{ORACLE_MIN_AGE, TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE},
+    types::{BankConfig, RequirementType, RiskTier},
 };
 
 use crate::{
@@ -15,12 +15,15 @@ use crate::{
 pub trait BankConfigImpl {
     fn get_weights(&self, req_type: RequirementType) -> (I80F48, I80F48);
     fn validate(&self) -> MarginfiResult;
+    /// Validate circuit breaker parameters. Call only when `CIRCUIT_BREAKER_ENABLED` is set.
+    fn validate_circuit_breaker(&self) -> MarginfiResult;
     fn is_deposit_limit_active(&self) -> bool;
     fn is_borrow_limit_active(&self) -> bool;
     fn update_config_flag(&mut self, value: bool, flag: u8);
-    fn validate_oracle_setup(
+    fn validate_oracle_setup<'info>(
         &self,
-        ais: &[AccountInfo<'_>],
+        bank_mint: Pubkey,
+        ais: &'info [AccountInfo<'info>],
         lst_mint: Option<Pubkey>,
         stake_pool: Option<Pubkey>,
         sol_pool: Option<Pubkey>,
@@ -83,6 +86,53 @@ impl BankConfigImpl for BankConfig {
         Ok(())
     }
 
+    fn validate_circuit_breaker(&self) -> MarginfiResult {
+        // Sanity caps. `MAX_ALPHA_BPS = 0.2` plus the per-pulse shift cap blunts
+        // EMA-reanchor griefing.
+        const MAX_ESCALATION_MULT: u8 = 10;
+        const MAX_ALPHA_BPS: u16 = 2_000;
+        const MAX_DEVIATION_BPS: u16 = 5_000;
+        check!(
+            self.cb_ema_alpha_bps > 0 && self.cb_ema_alpha_bps <= MAX_ALPHA_BPS,
+            MarginfiError::CircuitBreakerInvalidConfig
+        );
+        check!(
+            self.cb_escalation_window_mult > 0
+                && self.cb_escalation_window_mult <= MAX_ESCALATION_MULT,
+            MarginfiError::CircuitBreakerInvalidConfig
+        );
+        // All three tiers must be populated and strictly monotonic — the state machine is
+        // explicitly three-tiered.
+        for i in 0..3 {
+            check!(
+                self.cb_deviation_bps_tiers[i] > 0
+                    && self.cb_deviation_bps_tiers[i] <= MAX_DEVIATION_BPS
+                    && self.cb_tier_durations_seconds[i] > 0,
+                MarginfiError::CircuitBreakerInvalidConfig
+            );
+            if i > 0 {
+                check!(
+                    self.cb_tier_durations_seconds[i] > self.cb_tier_durations_seconds[i - 1]
+                        && self.cb_deviation_bps_tiers[i] > self.cb_deviation_bps_tiers[i - 1],
+                    MarginfiError::CircuitBreakerInvalidConfig
+                );
+            }
+        }
+        // `0` keeps the `CB_WINDOW_*` defaults, so `<=` bounds only the explicitly-set overrides.
+        const MAX_WINDOW_SECONDS: u32 = 7 * 24 * 60 * 60;
+        const MAX_WINDOW_DEVIATION_BPS: u16 = 10_000;
+        check!(
+            self.cb_window_seconds <= MAX_WINDOW_SECONDS,
+            MarginfiError::CircuitBreakerInvalidConfig
+        );
+        check!(
+            self.cb_window_max_up_bps <= MAX_WINDOW_DEVIATION_BPS
+                && self.cb_window_max_down_bps <= MAX_WINDOW_DEVIATION_BPS,
+            MarginfiError::CircuitBreakerInvalidConfig
+        );
+        Ok(())
+    }
+
     #[inline]
     fn is_deposit_limit_active(&self) -> bool {
         self.deposit_limit != u64::MAX
@@ -104,14 +154,17 @@ impl BankConfigImpl for BankConfig {
     /// * lst_mint, stake_pool, sol_pool, pool_onramp - required only if configuring
     ///   `OracleSetup::StakedWithPythPush` on initial setup. If configuring a staked bank after
     ///   initial setup, can be omitted.
-    fn validate_oracle_setup(
+    fn validate_oracle_setup<'info>(
         &self,
-        ais: &[AccountInfo<'_>],
+        bank_mint: Pubkey,
+        ais: &'info [AccountInfo<'info>],
         lst_mint: Option<Pubkey>,
         stake_pool: Option<Pubkey>,
         sol_pool: Option<Pubkey>,
     ) -> MarginfiResult {
-        OraclePriceFeedAdapter::validate_bank_config(self, ais, lst_mint, stake_pool, sol_pool)?;
+        OraclePriceFeedAdapter::validate_bank_config(
+            self, bank_mint, ais, lst_mint, stake_pool, sol_pool,
+        )?;
         Ok(())
     }
 
@@ -121,9 +174,7 @@ impl BankConfigImpl for BankConfig {
 
     #[inline]
     fn get_oracle_max_age(&self) -> u64 {
-        match (self.oracle_max_age, self.oracle_setup) {
-            (0, OracleSetup::PythPushOracle) => MAX_PYTH_ORACLE_AGE,
-            (n, _) => n as u64,
-        }
+        // `validate()` enforces `oracle_max_age >= ORACLE_MIN_AGE` on every config write path
+        self.oracle_max_age as u64
     }
 }

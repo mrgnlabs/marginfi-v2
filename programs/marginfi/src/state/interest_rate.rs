@@ -4,8 +4,8 @@ use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::SECONDS_PER_YEAR,
     types::{
-        InterestRateConfig, InterestRateConfigOpt, MarginfiGroup, RatePoint, INTEREST_CURVE_LEGACY,
-        INTEREST_CURVE_SEVEN_POINT,
+        u32_to_centi, u32_to_milli, InterestRateConfig, InterestRateConfigOpt, MarginfiGroup,
+        RatePoint, INTEREST_CURVE_LEGACY, INTEREST_CURVE_SEVEN_POINT,
     },
 };
 
@@ -244,8 +244,8 @@ impl InterestRateCalc {
     /// * Points defined as 1: (0, Y1), 2-6: (X2-6, Y2-6), 7: (100, Y7), where 0 < X2-6 < 100
     #[inline]
     fn interest_rate_multipoint_curve(&self, ur: I80F48) -> Option<I80F48> {
-        let zero_rate: I80F48 = Self::rate_from_u32(self.zero_util_rate);
-        let hundred_rate: I80F48 = Self::rate_from_u32(self.hundred_util_rate);
+        let zero_rate: I80F48 = u32_to_milli(self.zero_util_rate);
+        let hundred_rate: I80F48 = u32_to_milli(self.hundred_util_rate);
 
         // The first point is at (0, zero_rate)
         let mut prev_util: I80F48 = I80F48::ZERO;
@@ -254,8 +254,8 @@ impl InterestRateCalc {
         let ur: I80F48 = ur.max(I80F48::ZERO).min(I80F48::ONE);
 
         for point in self.points.iter().filter(|point| point.util() != 0) {
-            let point_util: I80F48 = Self::util_from_u32(point.util());
-            let point_rate: I80F48 = Self::rate_from_u32(point.rate());
+            let point_util: I80F48 = u32_to_centi(point.util());
+            let point_rate: I80F48 = u32_to_milli(point.rate());
 
             if ur <= point_util {
                 return Self::lerp(prev_util, prev_rate, point_util, point_rate, ur);
@@ -271,37 +271,31 @@ impl InterestRateCalc {
     /// Given two points (start_x, start_y) and (end_x, end_y), and a target x between start_x and
     /// end_x, linearly interpolates y at the given x.
     ///
-    /// * returns start_y if end_x <= start_x or target < start_x
-    /// * returns end_y if target > end_x
+    /// * returns start_y if end_x <= start_x or target <= start_x
+    /// * returns end_y if target >= end_x
     /// * None if end_y < start_y. Note: this means curves where the rate decreases as the
     ///   utilization goes up are unsupported, though there's no reason you would generally want to
     ///   do that anyways.
     #[inline]
-    fn lerp(
+    pub(crate) fn lerp(
         start_x: I80F48,
         start_y: I80F48,
         end_x: I80F48,
         end_y: I80F48,
         target_x: I80F48,
     ) -> Option<I80F48> {
-        if end_x <= start_x {
+        if end_x <= start_x || target_x <= start_x {
             return Some(start_y);
         }
-        if target_x < start_x {
-            return None;
-        }
-        if target_x > end_x {
-            return None;
+        if target_x >= end_x {
+            return Some(end_y);
         }
         if end_y < start_y {
             return None;
         }
 
+        // Safe: start_x < end_x
         let delta_x: I80F48 = end_x - start_x;
-        if delta_x.is_zero() {
-            return Some(start_y);
-        }
-
         // Safe: start_x < target_x
         let offset: I80F48 = target_x - start_x;
         // Safe: delta_x nonzero
@@ -311,17 +305,6 @@ impl InterestRateCalc {
         let scaled_delta: I80F48 = delta_y.checked_mul(proportion)?;
         // Safe: start_y + scaled_delta < end_y
         Some(start_y + scaled_delta)
-    }
-
-    #[inline]
-    fn rate_from_u32(rate: u32) -> I80F48 {
-        let ratio: I80F48 = I80F48::from_num(rate) / I80F48::from_num(u32::MAX);
-        ratio * I80F48::from_num(10)
-    }
-
-    #[inline]
-    fn util_from_u32(util: u32) -> I80F48 {
-        I80F48::from_num(util) / I80F48::from_num(u32::MAX)
     }
 
     pub fn get_fees(&self) -> Fees {
@@ -1044,8 +1027,8 @@ mod tests {
     }
 
     #[test]
-    fn lerp_none_when_target_before_start() {
-        // target_x < start_x
+    fn lerp_clamps_target_before_start_to_start_y() {
+        // target_x < start_x => clamp to start_y
         let out = InterestRateCalc::lerp(
             I80F48!(0.2),
             I80F48!(1.5),
@@ -1053,12 +1036,12 @@ mod tests {
             I80F48!(3.0),
             I80F48!(0.1),
         );
-        assert!(out.is_none());
+        assert_eq!(out, Some(I80F48!(1.5)));
     }
 
     #[test]
-    fn lerp_none_when_target_after_end() {
-        // target_x > end_x
+    fn lerp_clamps_target_after_end_to_end_y() {
+        // target_x > end_x => clamp to end_y
         let out = InterestRateCalc::lerp(
             I80F48!(0.0),
             I80F48!(0.0),
@@ -1066,7 +1049,7 @@ mod tests {
             I80F48!(4.0),
             I80F48!(1.5),
         );
-        assert!(out.is_none());
+        assert_eq!(out, Some(I80F48!(4.0)));
     }
 
     // NOTE: we don't support decreasing curves because that would be silly for our use-case. There

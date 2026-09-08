@@ -89,10 +89,11 @@ pub fn lending_pool_add_bank_permissionless(
     };
 
     let now = Clock::get().unwrap().unix_timestamp;
+    let config = default_config.into();
 
-    *bank = Bank::new(
+    bank.init(
         ctx.accounts.marginfi_group.key(),
-        default_config.into(),
+        &config,
         bank_mint.key(),
         bank_mint.decimals,
         liquidity_vault.key(),
@@ -165,6 +166,7 @@ pub fn lending_pool_add_bank_permissionless(
     bank.config.oracle_keys[2] = sol_pool;
     bank.config.oracle_keys[3] = exp_onramp;
     bank.config.validate_oracle_setup(
+        lst_mint,
         ctx.remaining_accounts,
         Some(lst_mint),
         Some(stake_pool),

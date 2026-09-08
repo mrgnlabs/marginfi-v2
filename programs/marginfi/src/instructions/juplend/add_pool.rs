@@ -64,9 +64,9 @@ pub fn lending_pool_add_bank_juplend(
     let fee_vault_bump = ctx.bumps.fee_vault;
     let fee_vault_authority_bump = ctx.bumps.fee_vault_authority;
 
-    *bank = Bank::new(
+    bank.init(
         ctx.accounts.group.key(),
-        config,
+        &config,
         bank_mint.key(),
         bank_mint.decimals,
         ctx.accounts.liquidity_vault.key(),
@@ -103,7 +103,7 @@ pub fn lending_pool_add_bank_juplend(
 
     bank.config.validate()?;
     bank.config
-        .validate_oracle_setup(ctx.remaining_accounts, None, None, None)?;
+        .validate_oracle_setup(bank_mint.key(), ctx.remaining_accounts, None, None, None)?;
 
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {

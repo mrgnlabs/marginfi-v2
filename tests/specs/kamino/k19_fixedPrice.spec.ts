@@ -63,6 +63,7 @@ import {
   wrappedI80F48toBigNumber,
 } from "@mrgnlabs/mrgn-common";
 import { logHealthCache, processBankrunTransaction } from "../../utils/tools";
+import { bnToDecimalStringSafe } from "../../utils/bn-utils";
 import { ProgramTestContext } from "../../utils/litesvm";
 import { refreshPullOraclesBankrun } from "../../utils/bankrun-oracles";
 import {
@@ -180,7 +181,7 @@ describe("kx: Fixed Kamino price bank", () => {
     }
   });
 
-  it("(admin) configure_bank_oracle rejects FixedKamino setup - use set_fixed_oracle_price", async () => {
+  it("(admin) configure_bank_oracle rejects FixedKamino setup - use set_oracle_price", async () => {
     const tx = new Transaction().add(
       await configureBankOracle(groupAdmin.mrgnBankrunProgram, {
         bank: fixedKaminoBank,
@@ -194,7 +195,7 @@ describe("kx: Fixed Kamino price bank", () => {
       [groupAdmin.wallet],
       true,
     );
-    // UseSetFixedOraclePrice
+    // UseSetOraclePrice
     assertBankrunTxFailed(result, 6132);
   });
 
@@ -501,7 +502,7 @@ describe("kx: Fixed Kamino price bank", () => {
     console.log("withdrew: " + diff.toLocaleString());
 
     const expectedWithdraw = exchangeRateBeforeWithdraw
-      .mul(withdrawAmount.toString())
+      .mul(bnToDecimalStringSafe(withdrawAmount))
       .toNumber();
     assert.approximately(diff, expectedWithdraw, 2);
 
