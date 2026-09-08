@@ -314,7 +314,7 @@ impl KaminoBankSetup {
         let reserve_key = self.bank_f.load().await.integration_acc_1;
         let mut account = self.test_f.try_load(&reserve_key).await.unwrap().unwrap();
         let reserve = bytemuck::from_bytes_mut::<MinimalReserve>(&mut account.data[8..]);
-        reserve.emergency_mode = 1;
+        reserve.config.emergency_mode = 1;
         reserve.slot = slot;
         reserve.stale = 0;
         reserve.price_status = 0;

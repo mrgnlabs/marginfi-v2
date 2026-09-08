@@ -145,17 +145,16 @@ pub struct MinimalReserve {
     /// `available_amount`, raising the cToken exchange rate.
     pub rewards_amount_available: u64,
     // Padding to completion of ReserveLiquidity
-    padding_1: [u8; 256],
-    padding_2: [u8; 128],
-    padding_3: [u8; 24],
-    padding_4: [u8; 512],
-    // end of reserve liquidity
-    padding_5: [u8; 512],
-    padding_6: [u8; 512],
-    padding_7: [u8; 128],
-    padding_8: [u8; 48],
+    _padding1: [u8; 512],
+    _padding2: [u8; 256],
+    _padding3: [u8; 128],
+    _padding4: [u8; 16],
+    // end of reserve liquidity (offset 1352), then `reserve_liquidity_padding: [u64; 150]`
+    _padding5: [u8; 1024],
+    _padding6: [u8; 128],
+    _padding7: [u8; 48],
 
-    // ReserveCollateral section
+    // ReserveCollateral section (offset 2552)
     /// Mints collateral tokens
     /// * A PDA
     /// * technically 6 decimals, but uses `mint_decimals` regardless for all purposes
@@ -167,27 +166,18 @@ pub struct MinimalReserve {
     /// * A PDA
     pub collateral_supply_vault: Pubkey,
 
-    padding_9: [u8; 512],
-    padding_10: [u8; 512],
-    padding_11: [u8; 1024],
-    padding_12: [u8; 128],
-    padding_13: [u8; 32],
-    padding_14: [u8; 24],
-
-    /// `ReserveConfig.emergency_mode`. When set, `refresh_reserve` clears the price status:
-    /// https://github.com/Kamino-Finance/klend/blob/release/v1.25.0/programs/klend/src/lending_market/lending_operations.rs#L67-L70
-    pub emergency_mode: u8,
-
-    padding_15: [u8; 2048],
-    padding_16: [u8; 512],
-    padding_17: [u8; 256],
-    padding_18: [u8; 64],
-    padding_19: [u8; 7],
-    padding_20: [u8; 512],
-    padding_21: [u8; 256],
-    padding_22: [u8; 64],
-    padding_23: [u8; 32],
-    padding_24: [u8; 8],
+    // Padding to completion of ReserveCollateral
+    _padding8: [u8; 1024],
+    // end of reserve collateral (offset 3648), then `reserve_collateral_padding: [u64; 150]`
+    _padding9: [u8; 1024],
+    _padding10: [u8; 128],
+    _padding11: [u8; 48],
+    /// Kamino's `ReserveConfig` (offset 4848). Holds `emergency_mode`, `deposit_limit`, the
+    /// borrow-rate curve, etc.
+    pub config: ReserveConfig,
+    _padding12: [u8; 2048],
+    _padding13: [u8; 512],
+    _padding14: [u8; 256],
 }
 
 /// Kamino's `LendingMarket`, mirrored only as far as `reserve_rewards_max_apr_bps`, which caps
@@ -310,9 +300,11 @@ impl MinimalReserve {
         self.slot < current_slot
     }
 
-    /// True if Kamino put this reserve into emergency mode.
+    /// True if Kamino put this reserve into emergency mode (`ReserveConfig.emergency_mode`). When
+    /// set, `refresh_reserve` clears the price status:
+    /// https://github.com/Kamino-Finance/klend/blob/release/v1.25.0/programs/klend/src/lending_market/lending_operations.rs#L67-L70
     pub fn is_emergency_mode(&self) -> bool {
-        self.emergency_mode != 0
+        self.config.emergency_mode != 0
     }
 }
 

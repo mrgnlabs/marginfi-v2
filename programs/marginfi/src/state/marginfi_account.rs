@@ -1852,12 +1852,22 @@ fn calc_weighted_asset_value_standalone(
                 .as_ref()
                 .map_err(|_| error!(MarginfiError::from(err_code)))?;
 
-            // Worth nothing for new borrows, but keeps Maintenance value for liquidation.
+            // Worth nothing for new borrows, but keeps Maintenance value for liquidation. As with
+            // Paused/ReduceOnly above, the premium scratch still counts this collateral.
             if !price_feed.has_borrow_power()
                 && matches!(requirement_type, RequirementType::Initial)
             {
                 debug!("Bank without borrow power is worth 0 for Initial margin");
-                return Ok((I80F48::ZERO, I80F48::ZERO, 0));
+                let premium_price = if need_premium_price {
+                    price_feed.get_price_of_type(
+                        requirement_type.get_oracle_price_type(),
+                        Some(PriceBias::Low),
+                        bank.config.oracle_max_confidence,
+                    )?
+                } else {
+                    I80F48::ZERO
+                };
+                return Ok((I80F48::ZERO, I80F48::ZERO, premium_price, 0));
             }
 
             // Determine asset weight (bank default, cross-asset e-mode, or same-asset e-mode)

@@ -1969,6 +1969,10 @@ impl ScopePriceFeed {
 }
 
 impl PriceAdapter for ScopePriceFeed {
+    fn has_borrow_power(&self) -> bool {
+        true
+    }
+
     fn get_price_of_type(
         &self,
         _oracle_price_type: OraclePriceType,
