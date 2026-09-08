@@ -281,15 +281,16 @@ pub trait MarginfiAccountPremiumImpl {
     /// The weighted rate for a liability is
     /// `Σ(collateral_usd_i × pair_rate(collateral_tag_i, liability_tag)) / Σ(collateral_usd_i)`,
     /// or zero when the account has no priced collateral or the matrix is disabled.
-    /// * No-op when the scratch is incomplete (partial health pass must never write rates).
-    /// `ratchet_on_incomplete`: with `false`, an incomplete pass is a no-op. With `true`, an
-    /// INCOMPLETE pass ratchets instead: each snapshot is rewritten to
-    /// `max(previous, weighted rate of the priceable collateral, highest pair rate among
-    /// unpriceable legs)` — it can only ever move UP. This closes the dilute-then-supply-a-bad-
-    /// oracle rate freeze without blocking the action itself.
-    /// * Pass `true` ONLY from authority-signed handlers (the five withdraw paths). On a
-    ///   permissionless surface (pulse, liquidation, order/rebalance end) a hostile caller
-    ///   could feed a bad oracle and ratchet a victim's rate — those must pass `false`.
+    ///
+    /// `ratchet_on_incomplete`: with `false`, an incomplete pass is a no-op (a partial health
+    /// pass must never write plain rates). With `true`, an incomplete pass ratchets instead:
+    /// each snapshot is rewritten to `max(previous, weighted rate of the priceable collateral,
+    /// highest pair rate among unpriceable legs)` — it can only ever move UP. This closes the
+    /// dilute-then-supply-a-bad-oracle rate freeze without blocking the action itself.
+    /// * Pass `true` ONLY from authority-signed handlers (the five withdraw paths and the
+    ///   gate-guarded borrow/flashloan-end). On a permissionless surface (pulse, liquidation,
+    ///   order/rebalance end) a hostile caller could feed a bad oracle and ratchet a victim's
+    ///   rate — those must pass `false`.
     fn update_premium_snapshots(
         &mut self,
         group: &MarginfiGroup,
