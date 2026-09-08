@@ -742,6 +742,7 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::EditFeeStatePremium {
                 global_fee_admin: signer.pubkey(),
                 fee_state: self.fee_state,
+                instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
             data: EditFeeStatePremium { premium_wallet }.data(),
@@ -780,6 +781,7 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolConfigureGroupPremium {
                 group: self.key,
                 emode_admin: signer.pubkey(),
+                instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
             data: LendingPoolConfigureGroupPremium {
@@ -827,6 +829,7 @@ impl MarginfiGroupFixture {
                 group: self.key,
                 emode_admin: signer.pubkey(),
                 bank: bank.key,
+                instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
             data: LendingPoolConfigureBankPremium {
