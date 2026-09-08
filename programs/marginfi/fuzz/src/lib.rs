@@ -1256,6 +1256,7 @@ mod tests {
                 RequirementType::Maintenance,
                 &mut None,
                 HealthPriceMode::Live { liq_cache: None },
+                &mut None,
             )
             .unwrap();
         }
@@ -1322,6 +1323,7 @@ mod tests {
                 RequirementType::Maintenance,
                 &mut None,
                 HealthPriceMode::Live { liq_cache: None },
+                &mut None,
             )
             .unwrap();
         }
