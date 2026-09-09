@@ -511,6 +511,8 @@ pub enum MarginfiError {
     RebalanceStaleExecutionSeq, // 6716
     #[msg("Rebalance allowlist contains a bank the account owes into")]
     RebalanceAllowlistLiability, // 6717
+    #[msg("Rebalance moves use a bank as both a source and a destination")]
+    RebalanceBankSourceAndDestination, // 6718
     // ************** END AUTO-REBALANCE ERRORS
     // ************** BEGIN SCOPE ERRORS (starting at 6800)
     #[msg("Scope oracle account is not owned by the Scope program or is malformed")]
@@ -788,6 +790,7 @@ impl From<u32> for MarginfiError {
             6715 => MarginfiError::RebalanceNotBestVenue,
             6716 => MarginfiError::RebalanceStaleExecutionSeq,
             6717 => MarginfiError::RebalanceAllowlistLiability,
+            6718 => MarginfiError::RebalanceBankSourceAndDestination,
 
             // Premium-specific errors (starting at 6610)
             6610 => MarginfiError::PremiumEntryInvalid,

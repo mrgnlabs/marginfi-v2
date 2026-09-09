@@ -85,10 +85,10 @@ pub struct RebalanceRefBank {
 }
 
 // A declared token move from `src_index` to `dst_index` (indices into `RebalanceRecord.ref_banks`),
-// of `amount` underlying tokens. The keeper declares these; `start_rebalance` requires each move's
-// destination rate to beat its source by the order's margin, and `end_rebalance` re-checks the
-// destination is not worse after market impact and reconciles the amounts against the observed
-// per-bank token deltas.
+// of `amount` underlying tokens. The keeper declares these; `start_rebalance` requires each
+// move's destination rate, taken after every declared deposit into that bank, to beat its source
+// by the order's margin, and `end_rebalance` re-checks the destination is not worse after market
+// impact and reconciles the amounts against the observed per-bank token deltas.
 assert_struct_size!(RebalanceMove, 24);
 assert_struct_align!(RebalanceMove, 8);
 #[repr(C)]
