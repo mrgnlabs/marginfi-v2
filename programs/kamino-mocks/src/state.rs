@@ -149,12 +149,12 @@ pub struct MinimalReserve {
     _padding2: [u8; 256],
     _padding3: [u8; 128],
     _padding4: [u8; 16],
-    // end of reserve liquidity (offset 1352), then `reserve_liquidity_padding: [u64; 150]`
+    // end of reserve liquidity
     _padding5: [u8; 1024],
     _padding6: [u8; 128],
     _padding7: [u8; 48],
 
-    // ReserveCollateral section (offset 2552)
+    // ReserveCollateral section
     /// Mints collateral tokens
     /// * A PDA
     /// * technically 6 decimals, but uses `mint_decimals` regardless for all purposes
@@ -168,13 +168,12 @@ pub struct MinimalReserve {
 
     // Padding to completion of ReserveCollateral
     _padding8: [u8; 1024],
-    // end of reserve collateral (offset 3648), then `reserve_collateral_padding: [u64; 150]`
     _padding9: [u8; 1024],
     _padding10: [u8; 128],
     _padding11: [u8; 48],
-    /// Kamino's `ReserveConfig` (offset 4848). Holds `emergency_mode`, `deposit_limit`, the
-    /// borrow-rate curve, etc.
+
     pub config: ReserveConfig,
+
     _padding12: [u8; 2048],
     _padding13: [u8; 512],
     _padding14: [u8; 256],
