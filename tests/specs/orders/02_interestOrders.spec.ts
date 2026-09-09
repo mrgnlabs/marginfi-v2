@@ -343,7 +343,7 @@ describe("Interest trigger orders", () => {
         await place(interest(MIN_WINDOW - 1, null));
       },
       "OrderInterestInvalidConfig",
-      7003,
+      6903,
     );
   });
 
@@ -353,7 +353,7 @@ describe("Interest trigger orders", () => {
         await place(interest(MAX_WINDOW + 1, null));
       },
       "OrderInterestInvalidConfig",
-      7003,
+      6903,
     );
   });
 
@@ -363,7 +363,7 @@ describe("Interest trigger orders", () => {
         await place(interest(null, 0));
       },
       "OrderInterestInvalidConfig",
-      7003,
+      6903,
     );
   });
 
@@ -415,7 +415,7 @@ describe("Interest trigger orders", () => {
         await keeper.mrgnProgram.provider.sendAndConfirm!(await sandwich());
       },
       "OrderInterestHistoryTooShort",
-      7000,
+      6900,
     );
   });
 

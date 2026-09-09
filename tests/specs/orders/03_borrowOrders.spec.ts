@@ -394,14 +394,14 @@ describe("Borrow orders", () => {
         await place({ windowSeconds: MIN_WINDOW - 1 });
       },
       "BorrowOrderInvalidConfig",
-      6901,
+      7001,
     );
     await expectFailedTxWithError(
       async () => {
         await place({ windowSeconds: MAX_WINDOW + 1 });
       },
       "BorrowOrderInvalidConfig",
-      6901,
+      7001,
     );
   });
 
@@ -411,7 +411,7 @@ describe("Borrow orders", () => {
         await place({ destinationBank: usdcBank });
       },
       "BorrowOrderInvalidConfig",
-      6901,
+      7001,
     );
   });
 
@@ -460,7 +460,7 @@ describe("Borrow orders", () => {
         await fill(AMOUNT);
       },
       "BorrowOrderHistoryTooShort",
-      6900,
+      7000,
     );
   });
 
@@ -497,7 +497,7 @@ describe("Borrow orders", () => {
         );
       },
       "BorrowOrderWrongDestination",
-      6912,
+      7012,
     );
   });
 
@@ -547,7 +547,7 @@ describe("Borrow orders", () => {
         await place({ closeAboveApr: CLOSE_LEVEL });
       },
       "BorrowOrderNoCloseSide",
-      6906,
+      7006,
     );
   });
 
@@ -594,7 +594,7 @@ describe("Borrow orders", () => {
         await close(AMOUNT);
       },
       "BorrowOrderRateNotHighEnough",
-      6914,
+      7014,
     );
   });
 
@@ -625,7 +625,7 @@ describe("Borrow orders", () => {
         await close(PART);
       },
       "BorrowOrderCloseIncomplete",
-      6917,
+      7017,
     );
     await close(AMOUNT);
 
