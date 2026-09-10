@@ -101,7 +101,7 @@ impl BankFixture {
 
         let accounts = marginfi::accounts::LendingPoolConfigureBank {
             group: self.load().await.group,
-            admin: self.ctx.borrow().payer.pubkey(),
+            signer: self.ctx.borrow().payer.pubkey(),
             bank: self.key,
         }
         .to_account_metas(Some(true));
@@ -118,9 +118,9 @@ impl BankFixture {
         instructions.push(config_ix);
 
         if let Some((setup, oracle)) = oracle_update {
-            let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBank {
+            let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
                 group: self.load().await.group,
-                admin: self.ctx.borrow().payer.pubkey(),
+                bank_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
             }
             .to_account_metas(Some(true));

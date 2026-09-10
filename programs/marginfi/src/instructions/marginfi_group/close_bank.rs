@@ -8,7 +8,6 @@ use marginfi_type_crate::{
     constants::{CLOSE_ENABLED_FLAG, ZERO_AMOUNT_THRESHOLD},
     types::{Bank, MarginfiGroup},
 };
-
 /// * force_close - (admin escape hatch) when `Some(true)`, skips the `CLOSE_ENABLED_FLAG` and
 ///   open-position checks. Intended for legacy pre-0.1.4 banks whose position count is
 ///   non-authoritative. The zero-shares/zero-emissions checks are always enforced, so a bank still
@@ -17,7 +16,7 @@ pub fn lending_pool_close_bank(
     ctx: Context<LendingPoolCloseBank>,
     force_close: Option<bool>,
 ) -> MarginfiResult {
-    let mut group = ctx.accounts.group.load_mut()?;
+    let mut group = ctx.accounts.marginfi_group.load_mut()?;
     // Note: Groups created prior to 0.1.2 have a non-authoritative count here, so subtraction
     // without saturation could reduce the count below zero.
     group.banks = group.banks.saturating_sub(1);
@@ -50,27 +49,20 @@ pub fn lending_pool_close_bank(
     );
 
     drop(bank);
-
-    // Bank will now be closed by anchor
-
     Ok(())
 }
 
 #[derive(Accounts)]
 pub struct LendingPoolCloseBank<'info> {
+    #[account(mut)]
+    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(
         mut,
-        has_one = admin @ MarginfiError::Unauthorized,
-    )]
-    pub group: AccountLoader<'info, MarginfiGroup>,
-
-    #[account(
-        mut,
-        has_one = group @ MarginfiError::InvalidGroup,
-        close = admin
+        close = admin,
+        constraint = bank.load()?.group == marginfi_group.key() @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(mut)]
+    #[account(mut, constraint = marginfi_group.load()?.admin == admin.key() @ MarginfiError::Unauthorized)]
     pub admin: Signer<'info>,
 }

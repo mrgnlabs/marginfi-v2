@@ -69,7 +69,14 @@ pub mod marginfi {
         )
     }
 
-    /// (admin only) Add a new bank to the lending pool
+    pub fn marginfi_group_set_bank_admin(
+        ctx: Context<SetBankAdmin>,
+        new_bank_admin: Pubkey,
+    ) -> MarginfiResult {
+        marginfi_group::set_bank_admin(ctx, new_bank_admin)
+    }
+
+    /// (bank_admin only) Add a new bank to the lending pool
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfigCompact,
@@ -77,7 +84,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
-    /// (admin only) A copy of lending_pool_add_bank with an additional bank seed.
+    /// (bank_admin only) A copy of lending_pool_add_bank with an additional bank seed.
     /// This seed is used to create a PDA for the bank's signature.
     /// lending_pool_add_bank is preserved for backwards compatibility.
     pub fn lending_pool_add_bank_with_seed(
@@ -88,7 +95,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
-    /// (admin only) Staging or localnet only, panics on mainnet
+    /// (bank_admin only) Staging or localnet only, panics on mainnet
     /// This instruction is used to clone a bank to a new PDA.
     pub fn lending_pool_clone_bank(
         ctx: Context<LendingPoolCloneBank>,
@@ -138,7 +145,7 @@ pub mod marginfi {
         marginfi_group::enable_staked_oracle_onramp(ctx)
     }
 
-    /// (admin only) Configure bank parameters. If the bank has `FREEZE_SETTINGS`, only
+    /// (bank_admin only) Configure bank parameters. If the bank has `FREEZE_SETTINGS`, only
     /// deposit/borrow limits are updated and all other config changes are silently ignored.
     pub fn lending_pool_configure_bank(
         ctx: Context<LendingPoolConfigureBank>,
@@ -191,7 +198,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_clear_circuit_breaker(ctx, reseed_reference)
     }
 
-    /// (admin only)
+    /// (bank_admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
         setup: u8,
@@ -200,7 +207,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
-    /// (admin only) Point a bank at a Scope feed entry.
+    /// (bank_admin only) Point a bank at a Scope feed entry.
     /// * oracle - the feed's `OraclePrices` account
     /// * entry_index - which of the 512 entries in that account prices this bank
     pub fn lending_pool_configure_bank_oracle_scope(
@@ -211,7 +218,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle_scope(ctx, oracle, entry_index)
     }
 
-    /// (admin only)
+    /// (bank_admin only)
     pub fn lending_pool_set_oracle_price(
         ctx: Context<LendingPoolSetOraclePrice>,
         price: WrappedI80F48,
@@ -1087,7 +1094,7 @@ pub mod marginfi {
         kamino::kamino_withdraw(ctx, amount, flags)
     }
 
-    /// (group admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining
+    /// (bank_admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining
     /// accounts 0 and 1 respectively.
     pub fn lending_pool_add_bank_kamino(
         ctx: Context<LendingPoolAddBankKamino>,
@@ -1110,7 +1117,7 @@ pub mod marginfi {
 
     // Drift integration instructions
 
-    /// (group admin only) Add a Drift bank to the group.
+    /// (bank_admin only) Add a Drift bank to the group.
     pub fn lending_pool_add_bank_drift(
         ctx: Context<LendingPoolAddBankDrift>,
         bank_config: state::drift::DriftConfigCompact,

@@ -103,7 +103,11 @@ pub struct MarginfiGroup {
     /// `premium_tag`). Live entries occupy the first `premium_settings.entry_count` slots.
     /// Read only via `find_premium_rate`. Future capacity growth carves from `_padding_2`.
     pub premium_entries: [PremiumEntry; MAX_PREMIUM_ENTRIES],
-    pub _padding_2: [[u64; 32]; 32],
+    /// Dedicated authority for governance-controlled bank configuration. For groups created
+    /// before this field existed, the default key falls back to `admin`.
+    pub bank_admin: Pubkey,
+    pub _padding_2: [[u64; 32]; 31],
+    pub _padding_3: [u64; 28],
 }
 
 impl MarginfiGroup {

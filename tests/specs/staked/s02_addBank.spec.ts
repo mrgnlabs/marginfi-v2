@@ -203,7 +203,7 @@ describe("Init group and add banks with asset category flags", () => {
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
-        admin: groupAdmin.wallet.publicKey,
+        bankAdmin: groupAdmin.wallet.publicKey,
       })
       .remainingAccounts([oracleMeta])
       .instruction();
@@ -249,7 +249,7 @@ describe("Init group and add banks with asset category flags", () => {
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
-        admin: groupAdmin.wallet.publicKey,
+        bankAdmin: groupAdmin.wallet.publicKey,
       })
       .remainingAccounts([oracleMeta])
       .instruction();

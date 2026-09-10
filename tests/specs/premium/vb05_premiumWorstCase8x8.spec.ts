@@ -43,8 +43,8 @@ import {
 } from "../../utils/premium-instructions";
 import {
   BankConfig,
+  blankBankConfigOptRaw,
   defaultBankConfig,
-  defaultBankConfigOptRaw,
   I80F48_ONE,
   I80F48_ZERO,
   makeRatePoints,
@@ -451,7 +451,7 @@ describe("vb05: Premium worst case (8x8 matrix, 16 balances)", () => {
     for (let i = 0; i < N; i += 2) {
       const crushTx = new Transaction();
       for (let k = i; k < Math.min(i + 2, N); k++) {
-        const config = defaultBankConfigOptRaw();
+        const config = blankBankConfigOptRaw();
         config.assetWeightInit = bigNumberToWrappedI80F48(0.01);
         config.assetWeightMaint = bigNumberToWrappedI80F48(0.02);
         crushTx.add(
@@ -465,7 +465,7 @@ describe("vb05: Premium worst case (8x8 matrix, 16 balances)", () => {
         groupAdmin.wallet,
       ]);
     }
-    const raiseConfig = defaultBankConfigOptRaw();
+    const raiseConfig = blankBankConfigOptRaw();
     raiseConfig.liabilityWeightInit = bigNumberToWrappedI80F48(210);
     raiseConfig.liabilityWeightMaint = bigNumberToWrappedI80F48(200);
     tx = new Transaction().add(

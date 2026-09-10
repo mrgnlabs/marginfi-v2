@@ -283,6 +283,11 @@ pub enum MarginfiError {
     #[msg("Stake pool balance has not been updated recently enough")]
     StakePoolStale, // 6139
 
+    #[msg("Cannot mix governance-controlled and admin-controlled bank config fields in one call; split into separate lending_pool_configure_bank instructions")]
+    MixedBankConfigAuthority, // 6140
+    #[msg("Bank admin cannot be set to the default pubkey (all zeros); this would silently restore admin authority")]
+    InvalidBankAdmin, // 6141
+
     // ************** BEGIN KAMINO ERRORS (starting at 6200)
     #[msg("Wrong asset tag for standard instructions, expected DEFAULT, SOL, or STAKED asset tag")]
     WrongAssetTagForStandardInstructions = 200, // 6200
@@ -680,10 +685,13 @@ impl From<u32> for MarginfiError {
             6132 => MarginfiError::UseSetOraclePrice,
             6133 => MarginfiError::InvalidGlobalFeeWallet,
             6134 => MarginfiError::BankUninitialized,
+            6135 => MarginfiError::SlippageTooHigh,
             6136 => MarginfiError::MarinadeStateValidationFailed,
             6137 => MarginfiError::ExponentVaultValidationFailed,
             6138 => MarginfiError::InvalidPtStartPrice,
             6139 => MarginfiError::StakePoolStale,
+            6140 => MarginfiError::MixedBankConfigAuthority,
+            6141 => MarginfiError::InvalidBankAdmin,
 
             // Kamino-specific errors (starting at 6200)
             6200 => MarginfiError::WrongAssetTagForStandardInstructions,
