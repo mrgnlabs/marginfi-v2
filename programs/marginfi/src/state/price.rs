@@ -124,7 +124,7 @@ fn check_primary_oracle_key(
     Ok(())
 }
 
-fn load_kamino_reserve<'info>(
+pub(crate) fn load_kamino_reserve<'info>(
     bank_config: &BankConfig,
     reserve_info: &'info AccountInfo<'info>,
 ) -> MarginfiResult<AccountLoader<'info, MinimalReserve>> {
@@ -147,7 +147,7 @@ fn ensure_kamino_reserve_fresh(reserve: &MinimalReserve, clock: &Clock) -> Margi
     Ok(())
 }
 
-fn load_drift_spot_market<'info>(
+pub(crate) fn load_drift_spot_market<'info>(
     bank_config: &BankConfig,
     spot_market_info: &'info AccountInfo<'info>,
 ) -> MarginfiResult<AccountLoader<'info, MinimalSpotMarket>> {
@@ -175,7 +175,7 @@ fn ensure_drift_spot_market_fresh(
     Ok(())
 }
 
-fn load_solend_reserve<'info>(
+pub(crate) fn load_solend_reserve<'info>(
     bank_config: &BankConfig,
     reserve_info: &'info AccountInfo<'info>,
 ) -> MarginfiResult<AccountLoader<'info, SolendMinimalReserve>> {
@@ -196,7 +196,7 @@ fn ensure_solend_reserve_fresh(reserve: &SolendMinimalReserve) -> MarginfiResult
     Ok(())
 }
 
-fn load_juplend_lending<'info>(
+pub(crate) fn load_juplend_lending<'info>(
     bank_config: &BankConfig,
     lending_info: &'info AccountInfo<'info>,
 ) -> MarginfiResult<AccountLoader<'info, JuplendLending>> {
