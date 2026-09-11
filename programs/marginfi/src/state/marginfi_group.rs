@@ -359,7 +359,10 @@ mod tests {
         assert_eq!(offset_of!(MarginfiGroup, premium_entries), 544);
         // Premium fields fill the v1 layout exactly (former `_padding_0`/`_padding_1`).
         // The dedicated governance admin begins in the post-v1 extension.
-        assert_eq!(offset_of!(MarginfiGroup, governance_admin), MarginfiGroup::V1_LEN);
+        assert_eq!(
+            offset_of!(MarginfiGroup, governance_admin),
+            MarginfiGroup::V1_LEN
+        );
         assert_eq!(
             offset_of!(MarginfiGroup, _padding_2),
             MarginfiGroup::V1_LEN + 32

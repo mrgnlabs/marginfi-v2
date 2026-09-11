@@ -5,9 +5,7 @@ use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     log_pool_info,
     state::{
-        bank::BankImpl,
-        bank_config::BankConfigImpl,
-        kamino::KaminoConfigCompact,
+        bank::BankImpl, bank_config::BankConfigImpl, kamino::KaminoConfigCompact,
         marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,

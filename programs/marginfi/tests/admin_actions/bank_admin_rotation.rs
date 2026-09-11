@@ -25,7 +25,10 @@ async fn bank_admin_rotation() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after_rotate_1.governance_admin, new_bank_admin_1.pubkey());
+    assert_eq!(
+        group_after_rotate_1.governance_admin,
+        new_bank_admin_1.pubkey()
+    );
 
     test_f
         .marginfi_group
@@ -37,7 +40,10 @@ async fn bank_admin_rotation() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after_rotate_2.governance_admin, new_bank_admin_2.pubkey());
+    assert_eq!(
+        group_after_rotate_2.governance_admin,
+        new_bank_admin_2.pubkey()
+    );
 
     let new_bank_admin_3 = solana_sdk::signature::Keypair::new();
     let result = test_f

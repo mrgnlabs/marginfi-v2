@@ -2312,7 +2312,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetOraclePrice {
                 group: self.key,
-            governance_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                 bank: bank.key,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
@@ -2375,7 +2375,7 @@ impl MarginfiGroupFixture {
                 program_id: marginfi::ID,
                 accounts: marginfi::accounts::LendingPoolConfigureBankGov {
                     group: self.key,
-                governance_admin: signer.pubkey(),
+                    governance_admin: signer.pubkey(),
                     bank: bank.key,
                     instruction_sysvar: solana_sdk::sysvar::instructions::ID,
                 }

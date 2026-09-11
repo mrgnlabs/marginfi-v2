@@ -1,11 +1,7 @@
 use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     ix_utils, log_pool_info,
-    state::{
-        bank::BankImpl,
-        bank_config::BankConfigImpl,
-        marginfi_group::MarginfiGroupImpl,
-    },
+    state::{bank::BankImpl, bank_config::BankConfigImpl, marginfi_group::MarginfiGroupImpl},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;

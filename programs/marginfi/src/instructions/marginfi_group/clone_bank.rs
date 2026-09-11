@@ -3,10 +3,7 @@ use crate::{
     constants::{LOCALNET_ID, MAINNET_PROGRAM_ID, STAGING_ID},
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
     ix_utils, log_pool_info,
-    state::{
-        bank::BankImpl,
-        marginfi_group::MarginfiGroupImpl,
-    },
+    state::{bank::BankImpl, marginfi_group::MarginfiGroupImpl},
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
