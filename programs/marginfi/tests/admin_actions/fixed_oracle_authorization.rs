@@ -1,7 +1,6 @@
 use fixed_macro::types::I80F48;
 use fixtures::prelude::*;
 use marginfi::prelude::MarginfiError;
-use solana_sdk::signer::Signer;
 
 #[tokio::test]
 async fn set_oracle_price_bank_admin_authorization() -> anyhow::Result<()> {

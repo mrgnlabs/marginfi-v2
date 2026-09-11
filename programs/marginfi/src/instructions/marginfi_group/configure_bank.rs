@@ -2,6 +2,7 @@ use crate::constants::MIN_EMISSIONS_SHARE_SUPPLY;
 use crate::events::{
     GroupEventHeader, LendingPoolBankConfigureEvent, LendingPoolBankConfigureFrozenEvent,
 };
+use crate::ix_utils;
 use crate::prelude::MarginfiError;
 use crate::state::bank::BankImpl;
 use crate::state::emode::EmodeSettingsImpl;
@@ -24,6 +25,8 @@ pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,
     bank_config: BankConfigFast,
 ) -> MarginfiResult {
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
+
     check!(
         matches!(
             bank_config.operational_state,
@@ -53,6 +56,8 @@ pub fn lending_pool_configure_bank_gov(
     ctx: Context<LendingPoolConfigureBankGov>,
     bank_config: BankConfigGov,
 ) -> MarginfiResult {
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
+
     check!(
         matches!(
             bank_config.operational_state,
@@ -147,6 +152,10 @@ pub struct LendingPoolConfigureBank<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -161,6 +170,10 @@ pub struct LendingPoolConfigureBankGov<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }
 
 /// Permissionlessly deposit same-mint emissions directly into the bank liquidity vault,

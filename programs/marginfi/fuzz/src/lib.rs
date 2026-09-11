@@ -15,7 +15,7 @@ use fixed::types::I80F48;
 use fixed_macro::types::I80F48;
 use marginfi::instructions::LendingPoolConfigureBankOracleBumps;
 use marginfi::{
-    errors::MarginfiError, instructions::LendingPoolAddBankBumps, state::bank::BankVaultType,
+    errors::MarginfiError, instructions::LendingPoolAddBankBumps,
 };
 use marginfi_type_crate::types::{
     centi_to_u32, make_points, milli_to_u32, RatePoint, INTEREST_CURVE_SEVEN_POINT,
@@ -23,8 +23,8 @@ use marginfi_type_crate::types::{
 use marginfi_type_crate::{
     constants::FEE_STATE_SEED,
     types::{
-        Bank, BankConfigCompact, BankOperationalState, InterestRateConfig, MarginfiAccount,
-        RiskTier,
+        Bank, BankConfigCompact, BankOperationalState, BankVaultType, InterestRateConfig,
+        MarginfiAccount, RiskTier,
     },
 };
 use metrics::{MetricAction, Metrics};
@@ -62,6 +62,7 @@ pub struct MarginfiFuzzContext<'info> {
     pub admin: AccountInfo<'info>,
     pub bank_admin: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
+    pub instruction_sysvar: AccountInfo<'info>,
     pub last_sysvar_current_timestamp: RwLock<u64>,
     pub metrics: Arc<RwLock<Metrics>>,
     pub state: &'info AccountsState,
@@ -99,6 +100,7 @@ impl<'state> MarginfiFuzzContext<'state> {
             admin: admin.clone(),
             bank_admin,
             system_program,
+            instruction_sysvar: state.new_instruction_sysvar_account(),
             marginfi_accounts: vec![],
             last_sysvar_current_timestamp: RwLock::new(
                 SystemTime::now()
@@ -271,6 +273,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         fee_vault: Box::new(InterfaceAccount::try_from(airls(&fee_vault)).unwrap()),
                         token_program: Interface::try_from(airls(&token_program)).unwrap(),
                         system_program: Program::try_from(airls(&self.system_program)).unwrap(),
+                        instruction_sysvar: uails(&self.instruction_sysvar),
                     },
                     &[],
                     add_bank_bumps,
@@ -326,6 +329,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                         bank_admin: Signer::try_from(airls(&self.bank_admin)).unwrap(),
                         bank: AccountLoader::try_from_unchecked(&marginfi::ID, airls(&bank))
                             .unwrap(),
+                        instruction_sysvar: uails(&self.instruction_sysvar),
                     },
                     &[ails(oracle.clone())],
                     configure_bumps,
@@ -1025,6 +1029,7 @@ impl<'state> MarginfiFuzzContext<'state> {
                 ))?),
                 insurance_vault_authority: uails(&bank.insurance_vault_authority),
                 token_program: Interface::try_from(airls(&bank.token_program))?,
+                instruction_sysvar: uails(&self.instruction_sysvar),
             },
             aisls(&remaining_accounts),
             Default::default(),

@@ -1,6 +1,6 @@
 use crate::{
     events::{GroupEventHeader, LendingPoolBankCreateEvent},
-    log_pool_info,
+    ix_utils, log_pool_info,
     state::{
         bank::BankImpl,
         bank_config::BankConfigImpl,
@@ -29,6 +29,7 @@ pub fn lending_pool_add_bank_with_seed(
     bank_seed: u64,
 ) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.marginfi_group, &ctx.accounts.bank_admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     // Transfer the flat sol init fee to the global fee wallet
     let fee_state = ctx.accounts.fee_state.load()?;
@@ -218,6 +219,10 @@ pub struct LendingPoolAddBankWithSeed<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }
 
 impl<'info> LendingPoolAddBankWithSeed<'info> {

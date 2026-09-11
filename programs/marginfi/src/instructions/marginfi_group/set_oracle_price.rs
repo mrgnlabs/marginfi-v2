@@ -1,4 +1,5 @@
 use crate::events::{GroupEventHeader, LendingPoolBankSetOraclePriceEvent};
+use crate::ix_utils;
 use crate::state::bank::BankImpl;
 use crate::state::bank_config::BankConfigImpl;
 use crate::{
@@ -33,6 +34,7 @@ pub fn lending_pool_set_oracle_price(
     setup: u8,
 ) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
 
@@ -137,4 +139,8 @@ pub struct LendingPoolSetOraclePrice<'info> {
         has_one = group
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }

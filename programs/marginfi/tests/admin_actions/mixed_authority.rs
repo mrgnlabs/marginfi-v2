@@ -109,6 +109,7 @@ async fn bank_configuration_entry_points_reject_wrong_operational_state_class() 
             group: test_f.marginfi_group.key,
             admin: test_f.payer_keypair().pubkey(),
             bank: bank.key,
+            instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolConfigureBank {
@@ -136,6 +137,7 @@ async fn bank_configuration_entry_points_reject_wrong_operational_state_class() 
             group: test_f.marginfi_group.key,
             bank_admin: bank_admin.pubkey(),
             bank: bank.key,
+            instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
         .to_account_metas(Some(true)),
         data: marginfi::instruction::LendingPoolConfigureBankGov {

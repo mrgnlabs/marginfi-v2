@@ -6,6 +6,7 @@
 ///   remediation/seizure); the fast group admin may only set or clear the frozen flag.
 /// - Setting `frozen = false` clears the flag and returns control to the authority under normal auth rules.
 pub fn set_account_freeze(ctx: Context<SetAccountFreeze>, frozen: bool) -> MarginfiResult {
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
     let group = ctx.accounts.group.load()?;
     check_eq!(
         group.admin,
@@ -36,6 +37,7 @@ pub fn set_account_freeze(ctx: Context<SetAccountFreeze>, frozen: bool) -> Margi
 use crate::{
     check_eq,
     events::{AccountEventHeader, MarginfiAccountFreezeEvent},
+    ix_utils,
     prelude::*,
     state::marginfi_account::MarginfiAccountImpl,
 };
@@ -56,4 +58,8 @@ pub struct SetAccountFreeze<'info> {
         constraint = group.load()?.admin == admin.key() @ MarginfiError::Unauthorized
     )]
     pub admin: Signer<'info>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }

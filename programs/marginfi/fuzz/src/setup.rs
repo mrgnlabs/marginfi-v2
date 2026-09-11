@@ -37,6 +37,7 @@ pub fn initialize_marginfi_group<'a>(
     let program_id = marginfi::ID;
     let marginfi_group =
         state.new_owned_account(size_of::<MarginfiGroup>(), program_id, Rent::free());
+    let instruction_sysvar = state.new_instruction_sysvar_account();
 
     marginfi::instructions::marginfi_group::initialize_group(Context::new(
         &marginfi::ID,
@@ -46,6 +47,9 @@ pub fn initialize_marginfi_group<'a>(
             admin: Signer::try_from(airls(&admin)).unwrap(),
             fee_state: AccountLoader::try_from_unchecked(&program_id, airls(&fee_state)).unwrap(),
             system_program: Program::try_from(airls(&system_program)).unwrap(),
+            instruction_sysvar: crate::utils::unchecked_account_info_lifetime_shortener(
+                &instruction_sysvar,
+            ),
         },
         &[],
         Default::default(),
@@ -54,6 +58,7 @@ pub fn initialize_marginfi_group<'a>(
 
     set_discriminator::<MarginfiGroup>(marginfi_group.clone());
 
+    let instruction_sysvar = state.new_instruction_sysvar_account();
     marginfi::instructions::marginfi_group::configure(
         Context::new(
             &marginfi::ID,
@@ -64,6 +69,9 @@ pub fn initialize_marginfi_group<'a>(
                 )
                 .unwrap(),
                 admin: Signer::try_from(airls(&admin)).unwrap(),
+                instruction_sysvar: crate::utils::unchecked_account_info_lifetime_shortener(
+                    &instruction_sysvar,
+                ),
             },
             &[],
             Default::default(),
@@ -77,6 +85,7 @@ pub fn initialize_marginfi_group<'a>(
     )
     .unwrap();
 
+    let instruction_sysvar = state.new_instruction_sysvar_account();
     marginfi::instructions::marginfi_group::configure_gov(
         Context::new(
             &marginfi::ID,
@@ -87,6 +96,9 @@ pub fn initialize_marginfi_group<'a>(
                 )
                 .unwrap(),
                 bank_admin: Signer::try_from(airls(&admin)).unwrap(),
+                instruction_sysvar: crate::utils::unchecked_account_info_lifetime_shortener(
+                    &instruction_sysvar,
+                ),
             },
             &[],
             Default::default(),

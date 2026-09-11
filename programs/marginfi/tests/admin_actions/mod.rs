@@ -10,6 +10,7 @@ mod create_marginfi_group;
 mod deleverage;
 mod deleverage_withdraw_limit;
 mod fixed_oracle_authorization;
+mod durable_nonce;
 mod freeze;
 mod group_resize;
 mod interest_accrual;

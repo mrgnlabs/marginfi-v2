@@ -1,6 +1,7 @@
 use crate::{
     check,
     events::{GroupEventHeader, LendingPoolBankConfigureOracleEvent},
+    ix_utils,
     state::bank::BankImpl,
     state::bank_config::BankConfigImpl,
     state::marginfi_group::authorize_bank_admin,
@@ -17,6 +18,7 @@ pub fn lending_pool_configure_bank_oracle(
     oracle: Pubkey,
 ) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
 
@@ -113,6 +115,7 @@ pub fn lending_pool_configure_bank_oracle_scope(
     entry_index: u16,
 ) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
 
@@ -167,4 +170,8 @@ pub struct LendingPoolConfigureBankOracle<'info> {
         has_one = group @ MarginfiError::InvalidGroup,
     )]
     pub bank: AccountLoader<'info, Bank>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }

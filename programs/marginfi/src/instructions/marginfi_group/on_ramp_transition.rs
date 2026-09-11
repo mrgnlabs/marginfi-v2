@@ -1,4 +1,4 @@
-use crate::{state::marginfi_group::authorize_bank_admin, MarginfiError, MarginfiResult};
+use crate::{ix_utils, state::marginfi_group::authorize_bank_admin, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::{STAKED_ORACLE_DISABLED, STAKED_ORACLE_PRICE_USES_ONRAMP, STAKED_SETTINGS_SEED},
@@ -8,6 +8,7 @@ use marginfi_type_crate::{
 // To be removed once SVSP update is rolled out (likely in 1.10)
 pub fn disable_staked_oracles(ctx: Context<DisableStakedOracles>) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut staked_settings = ctx.accounts.staked_settings.load_mut()?;
 
@@ -34,11 +35,16 @@ pub struct DisableStakedOracles<'info> {
             @ MarginfiError::InvalidGroup
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }
 
 // To be removed once SVSP update is rolled out (likely in 1.10)
 pub fn enable_staked_oracle_onramp(ctx: Context<EnableStakedOracleOnramp>) -> MarginfiResult {
     authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.admin)?;
+    ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut staked_settings = ctx.accounts.staked_settings.load_mut()?;
 
@@ -65,4 +71,8 @@ pub struct EnableStakedOracleOnramp<'info> {
             @ MarginfiError::InvalidGroup
     )]
     pub staked_settings: AccountLoader<'info, StakedSettings>,
+
+    /// CHECK: instruction sysvar
+    #[account(address = solana_instructions_sysvar::id())]
+    pub instruction_sysvar: UncheckedAccount<'info>,
 }
