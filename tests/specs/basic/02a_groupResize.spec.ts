@@ -102,7 +102,7 @@ describe("02a: Account resize (v1 -> current layout migration)", () => {
       marginfiGroup.publicKey,
     );
     assert.equal(
-      bootstrapped.bankAdmin.toString(),
+      bootstrapped.governanceAdmin.toString(),
       groupAdmin.wallet.publicKey.toString(),
     );
   });

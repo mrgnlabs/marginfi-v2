@@ -1,8 +1,8 @@
 # Emode Administrator Guide and General Overview
 
-> **Current authorization:** E-mode configuration is a slow `bank_admin` operation. The legacy
+> **Current authorization:** E-mode configuration is a slow `governance_admin` operation. The legacy
 > `emode_admin` field remains in the group account for byte-layout compatibility, but it no longer
-> authorizes e-mode instructions. Use the slow bank-admin signer in the examples below.
+> authorizes e-mode instructions. Use the slow governance-admin signer in the examples below.
 
 Are you interested on how Emode works and is adminstrated? Read on.
 

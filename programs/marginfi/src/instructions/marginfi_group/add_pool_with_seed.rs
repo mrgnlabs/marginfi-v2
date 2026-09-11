@@ -95,7 +95,7 @@ pub fn lending_pool_add_bank_with_seed(
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.marginfi_group.key(),
-            signer: Some(*ctx.accounts.bank_admin.key)
+            signer: Some(*ctx.accounts.governance_admin.key)
         },
         bank: bank_loader.key(),
         mint: bank_mint.key(),
@@ -111,10 +111,10 @@ pub fn lending_pool_add_bank_with_seed(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact, bank_seed: u64)]
 pub struct LendingPoolAddBankWithSeed<'info> {
-    #[account(mut, has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(mut, has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     /// Pays to init accounts and pays `fee_state.bank_init_flat_sol_fee` lamports to the protocol
     #[account(mut)]

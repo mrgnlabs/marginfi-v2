@@ -285,7 +285,7 @@ pub enum MarginfiError {
 
     #[msg("Deprecated: bank configuration now uses explicit fast and governance instructions")]
     MixedBankConfigAuthority, // 6140
-    #[msg("Bank admin cannot be set to the default pubkey (all zeros); this would disable slow-authority operations")]
+    #[msg("Governance admin cannot be set to the default pubkey (all zeros); this would disable slow-authority operations")]
     InvalidBankAdmin, // 6141
     #[msg("Deprecated: group configuration now uses explicit fast and governance instructions")]
     MixedGroupConfigAuthority, // 6142

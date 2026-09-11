@@ -135,7 +135,7 @@ async fn bank_configuration_entry_points_reject_wrong_operational_state_class() 
         program_id: marginfi::ID,
         accounts: marginfi::accounts::LendingPoolConfigureBankGov {
             group: test_f.marginfi_group.key,
-            bank_admin: bank_admin.pubkey(),
+            governance_admin: bank_admin.pubkey(),
             bank: bank.key,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }

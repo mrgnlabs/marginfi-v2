@@ -153,7 +153,7 @@ pub fn configure_gov(
     finish_configure(
         marginfi_group,
         ctx.accounts.marginfi_group.key(),
-        ctx.accounts.bank_admin.key(),
+        ctx.accounts.governance_admin.key(),
         None,
     )
 }
@@ -200,10 +200,10 @@ pub struct MarginfiGroupConfigure<'info> {
 
 #[derive(Accounts)]
 pub struct MarginfiGroupConfigureGov<'info> {
-    #[account(mut, has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(mut, has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     /// CHECK: instruction sysvar
     #[account(address = solana_instructions_sysvar::id())]

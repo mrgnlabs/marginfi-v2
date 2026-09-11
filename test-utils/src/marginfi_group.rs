@@ -115,7 +115,7 @@ impl MarginfiGroupFixture {
                 program_id: marginfi::ID,
                 accounts: marginfi::accounts::MarginfiGroupConfigureGov {
                     marginfi_group: group_key.pubkey(),
-                    bank_admin: admin,
+                    governance_admin: admin,
                     instruction_sysvar: solana_sdk::sysvar::instructions::ID,
                 }
                 .to_account_metas(Some(true)),
@@ -214,7 +214,7 @@ impl MarginfiGroupFixture {
                 program_id: marginfi::ID,
                 accounts: marginfi::accounts::InitStakedSettings {
                     marginfi_group: group_key.pubkey(),
-                    bank_admin: ctx.payer.pubkey(),
+                    governance_admin: ctx.payer.pubkey(),
                     fee_payer: ctx.payer.pubkey(),
                     staked_settings: staked_settings_key,
                     system_program: system_program::id(),
@@ -266,7 +266,7 @@ impl MarginfiGroupFixture {
 
         let accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
             fee_state: self.fee_state,
             global_fee_wallet: self.fee_wallet,
@@ -371,7 +371,7 @@ impl MarginfiGroupFixture {
 
         let accounts = marginfi::accounts::LendingPoolAddBankWithSeed {
             marginfi_group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             fee_payer: self.ctx.borrow().payer.pubkey(),
             fee_state: self.fee_state,
             global_fee_wallet: self.fee_wallet,
@@ -460,13 +460,13 @@ impl MarginfiGroupFixture {
     fn make_lending_pool_configure_bank_gov_ix(
         &self,
         bank: &BankFixture,
-        bank_admin: Pubkey,
+        governance_admin: Pubkey,
         bank_config: BankConfigGov,
     ) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolConfigureBankGov {
             bank: bank.key,
             group: self.key,
-            bank_admin,
+            governance_admin,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
         .to_account_metas(Some(true));
@@ -510,7 +510,7 @@ impl MarginfiGroupFixture {
         let mut accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
             bank: bank.key,
             group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
         .to_account_metas(Some(true));
@@ -534,7 +534,7 @@ impl MarginfiGroupFixture {
     ) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolSetOraclePrice {
             group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
@@ -558,7 +558,7 @@ impl MarginfiGroupFixture {
     ) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolSetBankSameAssetEmodeEligibility {
             group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             bank: bank.key,
             same_asset_emode_registry: self.same_asset_emode_registry,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
@@ -575,7 +575,7 @@ impl MarginfiGroupFixture {
     pub fn make_lending_pool_init_same_asset_emode_registry_ix(&self) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolInitSameAssetEmodeRegistry {
             group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             same_asset_emode_registry: self.same_asset_emode_registry,
             system_program: system_program::id(),
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
@@ -970,7 +970,7 @@ impl MarginfiGroupFixture {
         let accounts = marginfi::accounts::LendingPoolConfigureBankEmode {
             bank: bank.key,
             group: self.key,
-            bank_admin: self.ctx.borrow().payer.pubkey(),
+            governance_admin: self.ctx.borrow().payer.pubkey(),
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
         .to_account_metas(Some(true));
@@ -1006,7 +1006,7 @@ impl MarginfiGroupFixture {
             accounts: marginfi::accounts::LendingPoolConfigureBankEmode {
                 bank: bank.key,
                 group: self.key,
-                bank_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
@@ -1047,7 +1047,7 @@ impl MarginfiGroupFixture {
     ) -> Instruction {
         let accounts = marginfi::accounts::LendingPoolCloneEmode {
             group: self.key,
-            bank_admin: signer,
+            governance_admin: signer,
             copy_from_bank,
             copy_to_bank,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
@@ -1197,7 +1197,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::MarginfiGroupConfigureGov {
                 marginfi_group: self.key,
-                bank_admin: self.ctx.borrow().payer.pubkey(),
+                governance_admin: self.ctx.borrow().payer.pubkey(),
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
@@ -1251,7 +1251,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::MarginfiGroupConfigureGov {
                 marginfi_group: self.key,
-                bank_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
             .to_account_metas(Some(true)),
@@ -2065,7 +2065,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::DisableStakedOracles {
                 group: self.key,
-                bank_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                 staked_settings: self.staked_settings,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
@@ -2108,7 +2108,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::EnableStakedOracleOnramp {
                 group: self.key,
-                bank_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                 staked_settings: self.staked_settings,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
@@ -2222,7 +2222,7 @@ impl MarginfiGroupFixture {
 
         let accounts = marginfi::accounts::LendingPoolAddBank {
             marginfi_group: self.key,
-            bank_admin: signer.pubkey(),
+            governance_admin: signer.pubkey(),
             fee_payer: payer_pubkey,
             fee_state: self.fee_state,
             global_fee_wallet: self.fee_wallet,
@@ -2272,7 +2272,7 @@ impl MarginfiGroupFixture {
     ) -> Result<(), BanksClientError> {
         let accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
             group: self.key,
-            bank_admin: signer.pubkey(),
+            governance_admin: signer.pubkey(),
             bank: bank.key,
             instruction_sysvar: solana_sdk::sysvar::instructions::ID,
         }
@@ -2312,7 +2312,7 @@ impl MarginfiGroupFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetOraclePrice {
                 group: self.key,
-                bank_admin: signer.pubkey(),
+            governance_admin: signer.pubkey(),
                 bank: bank.key,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
@@ -2375,7 +2375,7 @@ impl MarginfiGroupFixture {
                 program_id: marginfi::ID,
                 accounts: marginfi::accounts::LendingPoolConfigureBankGov {
                     group: self.key,
-                    bank_admin: signer.pubkey(),
+                governance_admin: signer.pubkey(),
                     bank: bank.key,
                     instruction_sysvar: solana_sdk::sysvar::instructions::ID,
                 }

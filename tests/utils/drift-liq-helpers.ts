@@ -691,7 +691,7 @@ async function addGenericRegularBank(
     .accountsPartial({
       group: throwawayGroup.publicKey,
       bank: bankKey,
-      bankAdmin: groupAdmin.wallet.publicKey,
+      governanceAdmin: groupAdmin.wallet.publicKey,
     })
     .remainingAccounts([oracleMeta])
     .instruction();

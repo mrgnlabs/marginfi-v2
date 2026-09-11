@@ -112,7 +112,7 @@ async fn legacy_group_requires_bank_admin_bootstrap() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group.bank_admin, solana_sdk::pubkey::Pubkey::default());
+    assert_eq!(group.governance_admin, solana_sdk::pubkey::Pubkey::default());
 
     let config = BankConfigOpt {
         asset_weight_init: Some(I80F48!(0.8).into()),

@@ -56,7 +56,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      // bankAdmin: signer, implied from group
+      // governanceAdmin: signer, implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       bank: args.bank,
@@ -116,7 +116,7 @@ export const addBankWithSeed = (
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      // bankAdmin: signer, implied from group
+      // governanceAdmin: signer, implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       // bank: args.bank, // derived from seed
@@ -138,7 +138,7 @@ export const addBankWithSeed = (
 };
 
 /**
- * Every omitted field is encoded as `null` and left unchanged. Fast-admin and slow-bank-admin
+ * Every omitted field is encoded as `null` and left unchanged. Fast-admin and slow-governance-admin
  * fields use distinct instructions. Use `groupConfigureIxs` when a test deliberately updates
  * both classes in the same transaction.
  */
@@ -193,7 +193,7 @@ const groupConfigureGov = (
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      bankAdmin: (program.provider as AnchorProvider).wallet.publicKey,
+      governanceAdmin: (program.provider as AnchorProvider).wallet.publicKey,
     })
     .instruction();
 };
@@ -262,7 +262,7 @@ export const groupInitialize = (
   return ix;
 };
 
-/** One-time legacy migration shim: bootstrap a resized v1 group's slow bank admin. */
+/** One-time legacy migration shim: bootstrap a resized v1 group's slow governance admin. */
 export const setBankAdmin = (
   program: Program<Marginfi>,
   args: { marginfiGroup: PublicKey; newBankAdmin: PublicKey; signer?: PublicKey },
@@ -412,8 +412,8 @@ const configureGovBank = (
   program: Program<Marginfi>,
   args: ConfigureBankArgs,
 ): Promise<TransactionInstruction> => {
-  const bankAdmin = args.signer || (program.provider as AnchorProvider).wallet.publicKey;
-  const accounts: Record<string, PublicKey> = { bank: args.bank, bankAdmin };
+  const governanceAdmin = args.signer || (program.provider as AnchorProvider).wallet.publicKey;
+  const accounts: Record<string, PublicKey> = { bank: args.bank, governanceAdmin };
   if (args.group) accounts.group = args.group;
   return program.methods
     .lendingPoolConfigureBankGov(govBankConfig(args.bankConfigOpt))
@@ -500,7 +500,7 @@ export type ConfigureBankOracleArgs = {
   // for the mSOL/LST setups. Omit for single-oracle setups.
   remaining?: PublicKey[];
   group?: PublicKey;
-  bankAdmin?: PublicKey;
+  governanceAdmin?: PublicKey;
 };
 
 export const configureBankOracle = (
@@ -511,10 +511,10 @@ export const configureBankOracle = (
     (pubkey) => ({ pubkey, isSigner: false, isWritable: false }),
   );
 
-  const bankAdmin = args.bankAdmin || (program.provider as AnchorProvider).wallet.publicKey;
+  const governanceAdmin = args.governanceAdmin || (program.provider as AnchorProvider).wallet.publicKey;
   const accounts: Record<string, PublicKey> = {
     bank: args.bank,
-    bankAdmin,
+    governanceAdmin,
   };
 
   if (args.group) {
@@ -532,7 +532,7 @@ export const configureBankOracle = (
 export type ConfigureBankOracleScopeArgs = {
   bank: PublicKey;
   group?: PublicKey;
-  bankAdmin?: PublicKey;
+  governanceAdmin?: PublicKey;
   /** The scope feed's OraclePrices account */
   oracle: PublicKey;
   /** Which of the 512 entries in that account prices this bank */
@@ -549,10 +549,10 @@ export const configureBankOracleScope = (
     isWritable: false,
   };
 
-  const bankAdmin = args.bankAdmin || (program.provider as AnchorProvider).wallet.publicKey;
+  const governanceAdmin = args.governanceAdmin || (program.provider as AnchorProvider).wallet.publicKey;
   const accounts: Record<string, PublicKey> = {
     bank: args.bank,
-    bankAdmin,
+    governanceAdmin,
   };
 
   if (args.group) {
@@ -931,7 +931,7 @@ export const configBankEmode = (
     .lendingPoolConfigureBankEmode(args.tag, paddedEntries)
     .accounts({
       // group: // implied from bank
-      // bankAdmin: signer, implied from group
+      // governanceAdmin: signer, implied from group
       bank: args.bank,
     })
     .instruction();
@@ -1266,7 +1266,7 @@ export const initBankMetadata = (
 
 export type InitSameAssetEmodeRegistryArgs = {
   group: PublicKey;
-  bankAdmin: PublicKey;
+  governanceAdmin: PublicKey;
 };
 
 export const initSameAssetEmodeRegistry = (
@@ -1277,7 +1277,7 @@ export const initSameAssetEmodeRegistry = (
     .lendingPoolInitSameAssetEmodeRegistry()
     .accounts({
       group: args.group,
-      bankAdmin: args.bankAdmin,
+      governanceAdmin: args.governanceAdmin,
       // sameAssetEmodeRegistry,
     })
     .instruction();
@@ -1290,7 +1290,7 @@ export type SetFixedPriceArgs = {
   price: number;
   setup?: number;
   group?: PublicKey;
-  bankAdmin?: PublicKey;
+  governanceAdmin?: PublicKey;
   remaining?: PublicKey[];
 };
 
@@ -1302,10 +1302,10 @@ export const setFixedPrice = (
     return { pubkey, isSigner: false, isWritable: false };
   });
 
-  const bankAdmin = args.bankAdmin || (program.provider as AnchorProvider).wallet.publicKey;
+  const governanceAdmin = args.governanceAdmin || (program.provider as AnchorProvider).wallet.publicKey;
   const accounts: Record<string, PublicKey> = {
     bank: args.bank,
-    bankAdmin,
+    governanceAdmin,
   };
 
   if (args.group) {
@@ -1326,7 +1326,7 @@ export const setFixedPrice = (
 
 export type SetBankSameAssetEmodeEligibilityArgs = {
   // group: PublicKey;
-  bankAdmin: PublicKey;
+  governanceAdmin: PublicKey;
   bank: PublicKey;
   enabled: boolean;
 };
@@ -1339,7 +1339,7 @@ export const setBankSameAssetEmodeEligibility = (
     .lendingPoolSetBankSameAssetEmodeEligibility(args.enabled)
     .accounts({
       // group: args.group,
-      bankAdmin: args.bankAdmin,
+      governanceAdmin: args.governanceAdmin,
       bank: args.bank,
       // sameAssetEmodeRegistry,
     })

@@ -323,7 +323,7 @@ describe("Bank e2e sunset due to illiquid asset", () => {
     );
   });
 
-  // Note: Typically the bank admin would put the bank in reduce-only mode at this point anyways,
+  // Note: the fast admin would typically put the bank in reduce-only mode before this point;
   // this is just to prevent a footgun where they forget and users continue to borrow the asset
   // about to be deleveraged
   it("(user 0) Tries to borrow bank 1 again - should fail", async () => {

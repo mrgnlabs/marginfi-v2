@@ -93,7 +93,7 @@ describe("Init e-mode settings for a set of banks", () => {
     assertBankrunTxFailed(result, "0x179a");
   });
 
-  it("(slow bank admin) Bad emode settings - should fail", async () => {
+  it("(slow governance admin) Bad emode settings - should fail", async () => {
     // init > maint weight
     let tx = new Transaction();
     tx.add(
@@ -140,11 +140,11 @@ describe("Init e-mode settings for a set of banks", () => {
   });
 
   // * Note: you can pack two emode configure ixes into one tx, but that's it, since the data
-  //   payload is just over 400 bytes. In production, when editing multiple banks, the slow bank admin
+  //   payload is just over 400 bytes. In production, when editing multiple banks, the slow governance admin
   //   should use a jito bundle to ensure they all update at the same time and don't trigger
   //   liquidations accidentally.
   // * Note: The default init/maint weight for all banks in this test suite is 0.5/0.6
-  it("(slow bank admin) Configures bank emodes - happy path", async () => {
+  it("(slow governance admin) Configures bank emodes - happy path", async () => {
     let tx = new Transaction();
 
     tx.add(

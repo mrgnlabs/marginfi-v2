@@ -12,7 +12,7 @@
 ## Bank Operational States
 
 Every bank has an operational state that determines which user operations are allowed. When a new
-bank is created, it starts in the **Paused** state. The slow `bank_admin` must explicitly set it to
+bank is created, it starts in the **Paused** state. The slow `governance_admin` must explicitly set it to
 **Operational** before users can interact with it.
 
 ### Paused
@@ -61,12 +61,12 @@ event wipes out all remaining assets in the bank. It **cannot** be set manually 
 
 The fast `admin` can transition a bank to Paused, ReduceOnly, or ReduceOnlyWithBorrowingPower for
 immediate incident response.
-Only the slow `bank_admin` can transition a bank to Operational, including reopening a bank from
+Only the slow `governance_admin` can transition a bank to Operational, including reopening a bank from
 Paused or ReduceOnly. Neither role can set a bank to KilledByBankruptcy directly; that transition
 only happens automatically during bankruptcy resolution.
 
 ```
-      bank_admin sets          admin sets        bank_admin sets
+  governance_admin sets       admin sets    governance_admin sets
 Paused ─────────────> Operational ────────> ReduceOnly
    ▲                       │                    │
    └──── admin sets ───────┴──── admin sets ────┘
@@ -138,14 +138,14 @@ without moving tokens.
 | 2 | `PERMISSIONLESS_BAD_DEBT_SETTLEMENT_FLAG` | 4 | Admin | Anyone can settle bad debt |
 | 3 | `FREEZE_SETTINGS` | 8 | Admin | Freezes most bank config (only deposit/borrow limits changeable) |
 | 4 | `CLOSE_ENABLED_FLAG` | 16 | Auto (at creation) | Allows bank closure. Cannot be toggled after creation. |
-| 5 | `TOKENLESS_REPAYMENTS_ALLOWED` | 32 | Slow `bank_admin` | Allows deleverage repayments |
+| 5 | `TOKENLESS_REPAYMENTS_ALLOWED` | 32 | Slow `governance_admin` | Allows deleverage repayments |
 | 6 | `TOKENLESS_REPAYMENTS_COMPLETE` | 64 | Auto or Risk admin | Signals deleverage complete. Auto-set when liabilities reach zero on a TOKENLESS_REPAYMENTS_ALLOWED bank. Can also be force-set by risk admin. |
 
 ## Typical Bank Lifecycle
 
-1. **Creation**: Bank is created in the **Paused** state. The slow `bank_admin` configures oracle, risk
+1. **Creation**: Bank is created in the **Paused** state. The slow `governance_admin` configures oracle, risk
    parameters, interest rate curve, and limits.
-2. **Go Live**: Slow `bank_admin` sets the state to **Operational**. Users can deposit, borrow, etc.
+2. **Go Live**: Slow `governance_admin` sets the state to **Operational**. Users can deposit, borrow, etc.
 3. **Normal Operation**: The bank operates normally. The fast admin may adjust limits and circuit
    breakers as needed; the slow admin controls risk-sensitive changes. If
    `FREEZE_SETTINGS` is set, only limits can change.

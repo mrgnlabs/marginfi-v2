@@ -30,7 +30,7 @@ async fn group_resize_unbricks_v1_account() -> anyhow::Result<()> {
     let fresh = banks_client.get_account(group_f.key).await?.unwrap();
     assert_eq!(fresh.data.len(), 8 + MarginfiGroup::LEN);
     let fresh_group = group_f.load().await;
-    assert_eq!(fresh_group.bank_admin, fresh_group.admin);
+    assert_eq!(fresh_group.governance_admin, fresh_group.admin);
     assert!(fresh.data[8 + MarginfiGroup::V1_LEN + 32..]
         .iter()
         .all(|b| *b == 0));
@@ -68,11 +68,11 @@ async fn group_resize_unbricks_v1_account() -> anyhow::Result<()> {
     assert_eq!(group_account_len(&test_f).await, 8 + MarginfiGroup::LEN);
     let group = group_f.load().await;
     assert_eq!(group.admin, admin);
-    assert_eq!(group.bank_admin, Pubkey::default());
+    assert_eq!(group.governance_admin, Pubkey::default());
 
     let bank_admin = Keypair::new();
     group_f.try_set_bank_admin(&bank_admin).await?;
-    assert_eq!(group_f.load().await.bank_admin, bank_admin.pubkey());
+    assert_eq!(group_f.load().await.governance_admin, bank_admin.pubkey());
 
     let new_emode_admin = Pubkey::new_unique();
     group_f

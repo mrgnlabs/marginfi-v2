@@ -57,7 +57,7 @@ pub fn lending_pool_set_bank_same_asset_emode_eligibility(
     emit!(LendingPoolBankSetSameAssetEmodeEligibilityEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.group.key(),
-            signer: Some(ctx.accounts.bank_admin.key()),
+            signer: Some(ctx.accounts.governance_admin.key()),
         },
         bank: ctx.accounts.bank.key(),
         mint: bank.mint,
@@ -141,10 +141,10 @@ fn remove_bank_from_registry(registry: &mut SameAssetEmodeRegistry, bank_key: Pu
 
 #[derive(Accounts)]
 pub struct LendingPoolSetBankSameAssetEmodeEligibility<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         mut,

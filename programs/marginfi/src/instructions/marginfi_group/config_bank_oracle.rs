@@ -90,7 +90,7 @@ pub fn lending_pool_configure_bank_oracle(
         emit!(LendingPoolBankConfigureOracleEvent {
             header: GroupEventHeader {
                 marginfi_group: ctx.accounts.group.key(),
-                signer: Some(*ctx.accounts.bank_admin.key)
+                signer: Some(*ctx.accounts.governance_admin.key)
             },
             bank: ctx.accounts.bank.key(),
             oracle_setup: setup,
@@ -146,7 +146,7 @@ pub fn lending_pool_configure_bank_oracle_scope(
     emit!(LendingPoolBankConfigureOracleEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.group.key(),
-            signer: Some(*ctx.accounts.bank_admin.key)
+            signer: Some(*ctx.accounts.governance_admin.key)
         },
         bank: ctx.accounts.bank.key(),
         oracle_setup: OracleSetup::Scope as u8,
@@ -158,10 +158,10 @@ pub fn lending_pool_configure_bank_oracle_scope(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankOracle<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         mut,

@@ -21,9 +21,9 @@ assert_struct_size!(MarginfiGroup, 9248);
 pub struct MarginfiGroup {
     /// Broadly able to modify anything, and can set/remove other admins at will.
     ///
-    /// Subsequent to the release of the `bank_admin`, this role can be considered the "fast" admin,
-    /// it can peform various tasks that do not require timelock sensitivity. High-risk activities
-    /// like changing oracles or bank weights are now under the control of the "slow" bank_admin.
+    /// Subsequent to the release of the `governance_admin`, this role can be considered the "fast" admin,
+    /// it can perform various tasks that do not require timelock sensitivity. High-risk activities
+    /// like changing oracles or bank weights are now under the control of the "slow" governance admin.
     pub admin: Pubkey,
     /// Bitmask for group settings flags.
     /// * Bit 0 (1): `PROGRAM_FEES_ENABLED` — If set, program-level fees are enabled.
@@ -110,7 +110,10 @@ pub struct MarginfiGroup {
     /// Also called the "slow" admin. Dedicated authority for time-locked configuration. Legacy
     /// groups have this field zeroed after resize and must be bootstrapped by the fast admin with
     /// `marginfi_group_set_bank_admin` before slow-authority operations are available.
-    pub bank_admin: Pubkey,
+    ///
+    /// This is the first 32 bytes of post-v1 reserved space; renaming the field does not alter
+    /// any serialized account bytes.
+    pub governance_admin: Pubkey,
     pub _padding_2: [[u64; 32]; 31],
     pub _padding_3: [u64; 28],
 }

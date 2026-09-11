@@ -23,7 +23,7 @@ pub trait MarginfiGroupImpl {
     fn update_emissions_admin(&mut self, new_emissions_admin: Pubkey);
     fn update_metadata_admin(&mut self, new_metadata_admin: Pubkey);
     fn update_risk_admin(&mut self, new_risk_admin: Pubkey);
-    fn update_bank_admin(&mut self, new_bank_admin: Pubkey);
+    fn update_governance_admin(&mut self, new_governance_admin: Pubkey);
     fn set_initial_configuration(&mut self, admin_pk: Pubkey);
     fn get_group_bank_config(&self) -> GroupBankConfig;
     fn set_program_fee_enabled(&mut self, fee_enabled: bool);
@@ -42,7 +42,7 @@ pub trait MarginfiGroupImpl {
     ) -> MarginfiResult;
     fn find_premium_rate(&self, collateral_tag: u16, liability_tag: u16) -> u32;
     fn require_admin(&self, signer: Pubkey) -> MarginfiResult;
-    fn require_bank_admin(&self, signer: Pubkey) -> MarginfiResult;
+    fn require_governance_admin(&self, signer: Pubkey) -> MarginfiResult;
 }
 
 impl MarginfiGroupImpl for MarginfiGroup {
@@ -153,17 +153,17 @@ impl MarginfiGroupImpl for MarginfiGroup {
         }
     }
 
-    fn update_bank_admin(&mut self, new_bank_admin: Pubkey) {
-        if self.bank_admin == new_bank_admin {
-            msg!("No change to bank admin: {:?}", new_bank_admin);
+    fn update_governance_admin(&mut self, new_governance_admin: Pubkey) {
+        if self.governance_admin == new_governance_admin {
+            msg!("No change to governance admin: {:?}", new_governance_admin);
             // do nothing
         } else {
             msg!(
-                "Set bank admin from {:?} to {:?}",
-                self.bank_admin,
-                new_bank_admin
+                "Set governance admin from {:?} to {:?}",
+                self.governance_admin,
+                new_governance_admin
             );
-            self.bank_admin = new_bank_admin;
+            self.governance_admin = new_governance_admin;
         }
     }
 
@@ -173,7 +173,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
     fn set_initial_configuration(&mut self, admin_pk: Pubkey) {
         self.admin = admin_pk;
         self.delegate_flow_admin = admin_pk;
-        self.bank_admin = admin_pk;
+        self.governance_admin = admin_pk;
         self.set_program_fee_enabled(true);
         self.emode_max_init_leverage = basis_to_u32(DEFAULT_INIT_MAX_EMODE_LEVERAGE);
         self.emode_max_maint_leverage = basis_to_u32(DEFAULT_MAINT_MAX_EMODE_LEVERAGE);
@@ -300,8 +300,8 @@ impl MarginfiGroupImpl for MarginfiGroup {
         Ok(())
     }
 
-    fn require_bank_admin(&self, signer: Pubkey) -> MarginfiResult {
-        require_eq!(self.bank_admin, signer, MarginfiError::Unauthorized);
+    fn require_governance_admin(&self, signer: Pubkey) -> MarginfiResult {
+        require_eq!(self.governance_admin, signer, MarginfiError::Unauthorized);
         Ok(())
     }
 }
@@ -358,8 +358,8 @@ mod tests {
         assert_eq!(offset_of!(MarginfiGroup, premium_settings), 512);
         assert_eq!(offset_of!(MarginfiGroup, premium_entries), 544);
         // Premium fields fill the v1 layout exactly (former `_padding_0`/`_padding_1`).
-        // The dedicated bank admin begins in the post-v1 extension.
-        assert_eq!(offset_of!(MarginfiGroup, bank_admin), MarginfiGroup::V1_LEN);
+        // The dedicated governance admin begins in the post-v1 extension.
+        assert_eq!(offset_of!(MarginfiGroup, governance_admin), MarginfiGroup::V1_LEN);
         assert_eq!(
             offset_of!(MarginfiGroup, _padding_2),
             MarginfiGroup::V1_LEN + 32

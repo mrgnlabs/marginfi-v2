@@ -51,7 +51,7 @@ pub fn lending_pool_configure_bank(
     )
 }
 
-/// Configure governance-controlled bank parameters with the slow, timelocked bank admin.
+/// Configure governance-controlled bank parameters with the slow, timelocked governance admin.
 pub fn lending_pool_configure_bank_gov(
     ctx: Context<LendingPoolConfigureBankGov>,
     bank_config: BankConfigGov,
@@ -74,7 +74,7 @@ pub fn lending_pool_configure_bank_gov(
         bank_config.into(),
         ctx.accounts.group.key(),
         ctx.accounts.bank.key(),
-        ctx.accounts.bank_admin.key(),
+        ctx.accounts.governance_admin.key(),
     )
 }
 
@@ -160,10 +160,10 @@ pub struct LendingPoolConfigureBank<'info> {
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankGov<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         mut,

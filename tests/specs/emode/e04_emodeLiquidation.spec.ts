@@ -234,7 +234,7 @@ describe("Emode liquidation", () => {
   // which is done rarely or never because it can trigger user liquidations. In rare instances where
   // this must be done outside for security concerns or assets in freefall, it should be done
   // carefully and slowly!
-  it("(slow bank admin) Reduces LST A emode settings", async () => {
+  it("(slow governance admin) Reduces LST A emode settings", async () => {
     let tx = new Transaction().add(
       await configBankEmode(groupAdmin.mrgnBankrunProgram, {
         bank: lstABank,

@@ -254,7 +254,7 @@ describe("Lending pool add bank (add bank to group)", () => {
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
-        bankAdmin: groupAdmin.wallet.publicKey,
+        governanceAdmin: groupAdmin.wallet.publicKey,
       })
       .remainingAccounts([oracleMeta])
       .instruction();
@@ -308,7 +308,7 @@ describe("Lending pool add bank (add bank to group)", () => {
       .accountsPartial({
         group: marginfiGroup.publicKey,
         bank: bankKey,
-        bankAdmin: groupAdmin.wallet.publicKey,
+        governanceAdmin: groupAdmin.wallet.publicKey,
       })
       .remainingAccounts([oracleMeta])
       .instruction();

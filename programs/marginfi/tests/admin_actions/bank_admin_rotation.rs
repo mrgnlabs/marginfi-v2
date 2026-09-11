@@ -10,7 +10,7 @@ async fn bank_admin_rotation() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_before.admin, group_before.bank_admin);
+    assert_eq!(group_before.admin, group_before.governance_admin);
 
     let new_bank_admin_1 = solana_sdk::signature::Keypair::new();
     let new_bank_admin_2 = solana_sdk::signature::Keypair::new();
@@ -25,7 +25,7 @@ async fn bank_admin_rotation() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after_rotate_1.bank_admin, new_bank_admin_1.pubkey());
+    assert_eq!(group_after_rotate_1.governance_admin, new_bank_admin_1.pubkey());
 
     test_f
         .marginfi_group
@@ -37,7 +37,7 @@ async fn bank_admin_rotation() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after_rotate_2.bank_admin, new_bank_admin_2.pubkey());
+    assert_eq!(group_after_rotate_2.governance_admin, new_bank_admin_2.pubkey());
 
     let new_bank_admin_3 = solana_sdk::signature::Keypair::new();
     let result = test_f
@@ -63,7 +63,7 @@ async fn set_bank_admin_authorization_after_divergence() -> anyhow::Result<()> {
         )
         .await;
     assert_eq!(group_before.admin, original_admin);
-    assert_eq!(group_before.bank_admin, original_admin);
+    assert_eq!(group_before.governance_admin, original_admin);
 
     test_f
         .marginfi_group
@@ -75,8 +75,8 @@ async fn set_bank_admin_authorization_after_divergence() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after.bank_admin, new_bank_admin.pubkey());
-    assert_ne!(group_after.bank_admin, group_after.admin);
+    assert_eq!(group_after.governance_admin, new_bank_admin.pubkey());
+    assert_ne!(group_after.governance_admin, group_after.admin);
 
     let result = test_f
         .marginfi_group
@@ -110,7 +110,7 @@ async fn set_bank_admin_rejects_default_pubkey() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after.bank_admin, new_bank_admin.pubkey());
+    assert_eq!(group_after.governance_admin, new_bank_admin.pubkey());
 
     let result = test_f
         .marginfi_group
@@ -129,7 +129,7 @@ async fn set_bank_admin_rejects_default_pubkey() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_final.bank_admin, new_bank_admin.pubkey());
+    assert_eq!(group_final.governance_admin, new_bank_admin.pubkey());
 
     Ok(())
 }

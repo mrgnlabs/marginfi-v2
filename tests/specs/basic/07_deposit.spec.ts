@@ -257,7 +257,7 @@ describe("Deposit funds", () => {
           .accountsPartial({
             group: marginfiGroup.publicKey,
             bank: bankKey,
-            bankAdmin: groupAdmin.wallet.publicKey,
+            governanceAdmin: groupAdmin.wallet.publicKey,
           })
           .remainingAccounts([
             {
@@ -507,7 +507,7 @@ describe("Deposit up to limit with accrued interest", () => {
         .accountsPartial({
           group: throwawayGroup.publicKey,
           bank: usdcBankKey,
-          bankAdmin: groupAdmin.wallet.publicKey,
+          governanceAdmin: groupAdmin.wallet.publicKey,
         })
         .remainingAccounts([
           {
@@ -550,7 +550,7 @@ describe("Deposit up to limit with accrued interest", () => {
         .accountsPartial({
           group: throwawayGroup.publicKey,
           bank: tokenABankKey,
-          bankAdmin: groupAdmin.wallet.publicKey,
+          governanceAdmin: groupAdmin.wallet.publicKey,
         })
         .remainingAccounts([
           {

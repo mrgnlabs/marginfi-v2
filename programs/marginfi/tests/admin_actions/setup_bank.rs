@@ -702,7 +702,7 @@ async fn configure_bank_to_fixed_oracle() -> anyhow::Result<()> {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetOraclePrice {
                 group: test_f.marginfi_group.key,
-                bank_admin: ctx.payer.pubkey(),
+                governance_admin: ctx.payer.pubkey(),
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
                 bank: bank_f.key,
             }
@@ -993,7 +993,7 @@ async fn update_fixed_bank_price() -> anyhow::Result<()> {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolSetOraclePrice {
                 group: test_f.marginfi_group.key,
-                bank_admin: ctx.payer.pubkey(),
+                governance_admin: ctx.payer.pubkey(),
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
                 bank: bank_f.key,
             }

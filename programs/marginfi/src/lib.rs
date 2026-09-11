@@ -78,8 +78,9 @@ pub mod marginfi {
     }
 
     // TODO remove in 1.13
-    /// Set the slow bank admin. When the stored value is zero on a resized legacy group, the fast
-    /// admin may bootstrap it once; thereafter only the current slow admin may rotate it.
+    /// Bootstrap or rotate the slow governance admin. This legacy-named instruction is retained
+    /// for the transition: when the stored value is zero on a resized legacy group, the fast
+    /// admin may bootstrap it once; thereafter only the current governance admin may rotate it.
     pub fn marginfi_group_set_bank_admin(
         ctx: Context<SetBankAdmin>,
         new_bank_admin: Pubkey,
@@ -87,7 +88,7 @@ pub mod marginfi {
         marginfi_group::set_bank_admin(ctx, new_bank_admin)
     }
 
-    /// (bank_admin only) Add a new bank to the lending pool
+    /// (governance_admin only) Add a new bank to the lending pool
     pub fn lending_pool_add_bank(
         ctx: Context<LendingPoolAddBank>,
         bank_config: BankConfigCompact,
@@ -95,7 +96,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank(ctx, bank_config)
     }
 
-    /// (bank_admin only) A copy of lending_pool_add_bank with an additional bank seed.
+    /// (governance_admin only) A copy of lending_pool_add_bank with an additional bank seed.
     /// This seed is used to create a PDA for the bank's signature.
     /// lending_pool_add_bank is preserved for backwards compatibility.
     pub fn lending_pool_add_bank_with_seed(
@@ -106,7 +107,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_add_bank_with_seed(ctx, bank_config, bank_seed)
     }
 
-    /// (bank_admin only) Staging or localnet only, panics on mainnet
+    /// (governance_admin only) Staging or localnet only, panics on mainnet
     /// This instruction is used to clone a bank to a new PDA.
     pub fn lending_pool_clone_bank(
         ctx: Context<LendingPoolCloneBank>,
@@ -141,7 +142,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_backfill_staked_bank_validator_vote_account(ctx)
     }
 
-    /// (slow bank admin only) Disable stake pricing, i.e. effectively forbidding all operations
+    /// (slow governance_admin only) Disable stake pricing, i.e. effectively forbidding all operations
     /// involving stake banks.
     /// To be used during the rollout of the SVSP upgrade.
     /// To be removed once SVSP update is rolled out (likely in 1.10)
@@ -149,7 +150,7 @@ pub mod marginfi {
         marginfi_group::disable_staked_oracles(ctx)
     }
 
-    /// (slow bank admin only) Enable SPL single-pool on-ramp lamports in staked-collateral oracle
+    /// (slow governance_admin only) Enable SPL single-pool on-ramp lamports in staked-collateral oracle
     /// pricing.
     /// To be removed once SVSP update is rolled out (likely in 1.10)
     /// This flips a per-group config flag so that every staked oracle uses the canonical single-pool NAV
@@ -221,7 +222,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_clear_circuit_breaker(ctx, reseed_reference)
     }
 
-    /// (bank_admin only)
+    /// (governance_admin only)
     pub fn lending_pool_configure_bank_oracle(
         ctx: Context<LendingPoolConfigureBankOracle>,
         setup: u8,
@@ -230,7 +231,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle(ctx, setup, oracle)
     }
 
-    /// (bank_admin only) Point a bank at a Scope feed entry.
+    /// (governance_admin only) Point a bank at a Scope feed entry.
     /// * oracle - the feed's `OraclePrices` account
     /// * entry_index - which of the 512 entries in that account prices this bank
     pub fn lending_pool_configure_bank_oracle_scope(
@@ -241,7 +242,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_oracle_scope(ctx, oracle, entry_index)
     }
 
-    /// (bank_admin only)
+    /// (governance_admin only)
     pub fn lending_pool_set_oracle_price(
         ctx: Context<LendingPoolSetOraclePrice>,
         price: WrappedI80F48,
@@ -250,14 +251,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_set_oracle_price(ctx, price, setup)
     }
 
-    /// (bank_admin only) Initialize the per-group same-asset e-mode registry.
+    /// (governance_admin only) Initialize the per-group same-asset e-mode registry.
     pub fn lending_pool_init_same_asset_emode_registry(
         ctx: Context<LendingPoolInitSameAssetEmodeRegistry>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_init_same_asset_emode_registry(ctx)
     }
 
-    /// (bank_admin only) Opt a bank in/out of same-asset e-mode participation.
+    /// (governance_admin only) Opt a bank in/out of same-asset e-mode participation.
     pub fn lending_pool_set_bank_same_asset_emode_eligibility(
         ctx: Context<LendingPoolSetBankSameAssetEmodeEligibility>,
         enabled: bool,
@@ -265,7 +266,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_set_bank_same_asset_emode_eligibility(ctx, enabled)
     }
 
-    /// (bank_admin only)
+    /// (governance_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
@@ -274,7 +275,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
-    /// (bank_admin only) Copies emode settings from one bank to another. Useful when applying
+    /// (governance_admin only) Copies emode settings from one bank to another. Useful when applying
     /// emode settings from e.g. one LST to another.
     pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
         marginfi_group::lending_pool_clone_emode(ctx)
@@ -768,7 +769,7 @@ pub mod marginfi {
     }
 
     /// (fast admin only) Freeze or unfreeze a marginfi account. A frozen account can only be
-    /// operated on by the slow bank admin.
+    /// operated on by the slow governance admin.
     pub fn marginfi_account_set_freeze(
         ctx: Context<SetAccountFreeze>,
         frozen: bool,
@@ -896,7 +897,7 @@ pub mod marginfi {
         marginfi_group::config_group_fee(ctx, enable_program_fee)
     }
 
-    /// (slow bank admin only) Init the Staked Settings account, which is used to create staked
+    /// (slow governance_admin only) Init the Staked Settings account, which is used to create staked
     /// collateral banks, and must run before any staked collateral bank can be created with
     /// `add_pool_permissionless`. Running this ix effectively opts the group into the staked
     /// collateral feature.
@@ -907,7 +908,7 @@ pub mod marginfi {
         marginfi_group::initialize_staked_settings(ctx, settings)
     }
 
-    /// (slow bank admin only) Edit the staked collateral settings for the group.
+    /// (slow governance_admin only) Edit the staked collateral settings for the group.
     pub fn edit_staked_settings(
         ctx: Context<EditStakedSettings>,
         settings: StakedSettingsEditConfig,
@@ -1117,7 +1118,7 @@ pub mod marginfi {
         kamino::kamino_withdraw(ctx, amount, flags)
     }
 
-    /// (bank_admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining
+    /// (governance_admin only) Add a Kamino bank to the group. Pass the oracle and reserve in remaining
     /// accounts 0 and 1 respectively.
     pub fn lending_pool_add_bank_kamino(
         ctx: Context<LendingPoolAddBankKamino>,
@@ -1140,7 +1141,7 @@ pub mod marginfi {
 
     // Drift integration instructions
 
-    /// (bank_admin only) Add a Drift bank to the group.
+    /// (governance_admin only) Add a Drift bank to the group.
     pub fn lending_pool_add_bank_drift(
         ctx: Context<LendingPoolAddBankDrift>,
         bank_config: state::drift::DriftConfigCompact,
@@ -1198,7 +1199,7 @@ pub mod marginfi {
 
     // Solend integration instructions
 
-    /// (slow bank admin) Add a Solend bank to the marginfi group
+    /// (slow governance_admin) Add a Solend bank to the marginfi group
     pub fn lending_pool_add_bank_solend(
         ctx: Context<LendingPoolAddBankSolend>,
         bank_config: state::solend::SolendConfigCompact,
@@ -1241,7 +1242,7 @@ pub mod marginfi {
 
     // Juplend integration instructions
 
-    /// (slow bank admin) Add a JupLend bank to the marginfi group.
+    /// (slow governance_admin) Add a JupLend bank to the marginfi group.
     ///
     /// Remaining accounts (for oracle validation):
     /// 0. underlying oracle feed (pyth push or switchboard pull)

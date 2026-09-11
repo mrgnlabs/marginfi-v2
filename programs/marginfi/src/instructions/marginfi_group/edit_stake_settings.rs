@@ -1,7 +1,7 @@
 use crate::events::EditStakedSettingsEvent;
 use crate::ix_utils;
 use crate::state::staked_settings::StakedSettingsImpl;
-// Used by the slow bank admin to edit the default features of staked collateral banks. Remember
+// Used by the slow governance admin to edit the default features of staked collateral banks. Remember
 // to propagate afterwards.
 use crate::set_if_some;
 use crate::MarginfiError;
@@ -45,10 +45,10 @@ pub fn edit_staked_settings(
 
 #[derive(Accounts)]
 pub struct EditStakedSettings<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         mut,

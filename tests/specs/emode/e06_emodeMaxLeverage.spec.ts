@@ -151,7 +151,7 @@ describe("Emode Max Leverage Configuration", () => {
       await banksClient.processTransaction(tx);
     });
 
-    it("(slow bank admin) Configure bank emode with leverage within limit (5x) - should succeed", async () => {
+    it("(slow governance admin) Configure bank emode with leverage within limit (5x) - should succeed", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
       // To achieve 5x leverage: L = 1/(1-CW/LW) => 5 = 1/(1-CW/1.0) => CW = 0.8
       const tx = new Transaction().add(
@@ -177,7 +177,7 @@ describe("Emode Max Leverage Configuration", () => {
       assert.equal(bank.emode.emodeTag, EMODE_SOL_TAG);
     });
 
-    it("(slow bank admin) Configure bank emode exceeding init leverage limit (11x init) - should fail", async () => {
+    it("(slow governance admin) Configure bank emode exceeding init leverage limit (11x init) - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
       // To achieve 11x init leverage: L = 1/(1-CW/LW) => 11 = 1/(1-CW/1.0) => CW ≈ 0.9091
       // Group limit is 10x init, so this should fail
@@ -203,7 +203,7 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17ba");
     });
 
-    it("(slow bank admin) Configure bank emode exceeding maint leverage limit (18x maint) - should fail", async () => {
+    it("(slow governance admin) Configure bank emode exceeding maint leverage limit (18x maint) - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
       // To achieve 18x maint leverage: L = 1/(1-CW/LW) => 18 = 1/(1-CW/1.0) => CW ≈ 0.9444
       // Group limit is 15x maint, so this should fail
@@ -229,7 +229,7 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x1844");
     });
 
-    it("(slow bank admin) Configure bank emode with asset weight >= liability weight - should fail", async () => {
+    it("(slow governance admin) Configure bank emode with asset weight >= liability weight - should fail", async () => {
       // SOL bank has liability weights of 1.0/1.0 (init/maint)
       // Setting asset weight = 1.0 would cause division by zero in leverage calculation
       // L = 1/(1-CW/LW) => when CW = LW, denominator = 0 (infinite leverage)
@@ -257,7 +257,7 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17bb");
     });
 
-    it("(slow bank admin) Configure bank emode with maint < init weight - should fail", async () => {
+    it("(slow governance admin) Configure bank emode with maint < init weight - should fail", async () => {
       // Asset maint weight must be >= asset init weight
       // This violates the fundamental constraint that maint is more lenient than init
       const tx = new Transaction().add(
@@ -282,7 +282,7 @@ describe("Emode Max Leverage Configuration", () => {
       assertBankrunTxFailed(result, "0x17bb");
     });
 
-    it("(slow bank admin) Configure bank emode with duplicate tags - should fail", async () => {
+    it("(slow governance admin) Configure bank emode with duplicate tags - should fail", async () => {
       // Multiple entries with the same collateral bank emode tag is not allowed
       const tx = new Transaction().add(
         await configBankEmode(groupAdmin.mrgnBankrunProgram, {

@@ -26,11 +26,11 @@ pub fn lending_pool_init_same_asset_emode_registry(
 
 #[derive(Accounts)]
 pub struct LendingPoolInitSameAssetEmodeRegistry<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     #[account(mut)]
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         init,
@@ -39,7 +39,7 @@ pub struct LendingPoolInitSameAssetEmodeRegistry<'info> {
             group.key().as_ref()
         ],
         bump,
-        payer = bank_admin,
+        payer = governance_admin,
         space = 8 + SameAssetEmodeRegistry::LEN,
     )]
     pub same_asset_emode_registry: AccountLoader<'info, SameAssetEmodeRegistry>,

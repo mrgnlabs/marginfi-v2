@@ -55,10 +55,10 @@ pub fn lending_pool_configure_bank_emode(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankEmode<'info> {
-    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    #[account(has_one = governance_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub bank_admin: Signer<'info>,
+    pub governance_admin: Signer<'info>,
 
     #[account(
         mut,

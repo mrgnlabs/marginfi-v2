@@ -27,7 +27,7 @@ async fn governance_actions_require_bank_admin() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_initial.admin, group_initial.bank_admin);
+    assert_eq!(group_initial.admin, group_initial.governance_admin);
     assert_eq!(group_initial.admin, payer_key);
 
     test_f
@@ -40,8 +40,8 @@ async fn governance_actions_require_bank_admin() -> anyhow::Result<()> {
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group_after.bank_admin, new_bank_admin.pubkey());
-    assert_ne!(group_after.bank_admin, group_after.admin);
+    assert_eq!(group_after.governance_admin, new_bank_admin.pubkey());
+    assert_ne!(group_after.governance_admin, group_after.admin);
 
     let config = BankConfigOpt {
         asset_weight_init: Some(fixed_macro::types::I80F48!(0.5).into()),

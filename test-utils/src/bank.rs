@@ -125,7 +125,7 @@ impl BankFixture {
         if !gov.is_empty() {
             let accounts = marginfi::accounts::LendingPoolConfigureBankGov {
                 group,
-                bank_admin: admin,
+                governance_admin: admin,
                 bank: self.key,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
@@ -144,7 +144,7 @@ impl BankFixture {
         if let Some((setup, oracle)) = oracle_update {
             let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBankOracle {
                 group: self.load().await.group,
-                bank_admin: self.ctx.borrow().payer.pubkey(),
+                governance_admin: self.ctx.borrow().payer.pubkey(),
                 bank: self.key,
                 instruction_sysvar: solana_sdk::sysvar::instructions::ID,
             }
