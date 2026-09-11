@@ -4,7 +4,6 @@ use crate::{
     ix_utils,
     state::bank::BankImpl,
     state::bank_config::BankConfigImpl,
-    state::marginfi_group::authorize_bank_admin,
     MarginfiError, MarginfiResult,
 };
 use anchor_lang::prelude::*;
@@ -17,7 +16,6 @@ pub fn lending_pool_configure_bank_oracle(
     setup: u8,
     oracle: Pubkey,
 ) -> MarginfiResult {
-    authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
@@ -114,7 +112,6 @@ pub fn lending_pool_configure_bank_oracle_scope(
     oracle: Pubkey,
     entry_index: u16,
 ) -> MarginfiResult {
-    authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
@@ -161,6 +158,7 @@ pub fn lending_pool_configure_bank_oracle_scope(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankOracle<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub bank_admin: Signer<'info>,

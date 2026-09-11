@@ -19,7 +19,7 @@ pub fn lending_pool_close_bank(
 ) -> MarginfiResult {
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
-    let mut group = ctx.accounts.marginfi_group.load_mut()?;
+    let mut group = ctx.accounts.group.load_mut()?;
     // Note: Groups created prior to 0.1.2 have a non-authoritative count here, so subtraction
     // without saturation could reduce the count below zero.
     group.banks = group.banks.saturating_sub(1);
@@ -57,16 +57,20 @@ pub fn lending_pool_close_bank(
 
 #[derive(Accounts)]
 pub struct LendingPoolCloseBank<'info> {
-    #[account(mut)]
-    pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
     #[account(
         mut,
+        has_one = admin @ MarginfiError::Unauthorized,
+    )]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    #[account(
+        mut,
+        has_one = group @ MarginfiError::InvalidGroup,
         close = admin,
-        constraint = bank.load()?.group == marginfi_group.key() @ MarginfiError::InvalidGroup
     )]
     pub bank: AccountLoader<'info, Bank>,
 
-    #[account(mut, constraint = marginfi_group.load()?.admin == admin.key() @ MarginfiError::Unauthorized)]
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     /// CHECK: instruction sysvar

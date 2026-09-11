@@ -470,12 +470,3 @@ mod tests {
         assert_eq!(group.find_premium_rate(100, 200), 0);
     }
 }
-
-pub fn authorize_bank_admin<'info>(
-    group: &AccountLoader<'info, MarginfiGroup>,
-    signer: &Signer<'info>,
-) -> MarginfiResult {
-    let group_data = group.load()?;
-    group_data.require_bank_admin(signer.key())?;
-    Ok(())
-}

@@ -56,7 +56,7 @@ export const addBank = (program: Program<Marginfi>, args: AddBankArgs) => {
     })
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      // admin: args.admin, // implied from group
+      // bankAdmin: signer, implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       bank: args.bank,
@@ -116,7 +116,7 @@ export const addBankWithSeed = (
     )
     .accounts({
       marginfiGroup: args.marginfiGroup,
-      // admin: args.admin, // implied from group
+      // bankAdmin: signer, implied from group
       feePayer: args.feePayer,
       bankMint: args.bankMint,
       // bank: args.bank, // derived from seed
@@ -931,7 +931,7 @@ export const configBankEmode = (
     .lendingPoolConfigureBankEmode(args.tag, paddedEntries)
     .accounts({
       // group: // implied from bank
-      // emode_admin: // implied from group
+      // bankAdmin: signer, implied from group
       bank: args.bank,
     })
     .instruction();
@@ -1161,7 +1161,7 @@ export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
   const ix = program.methods
     .lendingPoolCloseBank(args.forceClose ?? null)
     .accounts({
-      marginfiGroup: args.marginfiGroup,
+      group: args.marginfiGroup,
       bank: args.bank,
       admin: args.admin,
     })
@@ -1266,7 +1266,7 @@ export const initBankMetadata = (
 
 export type InitSameAssetEmodeRegistryArgs = {
   group: PublicKey;
-  signer: PublicKey;
+  bankAdmin: PublicKey;
 };
 
 export const initSameAssetEmodeRegistry = (
@@ -1277,7 +1277,7 @@ export const initSameAssetEmodeRegistry = (
     .lendingPoolInitSameAssetEmodeRegistry()
     .accounts({
       group: args.group,
-      signer: args.signer,
+      bankAdmin: args.bankAdmin,
       // sameAssetEmodeRegistry,
     })
     .instruction();
@@ -1326,7 +1326,7 @@ export const setFixedPrice = (
 
 export type SetBankSameAssetEmodeEligibilityArgs = {
   // group: PublicKey;
-  signer: PublicKey;
+  bankAdmin: PublicKey;
   bank: PublicKey;
   enabled: boolean;
 };
@@ -1339,7 +1339,7 @@ export const setBankSameAssetEmodeEligibility = (
     .lendingPoolSetBankSameAssetEmodeEligibility(args.enabled)
     .accounts({
       // group: args.group,
-      signer: args.signer,
+      bankAdmin: args.bankAdmin,
       bank: args.bank,
       // sameAssetEmodeRegistry,
     })

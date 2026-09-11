@@ -97,7 +97,7 @@ pub fn lending_pool_add_bank_solend(
     emit!(LendingPoolBankCreateEvent {
         header: GroupEventHeader {
             marginfi_group: ctx.accounts.group.key(),
-            signer: Some(group.admin)
+            signer: Some(*ctx.accounts.bank_admin.key)
         },
         bank: bank_loader.key(),
         mint: bank_mint.key(),
@@ -111,11 +111,11 @@ pub fn lending_pool_add_bank_solend(
 pub struct LendingPoolAddBankSolend<'info> {
     #[account(
         mut,
-        has_one = admin @ MarginfiError::Unauthorized
+        has_one = bank_admin @ MarginfiError::Unauthorized
     )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub admin: Signer<'info>,
+    pub bank_admin: Signer<'info>,
 
     #[account(mut)]
     pub fee_payer: Signer<'info>,

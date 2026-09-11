@@ -1,6 +1,5 @@
 use crate::events::EditStakedSettingsEvent;
 use crate::ix_utils;
-use crate::state::marginfi_group::authorize_bank_admin;
 use crate::state::staked_settings::StakedSettingsImpl;
 // Used by the slow bank admin to edit the default features of staked collateral banks. Remember
 // to propagate afterwards.
@@ -13,7 +12,6 @@ pub fn edit_staked_settings(
     ctx: Context<EditStakedSettings>,
     settings: StakedSettingsEditConfig,
 ) -> Result<()> {
-    authorize_bank_admin(&ctx.accounts.marginfi_group, &ctx.accounts.admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
     let mut staked_settings = ctx.accounts.staked_settings.load_mut()?;
 
@@ -47,9 +45,10 @@ pub fn edit_staked_settings(
 
 #[derive(Accounts)]
 pub struct EditStakedSettings<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub admin: Signer<'info>,
+    pub bank_admin: Signer<'info>,
 
     #[account(
         mut,

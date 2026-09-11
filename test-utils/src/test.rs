@@ -2101,7 +2101,7 @@ impl TestFixture {
             program_id: marginfi::ID,
             accounts: marginfi::accounts::LendingPoolAddBankJuplend {
                 group: test_f.marginfi_group.key,
-                admin: test_f.payer(),
+                bank_admin: test_f.payer(),
                 fee_payer: test_f.payer(),
                 bank_mint: mint,
                 bank: bank_key,

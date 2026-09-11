@@ -250,14 +250,14 @@ pub mod marginfi {
         marginfi_group::lending_pool_set_oracle_price(ctx, price, setup)
     }
 
-    /// (bank_admin or emode_admin only) Initialize the per-group same-asset e-mode registry.
+    /// (bank_admin only) Initialize the per-group same-asset e-mode registry.
     pub fn lending_pool_init_same_asset_emode_registry(
         ctx: Context<LendingPoolInitSameAssetEmodeRegistry>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_init_same_asset_emode_registry(ctx)
     }
 
-    /// (bank_admin or emode_admin only) Opt a bank in/out of same-asset e-mode participation.
+    /// (bank_admin only) Opt a bank in/out of same-asset e-mode participation.
     pub fn lending_pool_set_bank_same_asset_emode_eligibility(
         ctx: Context<LendingPoolSetBankSameAssetEmodeEligibility>,
         enabled: bool,
@@ -265,7 +265,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_set_bank_same_asset_emode_eligibility(ctx, enabled)
     }
 
-    /// (bank_admin or emode_admin only)
+    /// (bank_admin only)
     pub fn lending_pool_configure_bank_emode(
         ctx: Context<LendingPoolConfigureBankEmode>,
         emode_tag: u16,
@@ -274,7 +274,7 @@ pub mod marginfi {
         marginfi_group::lending_pool_configure_bank_emode(ctx, emode_tag, entries)
     }
 
-    /// (bank_admin or emode_admin) Copies emode settings from one bank to another. Useful when applying
+    /// (bank_admin only) Copies emode settings from one bank to another. Useful when applying
     /// emode settings from e.g. one LST to another.
     pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
         marginfi_group::lending_pool_clone_emode(ctx)
@@ -299,7 +299,7 @@ pub mod marginfi {
         marginfi_group::monitor_archive_upsert_batch(ctx, updates)
     }
 
-    /// (bank_admin or emode_admin only) Set one pair of the group's variable-borrow premium matrix:
+    /// (fast group admin only) Set one pair of the group's variable-borrow premium matrix:
     /// `rate > 0` inserts or updates the pair, `rate == 0` removes it.
     pub fn lending_pool_configure_group_premium(
         ctx: Context<LendingPoolConfigureGroupPremium>,
@@ -315,7 +315,7 @@ pub mod marginfi {
         )
     }
 
-    /// (bank_admin or emode_admin only) Set a bank's premium tag and toggle premium accrual for its borrowers.
+    /// (fast group admin only) Set a bank's premium tag and toggle premium accrual for its borrowers.
     pub fn lending_pool_configure_bank_premium(
         ctx: Context<LendingPoolConfigureBankPremium>,
         premium_tag: u16,
@@ -1198,7 +1198,7 @@ pub mod marginfi {
 
     // Solend integration instructions
 
-    /// (admin) Add a Solend bank to the marginfi group
+    /// (slow bank admin) Add a Solend bank to the marginfi group
     pub fn lending_pool_add_bank_solend(
         ctx: Context<LendingPoolAddBankSolend>,
         bank_config: state::solend::SolendConfigCompact,
@@ -1241,7 +1241,7 @@ pub mod marginfi {
 
     // Juplend integration instructions
 
-    /// (admin) Add a JupLend bank to the marginfi group.
+    /// (slow bank admin) Add a JupLend bank to the marginfi group.
     ///
     /// Remaining accounts (for oracle validation):
     /// 0. underlying oracle feed (pyth push or switchboard pull)

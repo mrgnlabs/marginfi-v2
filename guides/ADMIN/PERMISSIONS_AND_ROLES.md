@@ -32,7 +32,7 @@ wallet.
   or confidence bounds, and `TOKENLESS_REPAYMENTS_ALLOWED`
 - Transition a bank from Paused or ReduceOnly to Operational
 - Set the `emode_admin`, `risk_admin`, and group-wide e-mode leverage limits
-- Perform any e-mode or premium configuration (alongside the dedicated `emode_admin`)
+- Perform e-mode configuration
 - Initialize, edit, and transition staked-collateral settings
 - Operate a frozen user account for remediation or seizure
 
@@ -54,6 +54,7 @@ quickly, but it cannot make the risk-sensitive changes listed under `bank_admin`
 - Handle bankruptcy (in addition to `risk_admin`)
 - Close banks (when `CLOSE_ENABLED` flag is set)
 - Collect and withdraw group fees
+- Configure variable-borrow premiums
 
 **Cannot do:**
 - Set a bank to `KilledByBankruptcy` (only happens programmatically)
@@ -75,14 +76,10 @@ that require manual intervention.
 
 ### Emode Admin
 
-Controls E-mode (Efficiency Mode) configuration.
+Retained configuration role; e-mode changes now require the slow `bank_admin`.
 
-**Can do:**
-- Set emode tags on banks
-- Configure emode entries (preferential collateral ratios for correlated asset pairs)
-- Configure same-asset e-mode eligibility and premium settings
-
-The slow `bank_admin` is also authorized for every e-mode and premium configuration instruction.
+The role is retained in the group layout for compatibility, but no current instruction authorizes
+it independently.
 
 For more details see the [Emode Guide](../RISK_AND_LIQUIDATORS/EMODE_ADMIN.md).
 
@@ -290,7 +287,8 @@ For more details see the [Receivership Liquidation Guide](../RISK_AND_LIQUIDATOR
 | Settle group rate limiter batches | `admin` or `delegate_limit_admin` |
 | Settle deleverage withdraw batches | `admin` or `delegate_limit_admin` |
 | Configure emissions | Deprecated / no-op (no active authority path) |
-| Configure emode / premium / same-asset e-mode | `emode_admin` or `bank_admin` |
+| Configure emode / same-asset e-mode | `bank_admin` |
+| Configure variable-borrow premiums | `admin` |
 | Write bank metadata | `metadata_admin` |
 | Freeze/unfreeze account | `admin` |
 | Operate a frozen account | `bank_admin` |

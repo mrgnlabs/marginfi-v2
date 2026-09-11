@@ -1,9 +1,9 @@
 // Used by the slow bank admin to enable staked collateral banks and configure their default
 // features.
 use crate::ix_utils;
-use crate::state::marginfi_group::authorize_bank_admin;
 use crate::state::staked_settings::StakedSettingsImpl;
 use crate::utils::wrapped_i80f48_to_f64;
+use crate::MarginfiError;
 use anchor_lang::prelude::*;
 use marginfi_type_crate::{
     constants::STAKED_SETTINGS_SEED,
@@ -14,7 +14,6 @@ pub fn initialize_staked_settings(
     ctx: Context<InitStakedSettings>,
     settings: StakedSettingsConfig,
 ) -> Result<()> {
-    authorize_bank_admin(&ctx.accounts.marginfi_group, &ctx.accounts.admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut staked_settings = ctx.accounts.staked_settings.load_init()?;
@@ -53,9 +52,10 @@ pub fn initialize_staked_settings(
 
 #[derive(Accounts)]
 pub struct InitStakedSettings<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
-    pub admin: Signer<'info>,
+    pub bank_admin: Signer<'info>,
 
     /// Pays the init fee
     #[account(mut)]

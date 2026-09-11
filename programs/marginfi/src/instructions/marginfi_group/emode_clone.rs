@@ -1,18 +1,10 @@
-use crate::{check, ix_utils, MarginfiError, MarginfiResult};
+use crate::{ix_utils, MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use marginfi_type_crate::types::{Bank, MarginfiGroup};
 
 /// Copy emode settings from one bank to another within the same group.
 pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> MarginfiResult {
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
-
-    let group = ctx.accounts.group.load()?;
-
-    check!(
-        ctx.accounts.signer.key() == group.bank_admin
-            || ctx.accounts.signer.key() == group.emode_admin,
-        MarginfiError::Unauthorized
-    );
 
     let source_bank = ctx.accounts.copy_from_bank.load()?;
     let mut destination_bank = ctx.accounts.copy_to_bank.load_mut()?;
@@ -30,9 +22,10 @@ pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> Marginfi
 
 #[derive(Accounts)]
 pub struct LendingPoolCloneEmode<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub signer: Signer<'info>,
+    pub bank_admin: Signer<'info>,
 
     #[account(
         has_one = group @ MarginfiError::InvalidGroup

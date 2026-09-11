@@ -1,4 +1,4 @@
-use crate::{check, ix_utils};
+use crate::ix_utils;
 use crate::state::emode::EmodeSettingsImpl;
 use crate::MarginfiError;
 use crate::MarginfiResult;
@@ -13,12 +13,6 @@ pub fn lending_pool_configure_bank_emode(
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let group = ctx.accounts.group.load()?;
-
-    check!(
-        ctx.accounts.emode_admin.key() == group.emode_admin
-            || ctx.accounts.emode_admin.key() == group.bank_admin,
-        MarginfiError::Unauthorized
-    );
 
     let mut bank = ctx.accounts.bank.load_mut()?;
 
@@ -61,9 +55,10 @@ pub fn lending_pool_configure_bank_emode(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankEmode<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub emode_admin: Signer<'info>,
+    pub bank_admin: Signer<'info>,
 
     #[account(
         mut,

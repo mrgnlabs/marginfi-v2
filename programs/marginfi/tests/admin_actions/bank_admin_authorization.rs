@@ -109,10 +109,11 @@ async fn governance_actions_require_bank_admin() -> anyhow::Result<()> {
         .await;
     assert_custom_error!(fast_emode_result.unwrap_err(), MarginfiError::Unauthorized);
 
-    test_f
+    let emode_result = test_f
         .marginfi_group
         .try_lending_pool_configure_bank_emode_with_signer(&bank, 0, &[], &new_emode_admin)
-        .await?;
+        .await;
+    assert_custom_error!(emode_result.unwrap_err(), MarginfiError::Unauthorized);
 
     test_f
         .marginfi_group

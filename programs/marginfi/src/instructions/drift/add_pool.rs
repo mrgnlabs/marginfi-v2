@@ -8,7 +8,7 @@ use crate::{
         bank::BankImpl,
         bank_config::BankConfigImpl,
         drift::DriftConfigCompact,
-        marginfi_group::{authorize_bank_admin, MarginfiGroupImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,
 };
@@ -43,8 +43,6 @@ pub fn lending_pool_add_bank_drift(
         integration_acc_3: user_stats_loader,
         ..
     } = ctx.accounts;
-
-    authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
 
     let mut bank = bank_loader.load_init()?;
     let mut group = ctx.accounts.group.load_mut()?;
@@ -123,7 +121,7 @@ pub fn lending_pool_add_bank_drift(
 #[derive(Accounts)]
 #[instruction(bank_config: DriftConfigCompact, bank_seed: u64)]
 pub struct LendingPoolAddBankDrift<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub bank_admin: Signer<'info>,

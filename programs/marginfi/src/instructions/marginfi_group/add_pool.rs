@@ -4,7 +4,7 @@ use crate::{
     state::{
         bank::BankImpl,
         bank_config::BankConfigImpl,
-        marginfi_group::{authorize_bank_admin, MarginfiGroupImpl},
+        marginfi_group::MarginfiGroupImpl,
     },
     MarginfiError, MarginfiResult,
 };
@@ -26,7 +26,6 @@ pub fn lending_pool_add_bank(
     ctx: Context<LendingPoolAddBank>,
     bank_config: BankConfigCompact,
 ) -> MarginfiResult {
-    authorize_bank_admin(&ctx.accounts.marginfi_group, &ctx.accounts.bank_admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     // Transfer the flat sol init fee to the global fee wallet
@@ -109,7 +108,7 @@ pub fn lending_pool_add_bank(
 #[derive(Accounts)]
 #[instruction(bank_config: BankConfigCompact)]
 pub struct LendingPoolAddBank<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub marginfi_group: AccountLoader<'info, MarginfiGroup>,
 
     pub bank_admin: Signer<'info>,

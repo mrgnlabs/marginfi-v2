@@ -2,9 +2,7 @@ use crate::events::{GroupEventHeader, LendingPoolBankSetOraclePriceEvent};
 use crate::ix_utils;
 use crate::state::bank::BankImpl;
 use crate::state::bank_config::BankConfigImpl;
-use crate::{
-    check, errors::MarginfiError, state::marginfi_group::authorize_bank_admin, MarginfiResult,
-};
+use crate::{check, errors::MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
 use marginfi_type_crate::constants::{
@@ -33,7 +31,6 @@ pub fn lending_pool_set_oracle_price(
     price: WrappedI80F48,
     setup: u8,
 ) -> MarginfiResult {
-    authorize_bank_admin(&ctx.accounts.group, &ctx.accounts.bank_admin)?;
     ix_utils::check_no_durable_nonce(&ctx.accounts.instruction_sysvar)?;
 
     let mut bank = ctx.accounts.bank.load_mut()?;
@@ -130,6 +127,7 @@ pub fn lending_pool_set_oracle_price(
 
 #[derive(Accounts)]
 pub struct LendingPoolSetOraclePrice<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub bank_admin: Signer<'info>,
