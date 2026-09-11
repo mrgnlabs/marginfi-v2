@@ -14,8 +14,15 @@ pub fn set_bank_admin(ctx: Context<SetBankAdmin>, new_bank_admin: Pubkey) -> Mar
     );
 
     let mut group = ctx.accounts.marginfi_group.load_mut()?;
-    let previous_bank_admin = group.bank_admin_or_fallback();
-    group.rotate_bank_admin(new_bank_admin, *ctx.accounts.signer.key)?;
+    let previous_bank_admin = group.bank_admin;
+    if previous_bank_admin == Pubkey::default() {
+        // Legacy groups are resized with a zeroed extension. The existing fast admin may
+        // bootstrap the slow authority exactly once; every later rotation is slow-admin-only.
+        group.require_admin(*ctx.accounts.signer.key)?;
+    } else {
+        group.require_bank_admin(*ctx.accounts.signer.key)?;
+    }
+    group.update_bank_admin(new_bank_admin);
 
     emit!(SetBankAdminEvent {
         header: GroupEventHeader {

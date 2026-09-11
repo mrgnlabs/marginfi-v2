@@ -5,7 +5,7 @@ use crate::events::{
 use crate::prelude::MarginfiError;
 use crate::state::bank::BankImpl;
 use crate::state::emode::EmodeSettingsImpl;
-use crate::state::marginfi_group::{MarginfiGroupImpl, RequiredAuthorityExt};
+use crate::state::marginfi_group::MarginfiGroupImpl;
 use crate::MarginfiResult;
 use crate::{check, math_error, utils};
 use anchor_lang::prelude::*;
@@ -14,24 +14,73 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{CIRCUIT_BREAKER_ENABLED, FREEZE_SETTINGS},
-    types::{is_marginfi_asset_tag, Bank, BankConfigOpt, MarginfiGroup},
+    types::{
+        is_marginfi_asset_tag, Bank, BankConfigFast, BankConfigGov, BankConfigOpt,
+        BankOperationalState, MarginfiGroup,
+    },
 };
 
 pub fn lending_pool_configure_bank(
     ctx: Context<LendingPoolConfigureBank>,
-    bank_config: BankConfigOpt,
+    bank_config: BankConfigFast,
 ) -> MarginfiResult {
-    let mut bank = ctx.accounts.bank.load_mut()?;
+    check!(
+        matches!(
+            bank_config.operational_state,
+            None | Some(
+                BankOperationalState::Paused
+                    | BankOperationalState::ReduceOnly
+                    | BankOperationalState::ReduceOnlyWithBorrowingPower
+            )
+        ),
+        MarginfiError::InvalidFastBankOperationalState
+    );
+
     let group = ctx.accounts.group.load()?;
-
-    let current_operational_state = bank.config.operational_state;
-
-    bank_config.required_authority().authorize(
+    let mut bank = ctx.accounts.bank.load_mut()?;
+    configure_bank(
+        &mut bank,
         &group,
-        ctx.accounts.signer.key,
-        current_operational_state,
-    )?;
+        bank_config.into(),
+        ctx.accounts.group.key(),
+        ctx.accounts.bank.key(),
+        ctx.accounts.admin.key(),
+    )
+}
 
+/// Configure governance-controlled bank parameters with the slow, timelocked bank admin.
+pub fn lending_pool_configure_bank_gov(
+    ctx: Context<LendingPoolConfigureBankGov>,
+    bank_config: BankConfigGov,
+) -> MarginfiResult {
+    check!(
+        matches!(
+            bank_config.operational_state,
+            None | Some(BankOperationalState::Operational)
+        ),
+        MarginfiError::InvalidGovernanceBankOperationalState
+    );
+
+    let group = ctx.accounts.group.load()?;
+    let mut bank = ctx.accounts.bank.load_mut()?;
+    configure_bank(
+        &mut bank,
+        &group,
+        bank_config.into(),
+        ctx.accounts.group.key(),
+        ctx.accounts.bank.key(),
+        ctx.accounts.bank_admin.key(),
+    )
+}
+
+fn configure_bank(
+    bank: &mut Bank,
+    group: &MarginfiGroup,
+    bank_config: BankConfigOpt,
+    group_key: Pubkey,
+    bank_key: Pubkey,
+    signer: Pubkey,
+) -> MarginfiResult {
     // If settings are frozen, you can only update the deposit and borrow limits, everything else is ignored.
     if bank.get_flag(FREEZE_SETTINGS) {
         bank.configure_unfrozen_fields_only(&bank_config)?;
@@ -40,10 +89,10 @@ pub fn lending_pool_configure_bank(
 
         emit!(LendingPoolBankConfigureFrozenEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.group.key(),
-                signer: Some(*ctx.accounts.signer.key)
+                marginfi_group: group_key,
+                signer: Some(signer)
             },
-            bank: ctx.accounts.bank.key(),
+            bank: bank_key,
             mint: bank.mint,
             deposit_limit: bank.config.deposit_limit,
             borrow_limit: bank.config.borrow_limit,
@@ -54,12 +103,11 @@ pub fn lending_pool_configure_bank(
         if bank_config.circuit_breaker_enabled == Some(false)
             && bank.get_flag(CIRCUIT_BREAKER_ENABLED)
         {
-            let group = ctx.accounts.group.load()?;
             bank.accrue_interest(
                 Clock::get()?.unix_timestamp,
-                &group,
+                group,
                 #[cfg(not(feature = "client"))]
-                ctx.accounts.bank.key(),
+                bank_key,
             )?;
         }
 
@@ -75,10 +123,10 @@ pub fn lending_pool_configure_bank(
 
         emit!(LendingPoolBankConfigureEvent {
             header: GroupEventHeader {
-                marginfi_group: ctx.accounts.group.key(),
-                signer: Some(*ctx.accounts.signer.key)
+                marginfi_group: group_key,
+                signer: Some(signer)
             },
-            bank: ctx.accounts.bank.key(),
+            bank: bank_key,
             mint: bank.mint,
             config: bank_config,
         });
@@ -89,9 +137,24 @@ pub fn lending_pool_configure_bank(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBank<'info> {
+    #[account(has_one = admin @ MarginfiError::Unauthorized)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
-    pub signer: Signer<'info>,
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = group @ MarginfiError::InvalidGroup,
+    )]
+    pub bank: AccountLoader<'info, Bank>,
+}
+
+#[derive(Accounts)]
+pub struct LendingPoolConfigureBankGov<'info> {
+    #[account(has_one = bank_admin @ MarginfiError::Unauthorized)]
+    pub group: AccountLoader<'info, MarginfiGroup>,
+
+    pub bank_admin: Signer<'info>,
 
     #[account(
         mut,

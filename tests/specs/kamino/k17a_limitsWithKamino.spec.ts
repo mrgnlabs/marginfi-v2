@@ -126,6 +126,9 @@ ORACLE_MODES.forEach((oracleMode, oracleModeIndex) => {
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: throwawayGroup.publicKey,
           newAdmin: groupAdmin.wallet.publicKey,
+        }),
+        await groupConfigure(groupAdmin.mrgnBankrunProgram, {
+          marginfiGroup: throwawayGroup.publicKey,
           newEmodeAdmin: groupAdmin.wallet.publicKey,
         }),
       );

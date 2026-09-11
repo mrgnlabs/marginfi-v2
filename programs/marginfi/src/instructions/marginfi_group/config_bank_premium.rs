@@ -1,3 +1,4 @@
+use crate::check;
 use crate::events::{GroupEventHeader, LendingPoolBankPremiumConfigureEvent};
 use crate::MarginfiError;
 use crate::MarginfiResult;
@@ -7,7 +8,8 @@ use marginfi_type_crate::{
     types::{Bank, MarginfiGroup},
 };
 
-/// (emode admin only) Set a bank's premium tag and toggle premium accrual for its borrowers.
+/// (emode admin or slow bank admin only) Set a bank's premium tag and toggle premium accrual for
+/// its borrowers.
 ///
 /// # Deactivation is destructive — it is a LAZY premium amnesty
 ///
@@ -25,11 +27,18 @@ pub fn lending_pool_configure_bank_premium(
     premium_tag: u16,
     active: bool,
 ) -> MarginfiResult {
+    let group = ctx.accounts.group.load()?;
+    check!(
+        ctx.accounts.emode_admin.key() == group.emode_admin
+            || ctx.accounts.emode_admin.key() == group.bank_admin,
+        MarginfiError::Unauthorized
+    );
+
     let mut bank = ctx.accounts.bank.load_mut()?;
 
     bank.premium_tag = premium_tag;
-    // Note: not part of `GROUP_FLAGS` (this flag is emode-admin-gated, not group-admin-gated),
-    // so it is set directly rather than through `update_flag`.
+    // Note: not part of `GROUP_FLAGS` (this flag is gated by the e-mode admin or slow bank admin,
+    // not the fast group admin), so it is set directly rather than through `update_flag`.
     let was_active = bank.flags & PREMIUM_ACTIVE != 0;
     if active {
         bank.flags |= PREMIUM_ACTIVE;
@@ -68,9 +77,6 @@ pub fn lending_pool_configure_bank_premium(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureBankPremium<'info> {
-    #[account(
-        has_one = emode_admin @ MarginfiError::Unauthorized
-    )]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub emode_admin: Signer<'info>,

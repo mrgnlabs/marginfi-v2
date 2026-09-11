@@ -8,8 +8,7 @@ use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::DAILY_RESET_INTERVAL,
     types::{
-        basis_to_u32, BankOperationalState, MarginfiGroup, RequiredAuthority,
-        MAX_PREMIUM_ENTRIES, PREMIUM_TAG_EMPTY, PROGRAM_FEES_ENABLED,
+        basis_to_u32, MarginfiGroup, MAX_PREMIUM_ENTRIES, PREMIUM_TAG_EMPTY, PROGRAM_FEES_ENABLED,
     },
 };
 use std::fmt::Debug;
@@ -29,7 +28,6 @@ pub trait MarginfiGroupImpl {
     fn get_group_bank_config(&self) -> GroupBankConfig;
     fn set_program_fee_enabled(&mut self, fee_enabled: bool);
     fn is_admin_or_limit_admin(&self, signer: Pubkey) -> bool;
-    fn bank_admin_or_fallback(&self) -> Pubkey;
     fn add_bank(&mut self) -> MarginfiResult;
     fn is_protocol_paused(&self) -> bool;
     fn update_withdrawn_equity(
@@ -45,7 +43,6 @@ pub trait MarginfiGroupImpl {
     fn find_premium_rate(&self, collateral_tag: u16, liability_tag: u16) -> u32;
     fn require_admin(&self, signer: Pubkey) -> MarginfiResult;
     fn require_bank_admin(&self, signer: Pubkey) -> MarginfiResult;
-    fn rotate_bank_admin(&mut self, new_bank_admin: Pubkey, signer: Pubkey) -> MarginfiResult;
 }
 
 impl MarginfiGroupImpl for MarginfiGroup {
@@ -205,14 +202,6 @@ impl MarginfiGroupImpl for MarginfiGroup {
         signer == self.admin || signer == self.delegate_limit_admin
     }
 
-    fn bank_admin_or_fallback(&self) -> Pubkey {
-        if self.bank_admin == Pubkey::default() {
-            self.admin
-        } else {
-            self.bank_admin
-        }
-    }
-
     // Increment the bank count by 1. If you managed to create 16,000 banks, congrats, does
     // nothing.
     fn add_bank(&mut self) -> MarginfiResult {
@@ -312,21 +301,7 @@ impl MarginfiGroupImpl for MarginfiGroup {
     }
 
     fn require_bank_admin(&self, signer: Pubkey) -> MarginfiResult {
-        require_eq!(
-            self.bank_admin_or_fallback(),
-            signer,
-            MarginfiError::Unauthorized
-        );
-        Ok(())
-    }
-
-    fn rotate_bank_admin(&mut self, new_bank_admin: Pubkey, signer: Pubkey) -> MarginfiResult {
-        require_eq!(
-            self.bank_admin_or_fallback(),
-            signer,
-            MarginfiError::Unauthorized
-        );
-        self.update_bank_admin(new_bank_admin);
+        require_eq!(self.bank_admin, signer, MarginfiError::Unauthorized);
         Ok(())
     }
 }
@@ -385,7 +360,10 @@ mod tests {
         // Premium fields fill the v1 layout exactly (former `_padding_0`/`_padding_1`).
         // The dedicated bank admin begins in the post-v1 extension.
         assert_eq!(offset_of!(MarginfiGroup, bank_admin), MarginfiGroup::V1_LEN);
-        assert_eq!(offset_of!(MarginfiGroup, _padding_2), MarginfiGroup::V1_LEN + 32);
+        assert_eq!(
+            offset_of!(MarginfiGroup, _padding_2),
+            MarginfiGroup::V1_LEN + 32
+        );
 
         // PremiumSettings internals: 8 + 2 + 2 + 4 + 16 = 32, 8-aligned, no implicit padding
         // (Pod derive would reject implicit padding at compile time; these pin the EXPLICIT
@@ -500,40 +478,4 @@ pub fn authorize_bank_admin<'info>(
     let group_data = group.load()?;
     group_data.require_bank_admin(signer.key())?;
     Ok(())
-}
-
-pub trait RequiredAuthorityExt {
-    fn authorize(
-        &self,
-        group: &MarginfiGroup,
-        signer: &Pubkey,
-        current_state: BankOperationalState,
-    ) -> MarginfiResult;
-}
-
-impl RequiredAuthorityExt for RequiredAuthority {
-    fn authorize(
-        &self,
-        group: &MarginfiGroup,
-        signer: &Pubkey,
-        current_state: BankOperationalState,
-    ) -> MarginfiResult {
-        match self {
-            RequiredAuthority::None => group.require_admin(*signer),
-            RequiredAuthority::Mixed => Err(error!(MarginfiError::MixedBankConfigAuthority)),
-            RequiredAuthority::OperationalStateChange(target_state) => {
-                let is_transitioning_to_operational = current_state
-                    != BankOperationalState::Operational
-                    && *target_state == BankOperationalState::Operational;
-
-                if is_transitioning_to_operational {
-                    group.require_bank_admin(*signer)
-                } else {
-                    group.require_admin(*signer)
-                }
-            }
-            RequiredAuthority::Governance => group.require_bank_admin(*signer),
-            RequiredAuthority::AdminOnly => group.require_admin(*signer),
-        }
-    }
 }

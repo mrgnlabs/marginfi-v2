@@ -93,7 +93,7 @@ async fn configure_bank_authority_split() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn legacy_fallback_behavior() -> anyhow::Result<()> {
+async fn legacy_group_requires_bank_admin_bootstrap() -> anyhow::Result<()> {
     let test_f = TestFixture::new(Some(TestSettings {
         banks: vec![TestBankSetting {
             mint: BankMint::Usdc,
@@ -103,31 +103,48 @@ async fn legacy_fallback_behavior() -> anyhow::Result<()> {
     }))
     .await;
 
-    let payer_key = test_f.context.borrow().payer.pubkey();
+    let bank = test_f.get_bank(&BankMint::Usdc);
+    test_f.marginfi_group.truncate_group_account_to_v1().await;
+    test_f.marginfi_group.try_resize_group_account().await?;
 
     let group = test_f
         .load_and_deserialize::<marginfi_type_crate::types::MarginfiGroup>(
             &test_f.marginfi_group.key,
         )
         .await;
-    assert_eq!(group.bank_admin, payer_key);
-
-    let bank = test_f.get_bank(&BankMint::Usdc);
-
-    let config = BankConfigOpt {
-        deposit_limit: Some(5_000_000u64),
-        ..BankConfigOpt::default()
-    };
-
-    let result = bank.update_config(config, None).await;
-    assert!(result.is_ok());
+    assert_eq!(group.bank_admin, solana_sdk::pubkey::Pubkey::default());
 
     let config = BankConfigOpt {
         asset_weight_init: Some(I80F48!(0.8).into()),
         ..BankConfigOpt::default()
     };
-
     let result = bank.update_config(config, None).await;
+    assert!(result.is_err(), "a zero bank_admin must fail closed");
+
+    let bank_admin = solana_sdk::signature::Keypair::new();
+    let attacker = solana_sdk::signature::Keypair::new();
+    let result = test_f
+        .marginfi_group
+        .try_set_bank_admin_with_signer(&attacker, bank_admin.pubkey())
+        .await;
+    assert!(
+        result.is_err(),
+        "only the fast admin may bootstrap bank_admin"
+    );
+
+    test_f
+        .marginfi_group
+        .try_set_bank_admin(&bank_admin)
+        .await?;
+
+    let config = BankConfigOpt {
+        asset_weight_init: Some(I80F48!(0.8).into()),
+        ..BankConfigOpt::default()
+    };
+    let result = test_f
+        .marginfi_group
+        .try_lending_pool_configure_bank_with_signer(&bank_admin, bank, config)
+        .await;
     assert!(result.is_ok());
 
     Ok(())

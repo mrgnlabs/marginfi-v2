@@ -74,6 +74,23 @@ pub fn initialize_marginfi_group<'a>(
         Some(admin.key()),
         Some(admin.key()),
         Some(admin.key()),
+    )
+    .unwrap();
+
+    marginfi::instructions::marginfi_group::configure_gov(
+        Context::new(
+            &marginfi::ID,
+            &mut marginfi::instructions::MarginfiGroupConfigureGov {
+                marginfi_group: AccountLoader::try_from_unchecked(
+                    &program_id,
+                    airls(&marginfi_group),
+                )
+                .unwrap(),
+                bank_admin: Signer::try_from(airls(&admin)).unwrap(),
+            },
+            &[],
+            Default::default(),
+        ),
         Some(admin.key()),
         Some(admin.key()),
         None,

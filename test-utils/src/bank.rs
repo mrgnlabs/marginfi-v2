@@ -99,23 +99,45 @@ impl BankFixture {
     ) -> anyhow::Result<()> {
         let mut instructions = Vec::new();
 
-        let accounts = marginfi::accounts::LendingPoolConfigureBank {
-            group: self.load().await.group,
-            signer: self.ctx.borrow().payer.pubkey(),
-            bank: self.key,
-        }
-        .to_account_metas(Some(true));
+        let group = self.load().await.group;
+        let admin = self.ctx.borrow().payer.pubkey();
+        let (fast, gov) = config.split();
 
-        let config_ix = Instruction {
-            program_id: marginfi::ID,
-            accounts,
-            data: marginfi::instruction::LendingPoolConfigureBank {
-                bank_config_opt: config,
+        if !fast.is_empty() {
+            let accounts = marginfi::accounts::LendingPoolConfigureBank {
+                group,
+                admin,
+                bank: self.key,
             }
-            .data(),
-        };
+            .to_account_metas(Some(true));
 
-        instructions.push(config_ix);
+            instructions.push(Instruction {
+                program_id: marginfi::ID,
+                accounts,
+                data: marginfi::instruction::LendingPoolConfigureBank {
+                    bank_config_opt: fast,
+                }
+                .data(),
+            });
+        }
+
+        if !gov.is_empty() {
+            let accounts = marginfi::accounts::LendingPoolConfigureBankGov {
+                group,
+                bank_admin: admin,
+                bank: self.key,
+            }
+            .to_account_metas(Some(true));
+
+            instructions.push(Instruction {
+                program_id: marginfi::ID,
+                accounts,
+                data: marginfi::instruction::LendingPoolConfigureBankGov {
+                    bank_config_opt: gov,
+                }
+                .data(),
+            });
+        }
 
         if let Some((setup, oracle)) = oracle_update {
             let mut oracle_accounts = marginfi::accounts::LendingPoolConfigureBankOracle {

@@ -541,13 +541,13 @@ export const splitBankConfig = (config: BankConfigOptRaw): SplitBankConfig => {
   riskConfig.assetTag = config.assetTag;
   riskConfig.oracleMaxAge = config.oracleMaxAge;
   riskConfig.oracleMaxConfidence = config.oracleMaxConfidence;
+  riskConfig.tokenlessRepaymentsAllowed = config.tokenlessRepaymentsAllowed;
 
   const adminConfig = blankBankConfigOptRaw();
   adminConfig.depositLimit = config.depositLimit;
   adminConfig.borrowLimit = config.borrowLimit;
   adminConfig.totalAssetValueInitLimit = config.totalAssetValueInitLimit;
   adminConfig.interestRateConfig = config.interestRateConfig;
-  adminConfig.tokenlessRepaymentsAllowed = config.tokenlessRepaymentsAllowed;
   adminConfig.liquidationLiquidatorFee = config.liquidationLiquidatorFee;
   adminConfig.liquidationInsuranceFee = config.liquidationInsuranceFee;
   adminConfig.permissionlessBadDebtSettlement = config.permissionlessBadDebtSettlement;

@@ -163,6 +163,9 @@ ORACLE_CASES.forEach(({ label, oracleMode, groupSeed, accountName, oracleMaxConf
         await groupConfigure(groupAdmin.mrgnBankrunProgram, {
           marginfiGroup: throwawayGroup.publicKey,
           newAdmin: groupAdmin.wallet.publicKey,
+        }),
+        await groupConfigure(groupAdmin.mrgnBankrunProgram, {
+          marginfiGroup: throwawayGroup.publicKey,
           newEmodeAdmin: groupAdmin.wallet.publicKey,
         }),
       );

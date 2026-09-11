@@ -77,13 +77,13 @@ describe("Lending pool configure bank", () => {
     riskConfig.assetTag = ASSET_TAG_SOL;
     riskConfig.oracleMaxAge = 150;
     riskConfig.oracleMaxConfidence = 420000;
+    riskConfig.tokenlessRepaymentsAllowed = true;
 
     const adminConfig = blankBankConfigOptRaw();
     adminConfig.depositLimit = new BN(5000);
     adminConfig.borrowLimit = new BN(10000);
     adminConfig.totalAssetValueInitLimit = new BN(15000);
     adminConfig.interestRateConfig = interestRateConfig;
-    adminConfig.tokenlessRepaymentsAllowed = true;
     adminConfig.liquidationLiquidatorFee = Math.floor(u32_MAX * 0.03);
     adminConfig.liquidationInsuranceFee = Math.floor(u32_MAX * 0.035);
 

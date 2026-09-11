@@ -15,7 +15,8 @@ pub fn lending_pool_init_same_asset_emode_registry(
     let group = ctx.accounts.group.load()?;
 
     check!(
-        ctx.accounts.signer.key() == group.admin || ctx.accounts.signer.key() == group.emode_admin,
+        ctx.accounts.signer.key() == group.bank_admin
+            || ctx.accounts.signer.key() == group.emode_admin,
         MarginfiError::Unauthorized
     );
 

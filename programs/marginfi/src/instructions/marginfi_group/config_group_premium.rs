@@ -8,7 +8,8 @@ use marginfi_type_crate::types::{
     MarginfiGroup, PremiumEntry, MAX_PREMIUM_ENTRIES, MAX_PREMIUM_RATE, PREMIUM_TAG_EMPTY,
 };
 
-/// (emode admin only) Set one pair of the group's variable-borrow premium matrix.
+/// (emode admin or slow bank admin only) Set one pair of the group's variable-borrow premium
+/// matrix.
 ///
 /// `rate > 0` inserts or updates the (collateral_tag, liability_tag) pair; `rate == 0` removes
 /// it, erroring if the pair is not in the matrix so operator typos fail loudly. One pair per
@@ -27,6 +28,15 @@ pub fn lending_pool_configure_group_premium(
     );
     // Policy cap: at most 100% APR per pair (the encoding itself allows up to 1000%).
     check!(rate <= MAX_PREMIUM_RATE, MarginfiError::PremiumEntryInvalid);
+
+    {
+        let group = ctx.accounts.group.load()?;
+        check!(
+            ctx.accounts.emode_admin.key() == group.emode_admin
+                || ctx.accounts.emode_admin.key() == group.bank_admin,
+            MarginfiError::Unauthorized
+        );
+    }
 
     let mut group = ctx.accounts.group.load_mut()?;
     let mut count = (group.premium_settings.entry_count as usize).min(MAX_PREMIUM_ENTRIES);
@@ -100,10 +110,7 @@ pub fn lending_pool_configure_group_premium(
 
 #[derive(Accounts)]
 pub struct LendingPoolConfigureGroupPremium<'info> {
-    #[account(
-        mut,
-        has_one = emode_admin @ MarginfiError::Unauthorized
-    )]
+    #[account(mut)]
     pub group: AccountLoader<'info, MarginfiGroup>,
 
     pub emode_admin: Signer<'info>,

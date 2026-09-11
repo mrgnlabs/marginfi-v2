@@ -7,7 +7,8 @@ pub fn lending_pool_clone_emode(ctx: Context<LendingPoolCloneEmode>) -> Marginfi
     let group = ctx.accounts.group.load()?;
 
     check!(
-        ctx.accounts.signer.key() == group.admin || ctx.accounts.signer.key() == group.emode_admin,
+        ctx.accounts.signer.key() == group.bank_admin
+            || ctx.accounts.signer.key() == group.emode_admin,
         MarginfiError::Unauthorized
     );
 
