@@ -67,7 +67,8 @@ esac
 CRC="${FUZZ_REVISION:-$(git -C "$HERE" rev-parse HEAD 2>/dev/null || echo 0000000)}"
 
 # The full set of already-triaged / written-up invariants. Muting them keeps the
-# campaign clean so any NEW finding is visible. Keep in sync with PROPERTIES.md.
+# campaign clean so any NEW finding is visible. Each entry is a property id
+# defined by a scout_run_property!("P-...", ...) call in src/main.rs.
 MUTE="P-0039,P-0025,P-0032,P-0015,P-0041,P-0042,P-0018-ESC,P-0020,P-0020-DELEV,P-0014-ESC,P-0018-NOREMEDY,P-0019-T22,P-0019B-T22,P-COMPOUND-BADDEBT,P-PERMDELEGATE,P-STALE-BYSTANDER,P-0035-SOLEND-T22,P-0037-SOLEND"
 
 REPO="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || (cd "$HERE/../.." && pwd))"

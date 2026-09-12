@@ -47,7 +47,7 @@ jobs:
         with:
           submodules: recursive
 
-      # marginfi's own toolchain (rust 1.79 + solana + anchor).
+      # marginfi's own toolchain (rust 1.90 + solana + anchor, per the env pins above).
       - uses: ./.github/actions/base-setup/
         with:
           include-anchor: "true"
@@ -65,14 +65,11 @@ jobs:
       # from this DWARF; without it FuzzCorp reports coverage against program
       # counters instead of source lines, which makes a regression unreadable.
       # Program counters must match, so it is the same crate at the same commit.
-      # Built through `anchor build -p marginfi`, exactly as the repo's own
-      # scripts/build-program.sh does -- NOT `cargo build-sbf --manifest-path`.
-      # Building the single crate directly resolves its dependency graph in
-      # isolation and reaches crates that now require edition2024 (constant_time_eq
-      # 0.4.2 via the committed lock), which the SBF platform tools' cargo 1.79
-      # cannot parse: the job dies with "feature `edition2024` is required" on a
-      # lockfile upstream's own CI builds green. The workspace build unifies
-      # features the way upstream does and stays inside what cargo 1.79 can read.
+      # Built through `cargo build-sbf --manifest-path` — NOT `anchor build
+      # -p marginfi`, which resolves the whole workspace regardless of -p and
+      # drags in the kamino-mocks/drift-mocks fixture crates whose oversized
+      # account-deserialize stack frames would trip the gate below on crates
+      # this harness never ships (see the inline comment below).
       - name: Build unstripped program for coverage symbols
         run: |
           set -euo pipefail
@@ -170,13 +167,17 @@ jobs:
           stage solend_mocks.so         tests/fixtures/solend_mocks.so \
                                         target/deploy/solend_mocks.so
 
-      # Refresh the IDL from THIS build. declare_fuzz_program! reads the IDL at COMPILE
-      # time, so a stale one gives the harness wrong discriminators and account lists --
-      # and the failure is not a mismatch error, it is setup() aborting the whole task.
-      # The committed idls/marginfi_program.json is generated from this program and is
-      # kept in sync deliberately: it is what `cargo build` uses locally, and a drift
-      # between it and lib.rs is a harness bug, not something this step papers over.
-      - name: Stage the freshly-built IDL into the harness
+      # declare_fuzz_program! reads the IDL at COMPILE time, so a stale one gives
+      # the harness wrong discriminators and account lists -- and the failure is
+      # not a mismatch error, it is setup() aborting the whole task. Nothing in
+      # this job RUNS `anchor build`, so no fresh IDL is produced: what this step
+      # stages is either the base-setup cache's IDL (only present when program
+      # sources are byte-identical to a cached build, hence in sync) or, in the
+      # normal case, the committed idls/marginfi_program.json unchanged. That
+      # committed file is the authority: it is what `cargo build` uses locally,
+      # and a drift between it and lib.rs is a harness bug, not something this
+      # step papers over.
+      - name: Stage the IDL into the harness (cached or committed)
         run: |
           set -euo pipefail
           idl=""
@@ -215,14 +216,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y llvm
 
       # Harness build uses rustup 'stable' (via fuzz/crucible/rust-toolchain.toml),
-      # independent of the program's 1.79 toolchain.
+      # independent of the program's pinned 1.90 toolchain.
       - name: Install Rust (stable) for the harness
         uses: dtolnay/rust-toolchain@stable
 
       # crucible is public, so cargo resolves its git deps anonymously -- no token.
+      # --locked: fail closed if Cargo.toml and the committed lock ever disagree
+      # (e.g. a manifest edit that would silently re-resolve crucible's main branch).
       - name: Build harness (crucible main)
         working-directory: fuzz/crucible
-        run: cargo build --release --features invariant_test
+        run: cargo build --release --locked --features invariant_test
 
       - name: Assemble FuzzCorp bundle
         working-directory: fuzz/crucible

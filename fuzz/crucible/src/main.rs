@@ -861,16 +861,6 @@ const METADATA_SEED: &[u8] = b"metadata";
 const SCOUT_FIRST_BALANCE_LIABILITY_SHARES_OFFSET: usize = 8 + 32 + 32 + 56;
 const SCOUT_KAMINO_BANK_SEED: u64 = 4_020_240_001;
 const SCOUT_KAMINO_RESERVE_ACCOUNT_LEN: usize = 8 + 8616;
-const SCOUT_KAMINO_OBLIGATION_ACCOUNT_LEN: usize = 8 + 3336;
-const SCOUT_KAMINO_RESERVE_MINT_OFFSET: usize = 8 + 128;
-const SCOUT_KAMINO_RESERVE_SUPPLY_OFFSET: usize = 8 + 160;
-const SCOUT_KAMINO_RESERVE_AVAILABLE_OFFSET: usize = 8 + 224;
-const SCOUT_KAMINO_RESERVE_DECIMALS_OFFSET: usize = 8 + 272;
-const SCOUT_KAMINO_RESERVE_COLLATERAL_MINT_OFFSET: usize = 8 + 2560;
-const SCOUT_KAMINO_RESERVE_COLLATERAL_SUPPLY_OFFSET: usize = 8 + 2600;
-const SCOUT_KAMINO_RESERVE_COLLATERAL_VAULT_OFFSET: usize = 8 + 2608;
-const SCOUT_KAMINO_OBLIGATION_DEPOSITS_OFFSET: usize = 8 + 96;
-const SCOUT_KAMINO_OBLIGATION_DEPOSIT_STRIDE: usize = 136;
 
 fn scout_kamino_program_id() -> Pubkey {
     "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD".parse().unwrap()
@@ -963,55 +953,6 @@ fn scout_write_u64(data: &mut [u8], offset: usize, value: u64) {
     data[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
 }
 
-fn scout_kamino_reserve_data(
-    program_id: Pubkey,
-    mint: Pubkey,
-    liquidity_supply: Pubkey,
-    collateral_mint: Pubkey,
-    collateral_supply: Pubkey,
-) -> Vec<u8> {
-    let mut data = vec![0u8; SCOUT_KAMINO_RESERVE_ACCOUNT_LEN];
-    data[..8].copy_from_slice(&[43, 242, 204, 202, 26, 247, 59, 127]);
-    scout_write_u64(&mut data, 8, 1);
-    scout_write_u64(&mut data, 16, u64::MAX);
-    data[25] = 63;
-    scout_write_pubkey(&mut data, 32, scout_kamino_lending_market(program_id));
-    scout_write_pubkey(&mut data, SCOUT_KAMINO_RESERVE_MINT_OFFSET, mint);
-    scout_write_pubkey(&mut data, SCOUT_KAMINO_RESERVE_SUPPLY_OFFSET, liquidity_supply);
-    scout_write_u64(&mut data, SCOUT_KAMINO_RESERVE_AVAILABLE_OFFSET, 1_000_000_000);
-    scout_write_u64(&mut data, SCOUT_KAMINO_RESERVE_DECIMALS_OFFSET, 6);
-    scout_write_pubkey(&mut data, 8 + 408, spl_token::id());
-    scout_write_pubkey(&mut data, SCOUT_KAMINO_RESERVE_COLLATERAL_MINT_OFFSET, collateral_mint);
-    scout_write_u64(&mut data, SCOUT_KAMINO_RESERVE_COLLATERAL_SUPPLY_OFFSET, 1_000_000_000);
-    scout_write_pubkey(&mut data, SCOUT_KAMINO_RESERVE_COLLATERAL_VAULT_OFFSET, collateral_supply);
-    data
-}
-
-fn scout_kamino_obligation_data(
-    program_id: Pubkey,
-    bank: Pubkey,
-    deposit_reserve: Pubkey,
-    deposited_amount: u64,
-    second_deposited_amount: u64,
-) -> Vec<u8> {
-    let mut data = vec![0u8; SCOUT_KAMINO_OBLIGATION_ACCOUNT_LEN];
-    data[..8].copy_from_slice(&[168, 206, 141, 106, 88, 76, 172, 167]);
-    scout_write_u64(&mut data, 8, 1);
-    scout_write_u64(&mut data, 16, u64::MAX);
-    data[25] = 63;
-    let liquidity_vault_authority =
-        Pubkey::find_program_address(&[LIQUIDITY_VAULT_AUTHORITY_SEED, bank.as_ref()], &program_id).0;
-    scout_write_pubkey(&mut data, 32, scout_kamino_lending_market(program_id));
-    scout_write_pubkey(&mut data, 64, liquidity_vault_authority);
-    scout_write_pubkey(&mut data, SCOUT_KAMINO_OBLIGATION_DEPOSITS_OFFSET, deposit_reserve);
-    scout_write_u64(&mut data, SCOUT_KAMINO_OBLIGATION_DEPOSITS_OFFSET + 32, deposited_amount);
-    scout_write_u64(
-        &mut data,
-        SCOUT_KAMINO_OBLIGATION_DEPOSITS_OFFSET + SCOUT_KAMINO_OBLIGATION_DEPOSIT_STRIDE + 32,
-        second_deposited_amount,
-    );
-    data
-}
 const SCOUT_KAMINO_RESERVE_DISCRIMINATOR: [u8; 8] = [43, 242, 204, 202, 26, 247, 59, 127];
 const SCOUT_KAMINO_RESERVE_LENDING_MARKET_OFFSET: usize = 8 + 24;
 const SCOUT_KAMINO_RESERVE_MINT_PUBKEY_OFFSET: usize = 8 + 120;
@@ -1582,8 +1523,8 @@ const SCOUT_BALANCE_STRIDE: usize = 104;
 const SCOUT_BALANCES_PER_ACCOUNT: usize = 16;
 const SCOUT_SHARE_SUM_TOLERANCE: fixed::types::I80F48 =
     fixed::types::I80F48::lit("0.000000001");
-// panic_unpause_permissionless requires elapsed >= PAUSE_DURATION_SECONDS (30min); +1s margin.
-const SCOUT_PANIC_PAUSE_EXPIRY_SECONDS: i64 = 30 * 60 + 1;
+// panic_unpause_permissionless requires elapsed >= PAUSE_DURATION_SECONDS (6h); +1s margin.
+const SCOUT_PANIC_PAUSE_EXPIRY_SECONDS: i64 = 6 * 60 * 60 + 1;
 // First Balance offsets in Anchor MarginfiAccount: disc(8)+group(32)+authority(32), then Balance
 // (user_account.rs): active(0), bank_pk(1), bank_asset_tag(33), asset_shares(40), liability_shares(56).
 const SCOUT_PULSE_FIRST_BALANCE_BASE_OFFSET: usize = 8 + 32 + 32;
@@ -1685,7 +1626,7 @@ const SCOUT_HANDLE_BANKRUPTCY_BANK_LAST_UPDATE_OFFSET: usize = 8 + 280;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_OPERATIONAL_STATE_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 312;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_LIABILITY_WEIGHT_INIT_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 32;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_LIABILITY_WEIGHT_MAINT_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 48;
-const SCOUT_HANDLE_BANKRUPTCY_BANK_ORACLE_MAX_AGE_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 506;
+const SCOUT_HANDLE_BANKRUPTCY_BANK_ORACLE_MAX_AGE_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 504;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_RISK_TIER_OFFSET: usize = SCOUT_BANK_CONFIG_OFFSET + 488;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_FLAGS_VALUE_OFFSET: usize = 8 + 832;
 const SCOUT_HANDLE_BANKRUPTCY_BANK_CLOSE_ENABLED_FLAG: u64 = 1 << 4;
@@ -2048,7 +1989,7 @@ const SCOUT_P11_ANY_OWNED: u64 = 0b0110_1111;
 const SCOUT_P11_BANK_DISCRIMINATOR: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
 const SCOUT_P11_GROUP_DISCRIMINATOR: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
 const SCOUT_P11_BANK_ACCOUNT_LEN: usize = 8 + 1856;
-const SCOUT_P11_GROUP_ACCOUNT_LEN: usize = 8 + 1056;
+const SCOUT_P11_GROUP_ACCOUNT_LEN: usize = 8 + 9248;
 const SCOUT_P11_GROUP_FLAGS_OFFSET: usize = 8 + 32;
 const SCOUT_P11_GROUP_AUTH_OFFSETS: [usize; 7] =
     [8, 8 + 120, 8 + 152, 8 + 184, 8 + 216, 8 + 288, 8 + 320];
@@ -2494,8 +2435,8 @@ const SCOUT_PIR_IRC_CURVE_TYPE: usize = 176;
 const SCOUT_PIR_CURVE_POINTS: usize = 5;
 const SCOUT_PIR_RATE_POINT_STRIDE: usize = 8;
 
-// MarginfiGroup (size 1056): fee_state_cache @40.
-const SCOUT_PIR_GROUP_LEN: usize = 8 + 1056;
+// MarginfiGroup (size 9248): fee_state_cache @40.
+const SCOUT_PIR_GROUP_LEN: usize = 8 + 9248;
 const SCOUT_PIR_GROUP_FLAGS_OFFSET: usize = 8 + 32;
 const SCOUT_PIR_GROUP_PROGRAM_FEE_FIXED_OFFSET: usize = 8 + 40 + 32;
 const SCOUT_PIR_GROUP_PROGRAM_FEE_RATE_OFFSET: usize = 8 + 40 + 48;
@@ -2571,7 +2512,7 @@ const SCOUT_P9_PROGRAM_VERSION: u8 = 3;
 const SCOUT_P9_ACCOUNT_COUNT: usize = 4;
 // P-0008 byte layout: MarginfiGroup's fee_state_cache and panic_state_cache fields.
 const SCOUT_P8_GROUP_DISCRIMINATOR: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
-const SCOUT_P8_GROUP_LEN: usize = 8 + 1056;
+const SCOUT_P8_GROUP_LEN: usize = 8 + 9248;
 const SCOUT_P8_GROUP_CACHED_WALLET_OFFSET: usize = 8 + 40;
 const SCOUT_P8_GROUP_CACHED_FEE_FIXED_OFFSET: usize = 8 + 72;
 const SCOUT_P8_GROUP_CACHED_FEE_RATE_OFFSET: usize = 8 + 88;
@@ -2579,7 +2520,6 @@ const SCOUT_P8_GROUP_FEE_CACHE_STAMP_OFFSET: usize = 8 + 104;
 const SCOUT_P8_GROUP_PROPAGATION_STAMP_OFFSET: usize = 8 + 264;
 // FeeState field layout (fee_state.rs).
 const SCOUT_P8_FEE_STATE_DISCRIMINATOR: [u8; 8] = [63, 224, 16, 85, 193, 36, 235, 220];
-const SCOUT_P8_FEE_STATE_LEN: usize = 8 + 256;
 const SCOUT_P8_FEE_STATE_WALLET_OFFSET: usize = 72;
 const SCOUT_P8_FEE_STATE_FEE_FIXED_OFFSET: usize = 136;
 const SCOUT_P8_FEE_STATE_FEE_RATE_OFFSET: usize = 152;
@@ -2590,7 +2530,7 @@ const SCOUT_P8_ARMS: u8 = 3;
 // approximate), last_daily_reset_timestamp. `configure_deleverage_withdrawal_limit` is the only
 // admin-gated writer of daily_limit and does NOT clear withdrawn_today. `update_withdrawn_equity`
 // is the only writer of withdrawn_today, called from four sites all gated on ACCOUNT_IN_DELEVERAGE.
-const SCOUT_P15_GROUP_ACCOUNT_LEN: usize = 8 + 1056;
+const SCOUT_P15_GROUP_ACCOUNT_LEN: usize = 8 + 9248;
 const SCOUT_P15_GROUP_DISCRIMINATOR: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
 const SCOUT_P15_GROUP_DAILY_LIMIT_OFFSET: usize = 8 + 272;
 const SCOUT_P15_GROUP_WITHDRAWN_TODAY_OFFSET: usize = 8 + 276;
@@ -2622,6 +2562,9 @@ struct MarginfiFixture {
     ctx: crate::__scout_crucible_test_context::TestContext,
     program_id: Pubkey,
     payer: Rc<Keypair>,
+    // Distinct funded authority for liquidation/deleverage/receivership target accounts:
+    // in-receivership withdraw/repay require account.authority != signer.
+    probe_user: Rc<Keypair>,
     // SCOUT:FIELDS:BEGIN
     scout_known_accounts: [Pubkey; SCOUT_KNOWN_CAP],
     scout_known_next: usize,
@@ -2672,6 +2615,10 @@ struct MarginfiFixture {
     bank_mint: Pubkey,
     bank: Pubkey,
     signer_token_account: Pubkey,
+    probe_user_token_account: Pubkey,
+    // Bracket token flows (seize destination / repay source) route here so P-0001's view of the
+    // payer (signer_token_account + payer-owned accounts) stays neutral on liquidation premiums.
+    receiver_token_account: Pubkey,
 
     staked_group: Pubkey,
     staked_settings: Pubkey,
@@ -2705,6 +2652,8 @@ struct MarginfiFixture {
     borrow_asset_bank: Pubkey,
     borrow_remaining_accounts: Vec<Pubkey>,
     perm_stake_pool: Pubkey,
+    perm_validator_vote_account: Pubkey,
+    perm_pool_onramp: Pubkey,
     scout_p22_accounts: [Pubkey; SCOUT_SUBJECT_CAP],
     scout_p22_accounts_next: usize,
     scout_p22_solvency: Vec<(Pubkey, bool)>,
@@ -2898,6 +2847,9 @@ impl MarginfiFixture {
         let payer = Rc::new(Keypair::new());
         ctx.create_account().pubkey(payer.pubkey()).lamports(1_000_000_000)
             .owner(system_program::ID).create().unwrap();
+        let probe_user = Rc::new(Keypair::new());
+        ctx.create_account().pubkey(probe_user.pubkey()).lamports(1_000_000_000)
+            .owner(system_program::ID).create().unwrap();
         // SCOUT:SETUP-GLUE:BEGIN
         let bank_mint_pubkey = ctx
             .create_mint()
@@ -2916,6 +2868,24 @@ impl MarginfiFixture {
             .unwrap();
 
         let signer_token_account_pubkey = ctx
+            .create_token_account()
+            .pubkey(Pubkey::new_unique())
+            .mint(bank_mint_pubkey)
+            .token_owner(payer.pubkey())
+            .amount(u64::MAX)
+            .create()
+            .unwrap();
+
+        let probe_user_token_account_pubkey = ctx
+            .create_token_account()
+            .pubkey(Pubkey::new_unique())
+            .mint(bank_mint_pubkey)
+            .token_owner(probe_user.pubkey())
+            .amount(u64::MAX)
+            .create()
+            .unwrap();
+
+        let receiver_token_account_pubkey = ctx
             .create_token_account()
             .pubkey(Pubkey::new_unique())
             .mint(bank_mint_pubkey)
@@ -3089,12 +3059,15 @@ impl MarginfiFixture {
     ctx: ctx,
     program_id: program_id,
     payer: payer,
+    probe_user: probe_user,
     marginfi_group: Pubkey::default(),
     marginfi_account: Pubkey::default(),
     global_fee_wallet: global_fee_wallet_pubkey,
     bank_mint: bank_mint_pubkey,
     bank: Pubkey::default(),
     signer_token_account: signer_token_account_pubkey,
+    probe_user_token_account: probe_user_token_account_pubkey,
+    receiver_token_account: receiver_token_account_pubkey,
     staked_group: Pubkey::default(),
     staked_settings: Pubkey::default(),
     staked_bank: Pubkey::default(),
@@ -3129,6 +3102,8 @@ impl MarginfiFixture {
     scout_liq_liquidatee: Pubkey::default(),
     scout_liq_remaining: Vec::new(),
     perm_stake_pool: Pubkey::default(),
+    perm_validator_vote_account: Pubkey::default(),
+    perm_pool_onramp: Pubkey::default(),
     scout_p22_accounts: [Pubkey::default(); SCOUT_SUBJECT_CAP],
     scout_p22_accounts_next: 0,
     scout_p22_solvency: Vec::new(),
@@ -3969,7 +3944,15 @@ impl MarginfiFixture {
             .data(&kamino_deposit_reserve_bytes)
             .create()
             .unwrap();
-
+        fixture.ctx
+            .update_account(&kamino_deposit_reserve_pubkey, |data| {
+                scout_write_u64(
+                    data,
+                    SCOUT_KAMINO_RESERVE_MINT_TOTAL_SUPPLY_OFFSET,
+                    1_000_000,
+                );
+            })
+            .unwrap();
         let kamino_withdraw_lending_market = scout_kamino_lending_market(fixture.program_id);
         let kamino_withdraw_reserve_pubkey = Pubkey::new_unique();
         let kamino_withdraw_reserve_bytes = scout_kamino_reserve_bytes(
@@ -4256,8 +4239,8 @@ impl MarginfiFixture {
         let fee_payer = self.payer.pubkey();
         let bank_mint = match self.scout_prepare_add_bank_permissionless() { Some(v) => v, None => return false };
         let sol_pool = Pubkey::find_program_address(&[b"stake", self.perm_stake_pool.as_ref()], &spl_single_pool_id()).0;
-        let perm_pool_onramp = self.scout_placeholder();
-        let perm_validator_vote_account = self.scout_placeholder();
+        let perm_pool_onramp = self.perm_pool_onramp;
+        let perm_validator_vote_account = self.perm_validator_vote_account;
         let stake_pool = self.perm_stake_pool;
         let bank = Pubkey::find_program_address(&[marginfi_group.as_ref(), bank_mint.as_ref(), &bank_seed.to_le_bytes()], &self.program_id).0;
         let (liquidity_vault_authority, liquidity_vault, insurance_vault_authority, insurance_vault, fee_vault_authority, fee_vault) = scout_bank_vault_pdas(self.program_id, bank);
@@ -6283,6 +6266,87 @@ impl MarginfiFixture {
         Some(marginfi_account)
     }
 
+    // Receivership-bracket targets must not be payer-owned: in-receivership withdraw/repay call
+    // is_signer_authorized with allow_receivership=true, which requires account.authority !=
+    // signer. These accounts are owned by probe_user; their setup deposits/borrows are signed by
+    // probe_user and fund/route through probe_user_token_account.
+    fn scout_create_probe_user_marginfi_account(&mut self) -> Option<Pubkey> {
+        let marginfi_account_keypair = Keypair::new();
+        let marginfi_account = marginfi_account_keypair.pubkey();
+        if !(self.ctx
+                .program(self.program_id)
+                .call(instruction::MarginfiAccountInitialize {})
+                .accounts(accounts::MarginfiAccountInitialize {
+                    marginfi_group: self.marginfi_group,
+                    marginfi_account,
+                    authority: self.probe_user.pubkey(),
+                    fee_payer: self.payer.pubkey(),
+                })
+                .signers(&[&*self.payer, &*self.probe_user, &marginfi_account_keypair])
+                .send()
+                .map(|o| o.is_success())
+                .unwrap_or(false)) {
+            return None;
+        }
+        self.scout_register_subject_account(marginfi_account);
+        Some(marginfi_account)
+    }
+
+    fn scout_probe_user_deposit(&mut self, marginfi_account: Pubkey, bank: Pubkey, amount: u64) -> bool {
+        let liquidity_vault = Pubkey::find_program_address(&[LIQUIDITY_VAULT_SEED, bank.as_ref()], &self.program_id).0;
+        if !(self.ctx
+                .program(self.program_id)
+                .call(instruction::LendingAccountDeposit { amount, deposit_up_to_limit: None })
+                .accounts(accounts::LendingAccountDeposit {
+                    group: self.marginfi_group,
+                    marginfi_account,
+                    authority: self.probe_user.pubkey(),
+                    bank,
+                    signer_token_account: self.probe_user_token_account,
+                    liquidity_vault,
+                    token_program: spl_token::id(),
+                })
+                .signers(&[&*self.payer, &*self.probe_user])
+                .send()
+                .map(|o| o.is_success())
+                .unwrap_or(false)) {
+            return false;
+        }
+        true
+    }
+
+    fn scout_probe_user_borrow(
+        &mut self,
+        marginfi_account: Pubkey,
+        bank: Pubkey,
+        amount: u64,
+        remaining_accounts: Vec<Pubkey>,
+    ) -> bool {
+        let bank_liquidity_vault_authority = Pubkey::find_program_address(&[LIQUIDITY_VAULT_AUTHORITY_SEED, bank.as_ref()], &self.program_id).0;
+        let liquidity_vault = Pubkey::find_program_address(&[LIQUIDITY_VAULT_SEED, bank.as_ref()], &self.program_id).0;
+        if !(self.ctx
+                .program(self.program_id)
+                .call(instruction::LendingAccountBorrow { amount })
+                .accounts(accounts::LendingAccountBorrow {
+                    group: self.marginfi_group,
+                    marginfi_account,
+                    authority: self.probe_user.pubkey(),
+                    bank,
+                    destination_token_account: self.probe_user_token_account,
+                    bank_liquidity_vault_authority,
+                    liquidity_vault,
+                    token_program: spl_token::id(),
+                })
+                .remaining_accounts(remaining_accounts)
+                .signers(&[&*self.payer, &*self.probe_user])
+                .send()
+                .map(|o| o.is_success())
+                .unwrap_or(false)) {
+            return false;
+        }
+        true
+    }
+
     fn scout_create_lending_account_repay_marginfi_account(&mut self) -> Option<Pubkey> {
         self.scout_create_initialized_marginfi_account()
     }
@@ -6689,7 +6753,20 @@ impl MarginfiFixture {
     }
 
     pub fn action_lending_pool_add_bank_permissionless_staked(&mut self, bank_seed: u64) -> bool {
-        let stake_pool_pubkey = Pubkey::new_unique();
+        // add_pool_permissionless re-derives the whole single-pool chain from the validator
+        // vote account (staked_pool_utils.rs), so build it in that direction:
+        // vote -> stake_pool -> {mint, sol_pool, onramp}.
+        let staked_validator_vote_account = Pubkey::new_unique();
+        self.ctx.create_account()
+            .pubkey(staked_validator_vote_account)
+            .owner(vote_program_id())
+            .lamports(1_000_000)
+            .create()
+            .unwrap();
+        let (stake_pool_pubkey, _) = Pubkey::find_program_address(
+            &[b"pool", staked_validator_vote_account.as_ref()],
+            &spl_single_pool_id(),
+        );
         self.ctx.create_account()
             .pubkey(stake_pool_pubkey)
             .owner(spl_single_pool_id())
@@ -6704,6 +6781,10 @@ impl MarginfiFixture {
             &[b"stake", stake_pool_pubkey.as_ref()],
             &spl_single_pool_id(),
         );
+        let (staked_pool_onramp, _) = Pubkey::find_program_address(
+            &[b"onramp", stake_pool_pubkey.as_ref()],
+            &spl_single_pool_id(),
+        );
         self.ctx.create_mint()
             .pubkey(lst_mint_pda)
             .decimals(9)
@@ -6716,8 +6797,12 @@ impl MarginfiFixture {
             .lamports(1_000_000)
             .create()
             .unwrap();
-        let staked_pool_onramp = self.scout_placeholder();
-        let staked_validator_vote_account = self.scout_placeholder();
+        self.ctx.create_account()
+            .pubkey(staked_pool_onramp)
+            .owner(native_stake_id())
+            .lamports(1_000_000)
+            .create()
+            .unwrap();
 
         let (bank_pubkey, _) = Pubkey::find_program_address(
             &[self.staked_group.as_ref(), lst_mint_pda.as_ref(), &bank_seed.to_le_bytes()],
@@ -6751,7 +6836,7 @@ impl MarginfiFixture {
                 fee_vault,
                 token_program: spl_token::id(),
             })
-            .remaining_accounts(vec![self.staked_oracle, lst_mint_pda, sol_pool_pda])
+            .remaining_accounts(vec![self.staked_oracle, lst_mint_pda, sol_pool_pda, staked_pool_onramp])
             .signers(&[&*self.payer])
             .send()
             .map(|o| o.is_success())
@@ -8726,15 +8811,15 @@ impl MarginfiFixture {
             return None;
         }
         let provider = self.scout_create_initialized_marginfi_account()?;
-        let liquidatee = self.scout_create_initialized_marginfi_account()?;
+        let liquidatee = self.scout_create_probe_user_marginfi_account()?;
         if !self.scout_liquidate_deposit(provider, liab_bank, SCOUT_P33_LIQUIDITY_DEPOSIT_AMOUNT) {
             return None;
         }
-        if !self.scout_liquidate_deposit(liquidatee, asset_bank, SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT) {
+        if !self.scout_probe_user_deposit(liquidatee, asset_bank, SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT) {
             return None;
         }
         let sorted_pair = if asset_bank.to_bytes() > liab_bank.to_bytes() { [asset_bank, liab_bank] } else { [liab_bank, asset_bank] };
-        if !self.scout_liquidate_borrow(liquidatee, liab_bank, SCOUT_P33_BORROW_AMOUNT, sorted_pair.to_vec()) {
+        if !self.scout_probe_user_borrow(liquidatee, liab_bank, SCOUT_P33_BORROW_AMOUNT, sorted_pair.to_vec()) {
             return None;
         }
         if !self.scout_liquidate_set_fixed_price(asset_bank, fixed::types::I80F48::from_num(SCOUT_P33_CRASHED_PRICE)) {
@@ -8830,7 +8915,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: asset_bank,
-                destination_token_account: self.signer_token_account,
+                destination_token_account: self.receiver_token_account,
                 bank_liquidity_vault_authority: asset_vault_authority,
                 liquidity_vault: asset_liquidity_vault,
                 token_program: spl_token::id(),
@@ -8845,7 +8930,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: liab_bank,
-                signer_token_account: self.signer_token_account,
+                signer_token_account: self.receiver_token_account,
                 liquidity_vault: liab_liquidity_vault,
                 token_program: spl_token::id(),
             },
@@ -9009,7 +9094,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: risk_admin,
                 bank: asset_bank,
-                destination_token_account: self.signer_token_account,
+                destination_token_account: self.receiver_token_account,
                 bank_liquidity_vault_authority: asset_vault_authority,
                 liquidity_vault: asset_liquidity_vault,
                 token_program: spl_token::id(),
@@ -9024,7 +9109,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: risk_admin,
                 bank: liab_bank,
-                signer_token_account: self.signer_token_account,
+                signer_token_account: self.receiver_token_account,
                 liquidity_vault: liab_liquidity_vault,
                 token_program: spl_token::id(),
             },
@@ -9087,7 +9172,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: asset_bank,
-                destination_token_account: self.signer_token_account,
+                destination_token_account: self.receiver_token_account,
                 bank_liquidity_vault_authority: asset_vault_authority,
                 liquidity_vault: asset_liquidity_vault,
                 token_program: spl_token::id(),
@@ -9102,7 +9187,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: liab_bank,
-                signer_token_account: self.signer_token_account,
+                signer_token_account: self.receiver_token_account,
                 liquidity_vault: liab_liquidity_vault,
                 token_program: spl_token::id(),
             },
@@ -9723,8 +9808,12 @@ impl MarginfiFixture {
         bank
     }
 
-    fn scout_mint_fresh_withdraw_pair(&mut self, deposit_amount: u64) -> Option<(Pubkey, Pubkey, Pubkey)> {
-        let marginfi_account = self.scout_create_initialized_marginfi_account()?;
+    fn scout_mint_fresh_withdraw_pair(&mut self, deposit_amount: u64, probe_user_authority: bool) -> Option<(Pubkey, Pubkey, Pubkey)> {
+        let marginfi_account = if probe_user_authority {
+            self.scout_create_probe_user_marginfi_account()?
+        } else {
+            self.scout_create_initialized_marginfi_account()?
+        };
         let bank_keypair = Keypair::new();
         let bank = bank_keypair.pubkey();
         let (
@@ -9748,7 +9837,11 @@ impl MarginfiFixture {
                 .unwrap_or(false)) {
             return None;
         }
-        if !(self.ctx
+        if probe_user_authority {
+            if !self.scout_probe_user_deposit(marginfi_account, bank, deposit_amount) {
+                return None;
+            }
+        } else if !(self.ctx
                 .program(self.program_id)
                 .call(instruction::LendingAccountDeposit {
                     amount: deposit_amount,
@@ -9782,6 +9875,7 @@ impl MarginfiFixture {
         liquidity_vault: Pubkey,
         amount: u64,
         withdraw_all: Option<bool>,
+        destination_token_account: Pubkey,
     ) -> bool {
         let bank_liquidity_vault_authority = Pubkey::find_program_address(
             &[LIQUIDITY_VAULT_AUTHORITY_SEED, bank.as_ref()],
@@ -9799,7 +9893,7 @@ impl MarginfiFixture {
                 marginfi_account,
                 authority: self.payer.pubkey(),
                 bank,
-                destination_token_account: self.signer_token_account,
+                destination_token_account,
                 bank_liquidity_vault_authority,
                 liquidity_vault,
                 token_program: spl_token::id(),
@@ -9815,14 +9909,14 @@ impl MarginfiFixture {
         let withdraw_amount = (amount % 900_000) + 1;
         let deposit_amount = withdraw_amount + SCOUT_WITHDRAW_SETUP_DEPOSIT_AMOUNT;
         let (marginfi_account, bank, liquidity_vault) =
-            match self.scout_mint_fresh_withdraw_pair(deposit_amount) { Some(v) => v, None => return false };
-        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, withdraw_amount, Some(false))
+            match self.scout_mint_fresh_withdraw_pair(deposit_amount, false) { Some(v) => v, None => return false };
+        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, withdraw_amount, Some(false), self.signer_token_account)
     }
 
     pub fn action_lending_account_withdraw_tokenless_complete(&mut self) -> bool {
         let deposit_amount = SCOUT_WITHDRAW_SETUP_DEPOSIT_AMOUNT;
         let (marginfi_account, bank, liquidity_vault) =
-            match self.scout_mint_fresh_withdraw_pair(deposit_amount) { Some(v) => v, None => return false };
+            match self.scout_mint_fresh_withdraw_pair(deposit_amount, false) { Some(v) => v, None => return false };
         let mut bank_flags_patched = false;
         if self
             .ctx
@@ -9844,13 +9938,13 @@ impl MarginfiFixture {
         if !bank_flags_patched {
             return false;
         }
-        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, None)
+        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, None, self.signer_token_account)
     }
 
     pub fn action_lending_account_withdraw_deleverage(&mut self) -> bool {
         let deposit_amount = SCOUT_WITHDRAW_SETUP_DEPOSIT_AMOUNT;
         let (marginfi_account, bank, liquidity_vault) =
-            match self.scout_mint_fresh_withdraw_pair(deposit_amount) { Some(v) => v, None => return false };
+            match self.scout_mint_fresh_withdraw_pair(deposit_amount, false) { Some(v) => v, None => return false };
         let mut account_flags_patched = false;
         if self
             .ctx
@@ -9875,13 +9969,13 @@ impl MarginfiFixture {
         if !self.scout_p17_harness_flagged.contains(&marginfi_account) {
             self.scout_p17_harness_flagged.push(marginfi_account);
         }
-        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, None)
+        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, None, self.signer_token_account)
     }
 
     pub fn action_lending_account_withdraw_receivership(&mut self) -> bool {
         let deposit_amount = SCOUT_WITHDRAW_SETUP_DEPOSIT_AMOUNT;
         let (marginfi_account, bank, liquidity_vault) =
-            match self.scout_mint_fresh_withdraw_pair(deposit_amount) { Some(v) => v, None => return false };
+            match self.scout_mint_fresh_withdraw_pair(deposit_amount, true) { Some(v) => v, None => return false };
         let mut account_flags_patched = false;
         if self
             .ctx
@@ -9941,7 +10035,7 @@ impl MarginfiFixture {
         if !bank_config_patched {
             return false;
         }
-        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, Some(true))
+        self.scout_send_withdraw(marginfi_account, bank, liquidity_vault, deposit_amount, Some(true), self.receiver_token_account)
     }
 
     pub fn action_propagate_staked_settings_oracle_changed(&mut self) -> bool {
@@ -10074,31 +10168,71 @@ impl MarginfiFixture {
     }
 
     pub fn action_lending_pool_handle_bankruptcy_token2022_append(&mut self) -> bool {
-        let Some((marginfi_account, bank, liquidity_vault, insurance_vault, insurance_vault_authority)) =
-            self.scout_prepare_lending_pool_handle_bankruptcy_accounts()
-        else {
-            return false;
-        };
+        // Coherent Token-2022 fixture end-to-end: real T22 mint, a real T22 bank (T22 vaults),
+        // and a real bankrupt borrower, so maybe_take_bank_mint and the insurance-vault transfer
+        // actually exercise the Token-2022 program path.
         let token_2022_id: Pubkey = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
             .parse()
             .unwrap();
-        self.ctx
+        let liab_mint = match self.scout_create_t22_fee_mint(0, 0, 6) { Some(v) => v, None => return false };
+        let coll_bank = match self.scout_liquidate_add_bank(scout_liquidation_bank_config()) { Some(v) => v, None => return false };
+        let liab_bank = match self.scout_add_t22_bank(scout_valid_bank_config(10), liab_mint) { Some(v) => v, None => return false };
+        if coll_bank == liab_bank || !self.scout_liquidate_raise_liab_bank_limits(liab_bank) {
+            return false;
+        }
+        if !self.scout_liquidate_set_fixed_price(coll_bank, fixed::types::I80F48::from_num(10)) {
+            return false;
+        }
+        if !self.scout_liquidate_set_fixed_price(liab_bank, fixed::types::I80F48::ONE) {
+            return false;
+        }
+        let provider = match self.scout_create_initialized_marginfi_account() { Some(v) => v, None => return false };
+        let borrower = match self.scout_create_initialized_marginfi_account() { Some(v) => v, None => return false };
+        let payer_pk = self.payer.pubkey();
+        let provider_ta = match self.scout_create_t22_token_account(liab_mint, payer_pk, SCOUT_P33_LIQUIDITY_DEPOSIT_AMOUNT.saturating_mul(8)) { Some(v) => v, None => return false };
+        if !self.scout_t22_deposit(provider, liab_bank, liab_mint, SCOUT_P33_LIQUIDITY_DEPOSIT_AMOUNT, provider_ta) {
+            return false;
+        }
+        if !self.scout_liquidate_deposit(borrower, coll_bank, SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT) {
+            return false;
+        }
+        let sorted_pair = if coll_bank.to_bytes() > liab_bank.to_bytes() {
+            [coll_bank, liab_bank]
+        } else {
+            [liab_bank, coll_bank]
+        };
+        let borrower_ta = match self.scout_create_t22_token_account(liab_mint, payer_pk, 0) { Some(v) => v, None => return false };
+        if !self.scout_t22_borrow(borrower, liab_bank, liab_mint, SCOUT_P33_BORROW_AMOUNT, borrower_ta, sorted_pair.to_vec()) {
+            return false;
+        }
+        // Crash the collateral to zero so the borrower is genuinely bankrupt, then restore it.
+        if !self.scout_liquidate_set_fixed_price(coll_bank, fixed::types::I80F48::from_num(SCOUT_RL_ZERO_PRICE)) {
+            return false;
+        }
+        let (_, liquidity_vault, insurance_vault_authority, insurance_vault, _, _) =
+            scout_bank_vault_pdas(self.program_id, liab_bank);
+        let mut remaining = vec![liab_mint];
+        remaining.extend(sorted_pair);
+        let result = self.ctx
             .program(self.program_id)
             .call(instruction::LendingPoolHandleBankruptcy {})
             .accounts(accounts::LendingPoolHandleBankruptcy {
                 group: self.marginfi_group,
                 signer: self.payer.pubkey(),
-                bank,
-                marginfi_account,
+                bank: liab_bank,
+                marginfi_account: borrower,
                 liquidity_vault,
                 insurance_vault,
                 insurance_vault_authority,
                 token_program: token_2022_id,
             })
-            .remaining_accounts(vec![self.bank_mint, bank])
+            .remaining_accounts(remaining)
             .signers(&[&*self.payer])
             .send()
-            .is_ok()
+            .map(|o| o.is_success())
+            .unwrap_or(false);
+        let _ = self.scout_liquidate_set_fixed_price(coll_bank, fixed::types::I80F48::from_num(10));
+        result
     }
 
     pub fn action_start_deleverage_with_matching_end(&mut self) -> bool {
@@ -11377,7 +11511,7 @@ impl MarginfiFixture {
     }
 
     /// QUEUE (never send) one borrow inside the bracket.
-    fn scout_queue_flashloan_borrow(&mut self, account: Pubkey, bank: Pubkey, amount: u64) {
+    fn scout_queue_flashloan_borrow(&mut self, account: Pubkey, bank: Pubkey, amount: u64, remaining_accounts: Vec<Pubkey>) {
         let bank_liquidity_vault_authority = Pubkey::find_program_address(
             &[LIQUIDITY_VAULT_AUTHORITY_SEED, bank.as_ref()],
             &self.program_id,
@@ -11399,13 +11533,13 @@ impl MarginfiFixture {
                 liquidity_vault,
                 token_program: spl_token::id(),
             })
-            .remaining_accounts(vec![bank])
+            .remaining_accounts(remaining_accounts)
             .signers(&[&*self.payer])
             .add_transaction();
     }
 
     /// QUEUE (never send) one withdraw inside the bracket.
-    fn scout_queue_flashloan_withdraw(&mut self, account: Pubkey, bank: Pubkey, amount: u64) {
+    fn scout_queue_flashloan_withdraw(&mut self, account: Pubkey, bank: Pubkey, amount: u64, remaining_accounts: Vec<Pubkey>) {
         let bank_liquidity_vault_authority = Pubkey::find_program_address(
             &[LIQUIDITY_VAULT_AUTHORITY_SEED, bank.as_ref()],
             &self.program_id,
@@ -11430,7 +11564,7 @@ impl MarginfiFixture {
                 liquidity_vault,
                 token_program: spl_token::id(),
             })
-            .remaining_accounts(vec![bank])
+            .remaining_accounts(remaining_accounts)
             .signers(&[&*self.payer])
             .add_transaction();
     }
@@ -11476,8 +11610,8 @@ impl MarginfiFixture {
     ) {
         match choice % 5 {
             0 => self.scout_queue_flashloan_deposit(account, asset_bank, amount),
-            1 => self.scout_queue_flashloan_borrow(account, liab_bank, amount),
-            2 => self.scout_queue_flashloan_withdraw(account, asset_bank, amount),
+            1 => self.scout_queue_flashloan_borrow(account, liab_bank, amount, vec![asset_bank, liab_bank]),
+            2 => self.scout_queue_flashloan_withdraw(account, asset_bank, amount, vec![asset_bank, liab_bank]),
             3 => self.scout_queue_flashloan_repay(account, liab_bank, amount, amount % 2 == 0),
             _ => {}
         }
@@ -11661,13 +11795,30 @@ impl MarginfiFixture {
         }
         Some(self.borrow_liab_bank)
     }
-    /// Mint a fresh `stake_pool -> lst_mint -> sol_pool` triple for `action_lending_pool_add_bank_permissionless`; returns `lst_mint`.
+    /// Mint a fresh `vote -> stake_pool -> lst_mint -> sol_pool -> onramp` chain for
+    /// `action_lending_pool_add_bank_permissionless`; returns `lst_mint`. The pool must be
+    /// derived FROM a validator vote account: add_pool_permissionless re-derives the entire
+    /// chain from the vote account and rejects anything that does not match
+    /// (staked_pool_utils.rs / type-crate pdas.rs).
     fn scout_prepare_add_bank_permissionless(&mut self) -> Option<Pubkey> {
-        let stake_pool = Pubkey::new_unique();
+        let validator_vote_account = Pubkey::new_unique();
+        self.ctx
+            .create_account()
+            .pubkey(validator_vote_account)
+            .owner(vote_program_id())
+            .lamports(1_000_000)
+            .create()
+            .ok()?;
+        let (stake_pool, _) = Pubkey::find_program_address(
+            &[b"pool", validator_vote_account.as_ref()],
+            &spl_single_pool_id(),
+        );
         let (lst_mint, _) =
             Pubkey::find_program_address(&[b"mint", stake_pool.as_ref()], &spl_single_pool_id());
         let (sol_pool, _) =
             Pubkey::find_program_address(&[b"stake", stake_pool.as_ref()], &spl_single_pool_id());
+        let (pool_onramp, _) =
+            Pubkey::find_program_address(&[b"onramp", stake_pool.as_ref()], &spl_single_pool_id());
         self.ctx
             .create_account()
             .pubkey(stake_pool)
@@ -11689,7 +11840,16 @@ impl MarginfiFixture {
             .lamports(1_000_000)
             .create()
             .ok()?;
+        self.ctx
+            .create_account()
+            .pubkey(pool_onramp)
+            .owner(native_stake_id())
+            .lamports(1_000_000)
+            .create()
+            .ok()?;
         self.perm_stake_pool = stake_pool;
+        self.perm_validator_vote_account = validator_vote_account;
+        self.perm_pool_onramp = pool_onramp;
         Some(lst_mint)
     }
     // ---- P-0037 / P-0038 probe machinery ---------------------------------------------------
@@ -12643,7 +12803,7 @@ impl MarginfiFixture {
 
     // P-0029's probe: run the two real instructions that move the three fee counters in opposite directions, against `self.fee_bank`.
     pub fn action_fee_conservation_probe(&mut self) -> bool {
-        const P29_GROUP_LEN: usize = 8 + 1056;
+        const P29_GROUP_LEN: usize = 8 + 9248;
         const P29_GROUP_PROGRAM_FEE_RATE: usize = 8 + 40 + 48;
         const P29_BORROW_AMOUNT: u64 = 1_000_000;
 
@@ -14826,7 +14986,7 @@ impl MarginfiFixture {
                 SCOUT_P28_ACC_TAIL_PAD_OFFSET,
                 SCOUT_P28_ACC_LEN,
                 SCOUT_P28_ACC_BIT_TAIL_PAD,
-                false,
+                allow_health_cache,
             ),
         ];
         for entry in fixed_regions.iter() {
@@ -15332,6 +15492,7 @@ impl MarginfiFixture {
     fn scout_liq_parity_scenario(
         &mut self,
         liquidator_liab_seed: u64,
+        probe_user_liquidatee: bool,
     ) -> Option<(Pubkey, Pubkey, Pubkey, Pubkey, [Pubkey; 2])> {
         let asset_bank = self.scout_liquidate_add_bank(scout_liquidation_bank_config())?;
         let liab_bank = self.scout_liquidate_add_bank(scout_valid_bank_config(10))?;
@@ -15346,7 +15507,11 @@ impl MarginfiFixture {
         }
         let liquidity_provider = self.scout_create_initialized_marginfi_account()?;
         let liquidator = self.scout_create_initialized_marginfi_account()?;
-        let liquidatee = self.scout_create_initialized_marginfi_account()?;
+        let liquidatee = if probe_user_liquidatee {
+            self.scout_create_probe_user_marginfi_account()?
+        } else {
+            self.scout_create_initialized_marginfi_account()?
+        };
         if liquidator == liquidatee {
             return None;
         }
@@ -15367,11 +15532,12 @@ impl MarginfiFixture {
         ) {
             return None;
         }
-        if !self.scout_liquidate_deposit(
-            liquidatee,
-            asset_bank,
-            SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT,
-        ) {
+        let liquidatee_deposited = if probe_user_liquidatee {
+            self.scout_probe_user_deposit(liquidatee, asset_bank, SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT)
+        } else {
+            self.scout_liquidate_deposit(liquidatee, asset_bank, SCOUT_P33_COLLATERAL_DEPOSIT_AMOUNT)
+        };
+        if !liquidatee_deposited {
             return None;
         }
         if !self.scout_liquidate_deposit(
@@ -15391,12 +15557,12 @@ impl MarginfiFixture {
         } else {
             [liab_bank, asset_bank]
         };
-        if !self.scout_liquidate_borrow(
-            liquidatee,
-            liab_bank,
-            SCOUT_P33_BORROW_AMOUNT,
-            sorted_pair.to_vec(),
-        ) {
+        let liquidatee_borrowed = if probe_user_liquidatee {
+            self.scout_probe_user_borrow(liquidatee, liab_bank, SCOUT_P33_BORROW_AMOUNT, sorted_pair.to_vec())
+        } else {
+            self.scout_liquidate_borrow(liquidatee, liab_bank, SCOUT_P33_BORROW_AMOUNT, sorted_pair.to_vec())
+        };
+        if !liquidatee_borrowed {
             return None;
         }
         if !self.scout_liquidate_set_fixed_price(
@@ -15437,7 +15603,7 @@ impl MarginfiFixture {
             _ => 0,
         };
         let (asset_bank, liab_bank, liquidator, liquidatee, sorted_pair) =
-            match self.scout_liq_parity_scenario(liquidator_liab_seed) {
+            match self.scout_liq_parity_scenario(liquidator_liab_seed, false) {
                 Some(v) => v,
                 None => return false,
             };
@@ -15596,7 +15762,7 @@ impl MarginfiFixture {
             SCOUT_P32_HEALTH_NEUTRAL_REPAY_AMOUNT
         };
         let (asset_bank, liab_bank, _liquidator, liquidatee, sorted_pair) =
-            match self.scout_liq_parity_scenario(0) {
+            match self.scout_liq_parity_scenario(0, true) {
                 Some(v) => v,
                 None => return false,
             };
@@ -15681,7 +15847,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: asset_bank,
-                destination_token_account: self.signer_token_account,
+                destination_token_account: self.receiver_token_account,
                 bank_liquidity_vault_authority: asset_vault_authority,
                 liquidity_vault: asset_liquidity_vault,
                 token_program: spl_token::id(),
@@ -15701,7 +15867,7 @@ impl MarginfiFixture {
                 marginfi_account: liquidatee,
                 authority: receiver,
                 bank: liab_bank,
-                signer_token_account: self.signer_token_account,
+                signer_token_account: self.receiver_token_account,
                 liquidity_vault: liab_liquidity_vault,
                 token_program: spl_token::id(),
             },
@@ -16368,7 +16534,7 @@ impl MarginfiFixture {
             return None;
         }
         let provider = self.scout_create_initialized_marginfi_account()?;
-        let deleveragee = self.scout_create_initialized_marginfi_account()?;
+        let deleveragee = self.scout_create_probe_user_marginfi_account()?;
         if provider == deleveragee {
             return None;
         }
@@ -16385,7 +16551,7 @@ impl MarginfiFixture {
         if !self.scout_liquidate_deposit(provider, liab_bank, SCOUT_P15_LIQUIDITY_DEPOSIT) {
             return None;
         }
-        if !self.scout_liquidate_deposit(deleveragee, asset_bank, SCOUT_P15_ASSET_DEPOSIT) {
+        if !self.scout_probe_user_deposit(deleveragee, asset_bank, SCOUT_P15_ASSET_DEPOSIT) {
             return None;
         }
         let sorted_pair = if asset_bank.to_bytes() > liab_bank.to_bytes() {
@@ -16393,7 +16559,7 @@ impl MarginfiFixture {
         } else {
             [liab_bank, asset_bank]
         };
-        if !self.scout_liquidate_borrow(
+        if !self.scout_probe_user_borrow(
             deleveragee,
             liab_bank,
             SCOUT_P15_BORROW,
@@ -16486,7 +16652,7 @@ impl MarginfiFixture {
                     marginfi_account: deleveragee,
                     authority: risk_admin,
                     bank: asset_bank,
-                    destination_token_account: self.signer_token_account,
+                    destination_token_account: self.receiver_token_account,
                     bank_liquidity_vault_authority: asset_vault_authority,
                     liquidity_vault: asset_liquidity_vault,
                     token_program: spl_token::id(),
@@ -16506,7 +16672,7 @@ impl MarginfiFixture {
                     marginfi_account: deleveragee,
                     authority: risk_admin,
                     bank: liab_bank,
-                    signer_token_account: self.signer_token_account,
+                    signer_token_account: self.receiver_token_account,
                     liquidity_vault: liab_liquidity_vault,
                     token_program: spl_token::id(),
                 },
@@ -17281,7 +17447,7 @@ fn invariant_test(_f: &mut MarginfiFixture) {
         const P20_BANK_DISCRIMINATOR: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
         const P20_BANK_LEN: usize = 8 + 1856;
         const P20_GROUP_DISCRIMINATOR: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
-        const P20_GROUP_LEN: usize = 8 + 1056;
+        const P20_GROUP_LEN: usize = 8 + 9248;
         const P20_ACCOUNT_GROUP_OFFSET: usize = 8;
         const P20_ACCOUNT_FLAGS_OFFSET: usize = 8 + 32 + 32 + 1728;
         const P20_ACCOUNT_BLOCKING_FLAGS: u64 = (1 << 0) | (1 << 1) | (1 << 4);
@@ -17864,7 +18030,7 @@ fn invariant_test(_f: &mut MarginfiFixture) {
         const P6_BANK_DISCRIMINATOR: [u8; 8] = [142, 49, 166, 242, 50, 66, 97, 188];
         const P6_BANK_LEN: usize = 8 + 1856;
         const P6_GROUP_DISCRIMINATOR: [u8; 8] = [182, 23, 173, 240, 151, 206, 182, 67];
-        const P6_GROUP_LEN: usize = 8 + 1056;
+        const P6_GROUP_LEN: usize = 8 + 9248;
         const P6_BANK_GROUP_OFFSET: usize = 8 + 33;
         const P6_GROUP_BANKS_OFFSET: usize = 8 + 112;
 
@@ -20194,6 +20360,16 @@ fn invariant_test(_f: &mut MarginfiFixture) {
             let share_value_changed = cur_asset_sv != f.scout_p7_prev_asset_sv[index]
                 || cur_liab_sv != f.scout_p7_prev_liab_sv[index];
             if !share_value_changed {
+                continue;
+            }
+            // Carve-out: socialize_loss (bank.rs) lowers ONLY asset_share_value and never
+            // touches last_update, so an asset-side decrease with an unchanged stamp is a
+            // legitimate socialized loss, not interest booked without a timestamp advance.
+            let socialized_loss = i128::from_le_bytes(cur_asset_sv)
+                < i128::from_le_bytes(f.scout_p7_prev_asset_sv[index])
+                && cur_liab_sv == f.scout_p7_prev_liab_sv[index]
+                && cur_stamp == prev_stamp;
+            if socialized_loss {
                 continue;
             }
             scout_check!(

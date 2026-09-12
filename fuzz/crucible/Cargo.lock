@@ -2551,7 +2551,6 @@ dependencies = [
  "solana-account",
  "solana-instruction",
  "solana-keypair",
- "solana-message 3.0.1",
  "solana-program",
  "solana-pubkey 3.0.0",
  "solana-signature",
