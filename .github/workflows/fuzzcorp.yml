@@ -14,7 +14,9 @@ name: FuzzCorp bundle
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    # TEMP: run on pushes to this branch while the FuzzCorp pipeline is being
+    # validated. Restore `branches: [main]` before this lands for real.
+    branches: [crucible-fuzz-658-fixes]
 
 concurrency:
   group: fuzzcorp-bundle
