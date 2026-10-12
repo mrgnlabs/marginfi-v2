@@ -624,6 +624,15 @@ pub mod marginfi {
         marginfi_account::lending_account_close_balance(ctx)
     }
 
+    /// (account authority) Close an integration (Kamino/Drift/Solend/JupLend) balance position that
+    /// is empty but still active, freeing its balance slot. Withdraw the venue first via its own
+    /// withdraw instruction; only dust below `ZERO_AMOUNT_THRESHOLD` may remain.
+    pub fn lending_account_close_integration_balance(
+        ctx: Context<LendingAccountCloseIntegrationBalance>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_close_integration_balance(ctx)
+    }
+
     /// (permissionless) Liquidate a lending account balance of an unhealthy marginfi account.
     /// The liquidator takes on the liability and receives discounted collateral (2.5% liquidator
     /// fee + 2.5% insurance fee).

@@ -543,7 +543,11 @@ pub enum MarginfiError {
     ScopeStalePrice, // 6802
     #[msg("Use lending_pool_configure_bank_oracle_scope; Scope requires an entry index")]
     UseConfigureBankOracleScope, // 6803
-                                 // **************END SCOPE ERRORS
+    #[msg(
+        "Wrong asset tag for integration instructions, expected KAMINO, DRIFT, SOLEND, or JUPLEND asset tag"
+    )]
+    WrongAssetTagForIntegrationInstructions, // 6804
+                                             // **************END SCOPE ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -834,6 +838,7 @@ impl From<u32> for MarginfiError {
             6801 => MarginfiError::ScopeInvalidEntry,
             6802 => MarginfiError::ScopeStalePrice,
             6803 => MarginfiError::UseConfigureBankOracleScope,
+            6804 => MarginfiError::WrongAssetTagForIntegrationInstructions,
 
             _ => MarginfiError::InternalLogicError,
         }

@@ -826,6 +826,35 @@ impl MarginfiAccountFixture {
         Ok(())
     }
 
+    pub async fn try_close_integration_balance(
+        &self,
+        bank: &BankFixture,
+    ) -> anyhow::Result<(), BanksClientError> {
+        let marginfi_account = self.load().await;
+        let (banks_client, payer, blockhash) = ctx_parts(&self.ctx).await;
+
+        let ix = Instruction {
+            program_id: marginfi::ID,
+            accounts: marginfi::accounts::LendingAccountCloseIntegrationBalance {
+                group: marginfi_account.group,
+                marginfi_account: self.key,
+                authority: payer.pubkey(),
+                bank: bank.key,
+            }
+            .to_account_metas(Some(true)),
+            data: marginfi::instruction::LendingAccountCloseIntegrationBalance.data(),
+        };
+
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+
+        banks_client
+            .process_transaction_with_preflight_and_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn try_liquidate<T: Into<f64> + Copy>(
         &self,
         liquidatee: &MarginfiAccountFixture,
