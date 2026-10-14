@@ -2126,10 +2126,26 @@ impl PriceAdapter for ScopePriceFeed {
     fn get_price_of_type(
         &self,
         _oracle_price_type: OraclePriceType,
-        _bias: Option<PriceBias>,
-        _oracle_max_confidence: u32,
+        bias: Option<PriceBias>,
+        oracle_max_confidence: u32,
     ) -> MarginfiResult<I80F48> {
-        Ok(self.price)
+        let price = self.price;
+
+        match bias {
+            Some(price_bias) => {
+                let confidence_interval = self.get_confidence_interval(oracle_max_confidence)?;
+
+                match price_bias {
+                    PriceBias::Low => Ok(price
+                        .checked_sub(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                    PriceBias::High => Ok(price
+                        .checked_add(confidence_interval)
+                        .ok_or_else(math_error!())?),
+                }
+            }
+            None => Ok(price),
+        }
     }
 
     fn get_price_and_confidence_of_type(
@@ -2137,12 +2153,41 @@ impl PriceAdapter for ScopePriceFeed {
         oracle_price_type: OraclePriceType,
         oracle_max_confidence: u32,
     ) -> MarginfiResult<OraclePriceWithConfidence> {
+        let confidence_interval: I80F48 = self.get_confidence_interval(oracle_max_confidence)?;
         Ok(OraclePriceWithConfidence {
             price: self.get_price_of_type(oracle_price_type, None, oracle_max_confidence)?,
-            // Scope prices carry no confidence interval.
-            confidence: I80F48::ZERO,
+            confidence: confidence_interval,
             source_time: self.last_updated_timestamp as i64,
         })
+    }
+}
+
+impl ScopePriceFeed {
+    /// Scope prices carry no native confidence interval, so — exactly like the
+    /// Switchboard adapter — we let the admin set a *static* confidence via
+    /// `oracle_max_confidence`: `price * oracle_max_confidence / U32_MAX`, clamped
+    /// to `MAX_CONF_INTERVAL` (5%). A value of 0 disables the adjustment (the prior
+    /// behavior). See https://github.com/0dotxyz/marginfi-v2/issues/679
+    fn get_confidence_interval(&self, oracle_max_confidence: u32) -> MarginfiResult<I80F48> {
+        if oracle_max_confidence == 0 {
+            return Ok(I80F48::ZERO);
+        }
+
+        let price = self.price;
+        let oracle_max_confidence: I80F48 = I80F48::from_num(oracle_max_confidence);
+
+        let conf_interval: I80F48 = price
+            .checked_mul(oracle_max_confidence)
+            .ok_or_else(math_error!())?
+            .checked_div(U32_MAX)
+            .ok_or_else(math_error!())?;
+
+        // Clamp to MAX_CONF_INTERVAL (5%) of price
+        let max_conf_interval: I80F48 = price
+            .checked_mul(MAX_CONF_INTERVAL)
+            .ok_or_else(math_error!())?;
+
+        Ok(min(conf_interval, max_conf_interval))
     }
 }
 
@@ -3435,11 +3480,15 @@ mod tests {
         // value/10^exp, within I80F48 rounding of the decimal literal
         assert!((feed.price - I80F48::from_num(103.445108)).abs() < I80F48::from_num(1e-9));
         assert_eq!(feed.last_updated_timestamp, 1000);
-        // Scope carries no confidence, and bias must not move the price.
+        // With the new static-confidence support (#679), a non-zero oracle_max_confidence
+        // moves the biased price by the (clamped, 5%-capped) confidence band. Here
+        // u32::MAX clamps at MAX_CONF_INTERVAL (5%), so Low bias yields ~95% of spot.
+        let conf = feed.get_confidence_interval(u32::MAX).unwrap();
+        assert_eq!(conf, feed.price * MAX_CONF_INTERVAL);
         assert_eq!(
             feed.get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low), u32::MAX)
                 .unwrap(),
-            feed.price
+            feed.price - conf
         );
 
         // 61s old with a 60s max age -> stale
@@ -3471,6 +3520,69 @@ mod tests {
             ScopePriceFeed::load_checked(&ai, 1000, 60, 42).unwrap_err(),
             MarginfiError::ScopeInvalidEntry.into()
         );
+    }
+
+    #[test]
+    fn scope_static_confidence_disabled_at_zero() {
+        // oracle_max_confidence == 0 disables the adjustment (preserves the prior
+        // "no confidence interval" behavior).
+        let feed = ScopePriceFeed {
+            price: I80F48::from_num(1_000_000u32),
+            last_updated_timestamp: 100,
+            has_borrow_power: true,
+        };
+        let conf = feed.get_confidence_interval(0).unwrap();
+        assert_eq!(conf, I80F48::ZERO);
+    }
+
+    #[test]
+    fn scope_static_confidence_matches_switchboard_semantics() {
+        // Mirror of the Switchboard static-confidence math the issue asks us to copy:
+        // interval = price * oracle_max_confidence / U32_MAX, clamped to 5%.
+        let price = I80F48::from_num(1_000_000u32);
+        let feed = ScopePriceFeed {
+            price,
+            last_updated_timestamp: 100,
+            has_borrow_power: true,
+        };
+
+        // 1% static confidence (1% of U32_MAX)
+        let omc = (u32::MAX as u128 / 100) as u32;
+        let conf = feed.get_confidence_interval(omc).unwrap();
+        let expected = price * I80F48::from_num(omc) / I80F48::from_num(u32::MAX);
+        assert_eq!(conf, expected);
+        // ~1% of price (within rounding of the integer division above)
+        assert!((conf - price / I80F48::from_num(100)).abs() < I80F48::from_num(1));
+
+        // A request exceeding 5% clamps at MAX_CONF_INTERVAL.
+        let clamped = feed.get_confidence_interval(u32::MAX).unwrap();
+        assert_eq!(clamped, price * MAX_CONF_INTERVAL);
+    }
+
+    #[test]
+    fn scope_static_confidence_bias_widens_collateral_and_debt() {
+        let price = I80F48::from_num(1_000_000u32);
+        let feed = ScopePriceFeed {
+            price,
+            last_updated_timestamp: 100,
+            has_borrow_power: true,
+        };
+        // Use u32::MAX/2 => exactly 50% static confidence, so conf is exact.
+        let omc = u32::MAX / 2;
+        let conf = feed.get_confidence_interval(omc).unwrap();
+
+        // Collateral (Low bias) is worth `conf` less; debt (High bias) worth `conf` more.
+        let high = feed
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::High), omc)
+            .unwrap();
+        let low = feed
+            .get_price_of_type(OraclePriceType::RealTime, Some(PriceBias::Low), omc)
+            .unwrap();
+        assert_eq!(high, price + conf);
+        assert_eq!(low, price - conf);
+        // The confidence band is non-zero and bounded by the price itself.
+        assert!(conf > I80F48::ZERO);
+        assert!(conf < price);
     }
 
     #[test]
