@@ -570,4 +570,23 @@ is very small (0.01%), but here the insurance fee brings it up to 2.51%.
 
 In some edge cases, classic liquidation can enable the liquidator to repay while leaving a small
 amount of liability dust in their own account. This is extremely difficult to do on purpose, since
-the repay amount is not known at call time. It is also not scalable since it requires a valid liquidation target to achieve. Such dust may be settled into bad debt at account closure, but is typically so nominal it does not even reach 1 token-atom.
+the repay amount is not known at call time. It is also not scalable since it requires a valid
+liquidation target to achieve. Such dust may be settled into bad debt at account closure, but is
+typically so nominal it does not even reach 1 token-atom.
+
+### Receivership Liquidators Can Avoid Clearing Liquidation Tags By Firing In Small Clips
+
+The liquidation tag doesn't reset if less than 25% of the unhealthy balance was repaid. Liquidators
+might then try to liquidate a user in sub-25-percent-clips to avoid resetting their tag and allowing
+the premium to keep growing.
+
+This is by design and mitigated by market forces. There are many third party liquidators. Only one
+liquidation (per sender) can typically land in a single tx due to tx limits (though bundles can land
+several, at a higher cost). A "greedy" liquidator attempting to liquidate in sub-25% clips to avoid
+tag-resetting will inherently race against a greedier liquidator that wants the entire eligible
+amount. Most liquidators simply want to optimize their profit within one tx: liquidators attempting
+to "save an account for later" will compete against that profit motive and likely fail.
+
+We cannot allow the tag to be cleared by a liquidation of any size (or the eligible user would just
+liquidate themselves for 1 lamport at regular intervals). Tracking cumulative progress is too
+cumbersome because the amount eligible for liquidation also fluctuates with prices.
