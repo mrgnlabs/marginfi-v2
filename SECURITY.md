@@ -612,3 +612,14 @@ unless paired with a mechanism that can reasonably raise the share value to this
 currently would require centuries at max interest. One such bounty-eligible report involved emission
 donation, which is now prevented from raising the asset_share_value beyond a certain threshold for
 this reason.
+
+### Large Confidence Bands Can Walk Circuit Breaker Windows Up Faster
+
+The long-window deviation check subtracts the oracle confidence from the measured price move.
+Assuming a confidence of just under 5%, one 24h window admits a move of up to 1.03 / (1 - 0.05) =
++8.42% above the window reference with zero circuit breaker trips. A clean pulse then re-anchors
+this window.
+
+We consider this an acceptable design tradeoff: sustained poor confidence is rare, and the effect is
+minimal. The circuit breaker feature is intended to capture large moves, and walking up slightly
+more than would perhaps be expected, only during times of poor confidence, is acceptable. 
