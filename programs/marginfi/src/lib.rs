@@ -617,7 +617,7 @@ pub mod marginfi {
         marginfi_account::lending_account_borrow(ctx, amount)
     }
 
-    /// (account authority) Close a balance position with dust-level amounts. 
+    /// (account authority) Close a balance position with dust-level amounts.
     pub fn lending_account_close_balance(
         ctx: Context<LendingAccountCloseBalance>,
     ) -> MarginfiResult {
