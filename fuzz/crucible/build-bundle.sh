@@ -64,31 +64,33 @@ cp -R "$REPO/programs/marginfi/src/." "$OUT/srcs/"
 git -C "$REPO" ls-files -z -- 'type-crate/src' 'id-crate/src' 'programs/*-mocks/src/**' |
   (cd "$REPO" && xargs -0 tar -cf -) | tar -xf - -C "$OUT"
 
+# Manifest v3 with snake_case keys: fuzz-up >= 0.1.0 (2026-10-14) matches keys
+# case-sensitively and rejects the former PascalCase form ("unsupported manifest version: 0").
 # One core: the platform scales by running many single-core replicas, and the harness
 # is a single-threaded LiteSVM replay. Memory is what corpus_merge actually needs.
 cat >"$OUT/manifest.fc.json" <<JSON
 {
-  "Version": 3,
-  "Revision": { "Commit": "${COMMIT}" },
-  "Lineages": [{
-    "Name": "marginfi",
-    "Confs": [{
-      "Name": "invariant_test",
-      "Driver": {
-        "Type": "crucible",
-        "Params": {
-          "BinaryPathInBundle": "harness/invariant_test",
-          "HarnessRunDirInBundle": "harness",
-          "SymbolsPathInBundle": "harness/programs/marginfi_symbols.so",
-          "SourcesPathInBundle": "srcs",
-          "SourcesOriginalPath": "programs/marginfi/src/",
-          "ExtraEnv": { "SCOUT_CHECK_MUTE": "${MUTE}" }
+  "version": 3,
+  "revision": { "commit": "${COMMIT}" },
+  "lineages": [{
+    "name": "marginfi",
+    "confs": [{
+      "name": "invariant_test",
+      "driver": {
+        "type": "crucible",
+        "params": {
+          "binary_path_in_bundle": "harness/invariant_test",
+          "harness_run_dir_in_bundle": "harness",
+          "symbols_path_in_bundle": "harness/programs/marginfi_symbols.so",
+          "sources_path_in_bundle": "srcs",
+          "sources_original_path": "programs/marginfi/src/",
+          "extra_env": { "SCOUT_CHECK_MUTE": "${MUTE}" }
         }
       },
-      "Architecture": { "Name": "${ARCH}" },
-      "YieldTimeMinutes": 120,
-      "MemoryKiB": 4194304,
-      "Cores": 1
+      "architecture": { "name": "${ARCH}" },
+      "yield_time_minutes": 120,
+      "memory_kib": 4194304,
+      "cores": 1
     }]
   }]
 }
