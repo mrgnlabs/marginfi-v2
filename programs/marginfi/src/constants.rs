@@ -60,6 +60,7 @@ pub const MIN_EMISSIONS_SHARE_SUPPLY: I80F48 = I80F48!(1_048_576); // 2^20
 pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 pub const JUP_KEY: Pubkey = pubkey!("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
 pub const TITAN_KEY: Pubkey = pubkey!("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT");
+pub const DFLOW_KEY: Pubkey = pubkey!("DF1ow4tspfHX9JwWJsAb9epbkA8hmpSEAtxXy1V27QBH");
 pub const ASSOCIATED_TOKEN_KEY: Pubkey = pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 pub const SOLEND_PROGRAM_ID: Pubkey = pubkey!("So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo");
@@ -122,6 +123,17 @@ pub const MIN_PYTH_PUSH_VERIFICATION_LEVEL: VerificationLevel = VerificationLeve
 /// is a nominal anti-spam charge (5,000,000 lamports ≈ $0.50) paid to the global fee wallet when
 /// initiating an account transfer.
 pub const DEFAULT_ACCOUNT_TRANSFER_FEE_LAMPORTS: u32 = 5_000_000;
+
+/// Default position-transfer fee in lamports, used when `FeeState.position_transfer_fee` is 0.
+/// Paid by the fee payer to the global fee wallet.
+pub const DEFAULT_POSITION_TRANSFER_FEE_LAMPORTS: u32 = 500_000;
+
+/// Default minimum value of a position transfer in USD cents, used when
+/// `FeeState.position_transfer_min_value_usd_cents` is 0.
+pub const DEFAULT_POSITION_TRANSFER_MIN_VALUE_USD_CENTS: u32 = 100;
+
+/// Seconds an escrowed position waits for the receiver before anyone may return it to the sender.
+pub const POSITION_ESCROW_EXPIRY_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 /// When creating a mrgn account using a PDA, programs that wish to specify a third_party_id must be
 /// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 or
