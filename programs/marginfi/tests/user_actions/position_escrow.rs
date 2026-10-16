@@ -83,14 +83,8 @@ async fn position_escrow_holds_shares_until_the_receiver_accepts() -> anyhow::Re
 
     let escrow = escrow_usdc(&test_f, &source, &receiver, 100.0).await?;
     let escrow_account = test_f.load_and_deserialize::<PositionEscrow>(&escrow).await;
-    assert_eq!(
-        I80F48::from(escrow_account.asset_shares),
-        usdc_shares(100)
-    );
-    assert_eq!(
-        asset_shares(&source, usdc_bank_f).await,
-        usdc_shares(400)
-    );
+    assert_eq!(I80F48::from(escrow_account.asset_shares), usdc_shares(100));
+    assert_eq!(asset_shares(&source, usdc_bank_f).await, usdc_shares(400));
     assert_eq!(total_asset_shares(usdc_bank_f).await, bank_shares);
     assert_eq!(
         total_escrowed_asset_shares(usdc_bank_f).await,
@@ -167,10 +161,7 @@ async fn position_escrow_sweeps_into_an_existing_deposit() -> anyhow::Result<()>
     receiver
         .try_claim_position_escrow(escrow, usdc_bank_f, None)
         .await?;
-    assert_eq!(
-        asset_shares(&receiver, usdc_bank_f).await,
-        usdc_shares(110)
-    );
+    assert_eq!(asset_shares(&receiver, usdc_bank_f).await, usdc_shares(110));
     assert!(is_closed(&test_f, escrow).await);
     Ok(())
 }
@@ -187,10 +178,7 @@ async fn position_escrow_receiver_declines_back_to_the_source() -> anyhow::Resul
     source
         .try_return_position_escrow(escrow, usdc_bank_f, Some(&receiver_key))
         .await?;
-    assert_eq!(
-        asset_shares(&source, usdc_bank_f).await,
-        usdc_shares(500)
-    );
+    assert_eq!(asset_shares(&source, usdc_bank_f).await, usdc_shares(500));
     assert!(is_closed(&test_f, escrow).await);
     Ok(())
 }
@@ -220,10 +208,7 @@ async fn position_escrow_returns_to_the_source_after_expiry() -> anyhow::Result<
     source
         .try_return_position_escrow(escrow, usdc_bank_f, None)
         .await?;
-    assert_eq!(
-        asset_shares(&source, usdc_bank_f).await,
-        usdc_shares(500)
-    );
+    assert_eq!(asset_shares(&source, usdc_bank_f).await, usdc_shares(500));
     assert!(is_closed(&test_f, escrow).await);
     Ok(())
 }
@@ -266,10 +251,7 @@ async fn position_escrow_send_restarts_the_expiry() -> anyhow::Result<()> {
         .await?;
 
     let escrow_account = test_f.load_and_deserialize::<PositionEscrow>(&escrow).await;
-    assert_eq!(
-        I80F48::from(escrow_account.asset_shares),
-        usdc_shares(150)
-    );
+    assert_eq!(I80F48::from(escrow_account.asset_shares), usdc_shares(150));
     assert_eq!(
         escrow_account.expires_at,
         now(&test_f).await + POSITION_ESCROW_EXPIRY_SECONDS
