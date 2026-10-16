@@ -623,3 +623,13 @@ this window.
 We consider this an acceptable design tradeoff: sustained poor confidence is rare, and the effect is
 minimal. The circuit breaker feature is intended to capture large moves, and walking up slightly
 more than would perhaps be expected, only during times of poor confidence, is acceptable. 
+
+### Empty Fee Pool Lets Keepers Incorrectly Earn Tips
+
+Alice funds a fee account and opens a rebalance Order. Bob fills it, escrowing a tip T. Alice then
+closes her fee account, returning the rent R. When Bob goes to settle his tip, let's assume he
+didn't earn it (rebalance failed to get a better yield), it should now be returned to the fee pool.
+The fee pool needs R, the rent, to be reopened. To avoid Alice griefing in this manner to steal R
+from the Keeper, the Keeper gets to keep T instead -- this is Alice's fault for draining her fee
+pool. At some point we may instead reopen the fee pool if T > R, but the current behavior
+discourages trolls from closing their fee pool.
