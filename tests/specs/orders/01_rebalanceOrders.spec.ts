@@ -1297,7 +1297,7 @@ type VenueLeg = {
   tail: PublicKey[];
   /** JupLend TokenReserve for the start/end ix arg; null for Kamino/Drift. */
   tokenReserve: PublicKey | null;
-  /** Venue accounts the supply rate needs to price reward emissions; empty when the venue has none. */
+  /** Venue accounts the supply rate needs to price a deposit and its emissions; empty when none. */
   rewards: PublicKey[];
 };
 
@@ -2368,7 +2368,11 @@ describe("Auto-rebalance orders (venue -> venue)", () => {
           cranks: await juplendCranks(),
           tail: juplendTail(),
           tokenReserve: juplendPool.tokenReserve,
-          rewards: [juplendPool.lendingRewardsRateModel, juplendPool.fTokenMint],
+          rewards: [
+            juplendPool.lendingRewardsRateModel,
+            juplendPool.fTokenMint,
+            juplendPool.rateModel,
+          ],
         },
         deposit: await juplendDstDeposit(),
       },
@@ -2391,10 +2395,13 @@ describe("Auto-rebalance orders (venue -> venue)", () => {
     await closeOrder(order);
   });
   const MAX_BALANCES = 16;
-  /** `MAX_INTEGRATION_POSITIONS`, the most integration balances an account may hold. */
+  /** `MAX_COSTLY_POSITIONS`, the most integration balances an account may hold. */
   const INTEGRATION_BALANCES = 4;
   const WORST_CASE_SEED_BASE = 7_710;
-  /** Measures ~923k. A bound rather than the figure, which every program edit shifts. */
+  /**
+   * Measures ~914k at `INTEGRATION_BALANCES` integration positions. A bound rather than the
+   * figure, which every program edit shifts.
+   */
   const CU_CEILING = 1_100_000;
 
   /** A Drift bank on the shared mint, on its own spot market, with its mrgn-side drift user. */

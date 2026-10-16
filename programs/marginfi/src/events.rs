@@ -74,6 +74,13 @@ pub struct LendingPoolBankSetSameAssetEmodeEligibilityEvent {
 }
 
 #[event]
+pub struct SetGovernanceAdminEvent {
+    pub header: GroupEventHeader,
+    pub previous_governance_admin: Pubkey,
+    pub new_governance_admin: Pubkey,
+}
+
+#[event]
 pub struct LendingPoolBankConfigureFrozenEvent {
     pub header: GroupEventHeader,
     pub bank: Pubkey,
@@ -215,13 +222,13 @@ pub struct LendingAccountPremiumSettledEvent {
     pub header: AccountEventHeader,
     pub bank: Pubkey,
     pub mint: Pubkey,
-    /// Premium moved into `bank.collected_premium_outstanding` with this repayment (tokens
-    /// arrived in the liquidity vault), in native token units.
+    /// Vault-backed premium moved into `bank.collected_premium_outstanding` by a repayment
+    /// or seized-collateral liquidation credit, in native token units.
     pub premium_settled: f64,
     /// Premium receivable written off with no tokens (tokenless risk-admin repayment), in
     /// native token units.
     pub premium_written_off: f64,
-    /// Premium receivable still outstanding on the balance after this repayment.
+    /// Premium receivable still outstanding on the balance after this settlement.
     pub premium_outstanding_remaining: f64,
 }
 
@@ -433,6 +440,13 @@ pub struct DeleverageEvent {
     pub risk_admin: Pubkey,
     pub deleveragee_assets_seized: f64,
     pub deleveragee_liability_repaid: f64,
+}
+
+#[event]
+pub struct LiquidationTagEvent {
+    pub marginfi_account: Pubkey,
+    /// 0 when the tag was cleared
+    pub tagged_at: i64,
 }
 
 // Rate limit events

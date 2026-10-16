@@ -60,6 +60,7 @@ pub const MIN_EMISSIONS_SHARE_SUPPLY: I80F48 = I80F48!(1_048_576); // 2^20
 pub const COMPUTE_PROGRAM_KEY: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 pub const JUP_KEY: Pubkey = pubkey!("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
 pub const TITAN_KEY: Pubkey = pubkey!("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT");
+pub const DFLOW_KEY: Pubkey = pubkey!("DF1ow4tspfHX9JwWJsAb9epbkA8hmpSEAtxXy1V27QBH");
 pub const ASSOCIATED_TOKEN_KEY: Pubkey = pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 pub const SOLEND_PROGRAM_ID: Pubkey = pubkey!("So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo");
@@ -85,10 +86,26 @@ pub const LIQUIDATION_FLAT_FEE_DEFAULT: u32 = 5000;
 /// * This is the minimum value the program allows for the above, if fee state is set below this,
 ///   the program will use this instead.
 pub const LIQUIDATION_BONUS_FEE_MINIMUM: I80F48 = I80F48!(0.05);
-/// Liquidators can consume/close out the entire account with essentially no limits (e.g. regardless
-/// of liquidation bonus, etc) if it has net assets worth less than this amount in dollars. This
-/// roughly covers the fee to open a liquidation record plus a little extra.
+/// Liquidators may leave the account healthy, or close it out entirely, if it has net assets worth
+/// less than this amount in dollars. The liquidation bonus cap still applies. This roughly covers
+/// the fee to open a liquidation record plus a little extra.
 pub const LIQUIDATION_CLOSEOUT_DOLLAR_THRESHOLD: I80F48 = I80F48!(5);
+/// Headroom `fees_fit_leverage` adds to the liquidation cuts, keeping a config off the exact
+/// fee-versus-leverage boundary where a liquidation would improve health only by rounding.
+pub const LIQUIDATION_HEALTH_GAIN_MARGIN: I80F48 = I80F48!(0.0001);
+/// Time after an account is tagged before the allowed liquidation premium starts to grow.
+pub const LIQUIDATION_TAG_DELAY_SECS: i64 = 60 * 60; // 1 hour
+/// Time after tagging at which the premium reaches `LIQUIDATION_TAG_MAX_PREMIUM`, growing
+/// linearly from `LIQUIDATION_TAG_DELAY_SECS`.
+pub const LIQUIDATION_TAG_FULL_PREMIUM_SECS: i64 = 7 * 24 * 60 * 60; // 1 week
+/// Maximum liquidation premium reachable via tag growth (1 = 100%).
+pub const LIQUIDATION_TAG_MAX_PREMIUM: I80F48 = I80F48!(1);
+/// Share of the account's health deficit a liquidation must erase to restart the premium-growth
+/// clock (see `tag_after_liquidation`).
+pub const LIQUIDATION_TAG_RESET_DEFICIT_FRACTION: I80F48 = I80F48!(0.25);
+/// Share of the account's liabilities a liquidation must repay to restart the premium-growth
+/// clock, whichever way the deficit moved.
+pub const LIQUIDATION_TAG_RESET_REPAID_FRACTION: I80F48 = I80F48!(0.25);
 /// Maximum order execution fee as a percent of the order size
 /// * This value is used together with the slippage set by the user.
 pub const ORDER_EXECUTION_MAX_FEE: I80F48 = I80F48!(0.05); // 5%

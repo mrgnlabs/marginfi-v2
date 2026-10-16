@@ -1,6 +1,6 @@
 [package]
 name = "marginfi-type-crate"
-version = "0.1.11"
+version = "0.1.13"
 edition = "2021"
 publish = true
 
@@ -16,6 +16,9 @@ mainnet-beta = ["id-crate/mainnet-beta"]
 staging = ["id-crate/staging"]
 stagingalt = ["id-crate/stagingalt"]
 devnet = ["id-crate/devnet"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
 
 [dependencies]
 id-crate = { workspace = true }

@@ -7,8 +7,11 @@ use crate::{
         DRIFT_SCALED_BALANCE_DECIMALS, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
         INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
         LIQUIDITY_VAULT_SEED, STAKED_ORACLE_DISABLED, STAKED_ORACLE_PRICE_USES_ONRAMP,
+        TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE,
     },
-    types::{BalanceSide, BankCache, BankConfig, ReconciledEmodeConfig, RequirementType},
+    types::{
+        calc_value, BalanceSide, BankCache, BankConfig, ReconciledEmodeConfig, RequirementType,
+    },
 };
 
 #[cfg(feature = "anchor")]
@@ -21,7 +24,7 @@ use fixed::types::I80F48;
 use super::Pubkey;
 use super::{BankRateLimiter, EmodeSettings, OnRampTransition, WrappedI80F48};
 
-assert_struct_size!(Bank, 1856);
+assert_struct_size!(Bank, 3904);
 assert_struct_align!(Bank, 8);
 #[repr(C)]
 #[cfg_attr(feature = "anchor", account(zero_copy), derive(Default, PartialEq, Eq))]
@@ -118,6 +121,8 @@ pub struct Bank {
     /// - Bit 12 (4096): `BANK_SAME_ASSET_EMODE_ELIGIBLE` — bank may participate in same-asset e-mode.
     /// - Bit 13 (8192): `PREMIUM_ACTIVE` — a liability-bank flag: balances borrowing from this
     ///   bank accrue the pairwise variable-borrow premium and project it in health checks.
+    /// - Bit 14 (16384): `KAMINO_MARKET_EMERGENCY` — the Kamino lending market behind this bank is
+    ///   in emergency mode, so the bank backs no new borrowing.
     pub flags: u64,
     /// Emissions APR. Number of emitted tokens (emissions_mint) per 1e(bank.mint_decimal) tokens
     /// (bank mint) (native amount) per 1 YEAR.
@@ -245,11 +250,16 @@ pub struct Bank {
     /// can never charge for (or health-project) the deactivated window.
     /// * 0 on banks that never activated premium.
     pub premium_activated_at: i64,
+
+    pub _padding_1: [[u64; 8]; 32],
 }
 
 impl Bank {
     pub const LEN: usize = std::mem::size_of::<Bank>();
     pub const DISCRIMINATOR: [u8; 8] = discriminators::BANK;
+    /// Struct size of the PREVIOUS (v1) bank layout: the size of accounts created before
+    /// `_padding_1` existed, and a byte-identical prefix of the current layout.
+    pub const V1_LEN: usize = 1856;
 
     #[inline]
     pub fn asset_amount(&self, shares: I80F48) -> Option<I80F48> {
@@ -259,6 +269,27 @@ impl Bank {
     #[inline]
     pub fn liability_amount(&self, shares: I80F48) -> Option<I80F48> {
         shares.checked_mul(self.liability_share_value.into())
+    }
+
+    /// Deposits past the bank's USD cap count only in proportion to it for Initial margin: the
+    /// factor to apply to the asset weight, `1` when the cap does not bind, `None` on overflow.
+    pub fn asset_weight_init_discount(&self, price: I80F48) -> Option<I80F48> {
+        let limit = self.config.total_asset_value_init_limit;
+        if limit == TOTAL_ASSET_VALUE_INIT_LIMIT_INACTIVE {
+            return Some(I80F48::ONE);
+        }
+        let deposits = calc_value(
+            self.asset_amount(self.total_asset_shares.into())?,
+            price,
+            self.get_balance_decimals(),
+            None,
+        )?;
+        let limit = I80F48::from_num(limit);
+        if deposits > limit {
+            limit.checked_div(deposits)
+        } else {
+            Some(I80F48::ONE)
+        }
     }
 
     pub fn get_balance_decimals(&self) -> u8 {

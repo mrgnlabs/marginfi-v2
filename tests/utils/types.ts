@@ -50,6 +50,7 @@ export const STAKED_ORACLE_DISABLED = 1 << 9;
 export const STAKED_ORACLE_PRICE_USES_ONRAMP = 1 << 10;
 export const CIRCUIT_BREAKER_ENABLED = 1 << 11;
 export const BANK_SAME_ASSET_EMODE_ELIGIBLE_FLAG = 1 << 12;
+export const KAMINO_MARKET_EMERGENCY_FLAG = 1 << 14;
 
 export const ASSET_TAG_DEFAULT = 0;
 export const ASSET_TAG_SOL = 1;
@@ -219,7 +220,7 @@ export const blankBankConfigOptRaw = () => {
     totalAssetValueInitLimit: null,
     interestRateConfig: null,
     operationalState: null,
-    oracleMaxConfidence: 0,
+    oracleMaxConfidence: null,
     oracleMaxAge: null,
     permissionlessBadDebtSettlement: null,
     freezeSettings: null,
@@ -526,3 +527,78 @@ export function newEmodeEntry(
     assetWeightMaint,
   };
 }
+
+export type SplitBankConfig = {
+  riskConfig: BankConfigOptRaw;
+  adminConfig: BankConfigOptRaw;
+  operationalConfig: BankConfigOptRaw;
+};
+
+export const splitBankConfig = (config: BankConfigOptRaw): SplitBankConfig => {
+  const riskConfig = blankBankConfigOptRaw();
+  riskConfig.assetWeightInit = config.assetWeightInit;
+  riskConfig.assetWeightMaint = config.assetWeightMaint;
+  riskConfig.liabilityWeightInit = config.liabilityWeightInit;
+  riskConfig.liabilityWeightMaint = config.liabilityWeightMaint;
+  riskConfig.riskTier = config.riskTier;
+  riskConfig.assetTag = config.assetTag;
+  riskConfig.oracleMaxAge = config.oracleMaxAge;
+  riskConfig.oracleMaxConfidence = config.oracleMaxConfidence;
+  riskConfig.tokenlessRepaymentsAllowed = config.tokenlessRepaymentsAllowed;
+
+  const adminConfig = blankBankConfigOptRaw();
+  adminConfig.depositLimit = config.depositLimit;
+  adminConfig.borrowLimit = config.borrowLimit;
+  adminConfig.totalAssetValueInitLimit = config.totalAssetValueInitLimit;
+  adminConfig.interestRateConfig = config.interestRateConfig;
+  adminConfig.liquidationLiquidatorFee = config.liquidationLiquidatorFee;
+  adminConfig.liquidationInsuranceFee = config.liquidationInsuranceFee;
+  adminConfig.permissionlessBadDebtSettlement = config.permissionlessBadDebtSettlement;
+  adminConfig.freezeSettings = config.freezeSettings;
+  adminConfig.circuitBreakerEnabled = config.circuitBreakerEnabled;
+  adminConfig.cbDeviationBpsTiers = config.cbDeviationBpsTiers;
+  adminConfig.cbTierDurationsSeconds = config.cbTierDurationsSeconds;
+  adminConfig.cbEscalationWindowMult = config.cbEscalationWindowMult;
+  adminConfig.cbEmaAlphaBps = config.cbEmaAlphaBps;
+  adminConfig.cbWindowSeconds = config.cbWindowSeconds;
+  adminConfig.cbWindowMaxUpBps = config.cbWindowMaxUpBps;
+  adminConfig.cbWindowMaxDownBps = config.cbWindowMaxDownBps;
+
+  const operationalConfig = blankBankConfigOptRaw();
+  operationalConfig.operationalState = config.operationalState;
+
+  const _exhaustivenessCheck: Record<keyof BankConfigOptRaw, true> = {
+    assetWeightInit: true,
+    assetWeightMaint: true,
+    liabilityWeightInit: true,
+    liabilityWeightMaint: true,
+    depositLimit: true,
+    borrowLimit: true,
+    riskTier: true,
+    assetTag: true,
+    totalAssetValueInitLimit: true,
+    interestRateConfig: true,
+    operationalState: true,
+    oracleMaxConfidence: true,
+    oracleMaxAge: true,
+    permissionlessBadDebtSettlement: true,
+    freezeSettings: true,
+    tokenlessRepaymentsAllowed: true,
+    liquidationLiquidatorFee: true,
+    liquidationInsuranceFee: true,
+    circuitBreakerEnabled: true,
+    cbDeviationBpsTiers: true,
+    cbTierDurationsSeconds: true,
+    cbEscalationWindowMult: true,
+    cbEmaAlphaBps: true,
+    cbWindowSeconds: true,
+    cbWindowMaxUpBps: true,
+    cbWindowMaxDownBps: true,
+  };
+
+  return {
+    riskConfig,
+    adminConfig,
+    operationalConfig,
+  };
+};

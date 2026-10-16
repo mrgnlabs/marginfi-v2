@@ -13,6 +13,7 @@ use crate::state::marginfi_account::{
 use crate::state::premium::{MarginfiAccountPremiumImpl, PremiumScratch};
 use crate::{
     check,
+    constants::PROGRAM_VERSION,
     prelude::*,
     state::{
         marginfi_account::{LendingAccountImpl, MarginfiAccountImpl},
@@ -303,6 +304,14 @@ pub fn start_execute_order<'info>(ctx: Context<'info, StartExecuteOrder<'info>>)
         order_asset_count + order_liab_count == ORDER_ACTIVE_TAGS,
         MarginfiError::LendingAccountBalanceNotFound
     );
+    // Prevents a footgun where a repaid liability is later deposited as an asset without clearing
+    // the tag. For example, user opens order 1: A/B and 2: C/B, Order 1 fulfills A/B with repay_all
+    // = false. Then later, user deposits B, which turns it into an asset. Keeper could, if the user
+    // didn't first close C/B, fullfill C/B without repaying anything: this blocks that.
+    check!(
+        order_asset_count == 1 && order_liab_count == 1,
+        MarginfiError::InvalidAssetOrLiabilitiesCount
+    );
 
     // Also gate at start: the order can close a tagged balance before the end gate runs, so a bank
     // whose breaching price sets the trigger must be caught here while it's still active.
@@ -369,6 +378,7 @@ pub fn end_execute_order<'info>(ctx: Context<'info, EndExecuteOrder<'info>>) -> 
     let fee_state = fee_state_loader.load()?;
 
     let mut health_cache = HealthCache::zeroed();
+    health_cache.timestamp = Clock::get()?.unix_timestamp;
     let group = ctx.accounts.group.load()?;
     let mut premium_scratch = PremiumScratch::default();
     let (
@@ -390,6 +400,8 @@ pub fn end_execute_order<'info>(ctx: Context<'info, EndExecuteOrder<'info>>) -> 
         let is_healthy = account_health >= I80F48::ZERO;
 
         health_cache.set_healthy(is_healthy);
+        health_cache.program_version = PROGRAM_VERSION;
+        health_cache.set_engine_ok(true);
 
         (
             get_tagged_account_health_components(
@@ -515,6 +527,10 @@ pub fn end_execute_order<'info>(ctx: Context<'info, EndExecuteOrder<'info>>) -> 
         is_healthy,
     )?;
 
+    if is_healthy {
+        marginfi_account.liquidation_tagged_at = 0;
+    }
+
     // At this point we know that all non order balances were not touched and the order
     // balances that were touched:
     // 1) Is still above or equal to the trigger price (in equity terms).
@@ -528,6 +544,7 @@ pub fn end_execute_order<'info>(ctx: Context<'info, EndExecuteOrder<'info>>) -> 
         &group,
         &premium_scratch,
         Clock::get()?.unix_timestamp as u64,
+        false,
     )?;
 
     marginfi_account.unset_flag(ACCOUNT_IN_ORDER_EXECUTION, false);
@@ -621,7 +638,7 @@ pub struct CloseOrder<'info> {
         constraint = {
             let a = marginfi_account.load()?;
             let g = group.load()?;
-            is_signer_authorized(&a, g.admin, authority.key(), false, false, false)
+            is_signer_authorized(&a, g.governance_admin, authority.key(), false, false, false)
         } @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
@@ -676,7 +693,7 @@ pub struct SetKeeperCloseFlags<'info> {
         constraint = {
             let a = marginfi_account.load()?;
             let g = group.load()?;
-            is_signer_authorized(&a, g.admin, authority.key(), false, false, false)
+            is_signer_authorized(&a, g.governance_admin, authority.key(), false, false, false)
         } @ MarginfiError::Unauthorized
     )]
     pub marginfi_account: AccountLoader<'info, MarginfiAccount>,
