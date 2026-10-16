@@ -12,9 +12,12 @@ import {
 } from "../../rootHooks";
 import {
   borrowIx,
+  claimPositionEscrowIx,
   composeRemainingAccounts,
   depositIx,
+  escrowPositionIx,
   lendingAccountTransferPositionIx,
+  returnPositionEscrowIx,
 } from "../../utils/user-instructions";
 import { editGlobalFeeState } from "../../utils/group-instructions";
 import { getBankrunBlockhash } from "../../utils/tools";
@@ -108,8 +111,8 @@ describe("Position transfer", () => {
   };
 
   /**
-   * `signer` (the source authority unless given) signs and pays the fee; `consenting` signs only
-   * to accept debt.
+   * `signer` (the source authority unless given) signs and pays the fee; `consenting` signs to
+   * accept debt or a new position.
    */
   const transfer = async (
     source: MockUser,
@@ -178,14 +181,24 @@ describe("Position transfer", () => {
     assert.isNull(result.result);
   };
 
-  it("(user 0 -> user 1) moves half a position on the sender's signature; the sender pays the default fee", async () => {
+  it("(user 0 -> user 1) opens a position only with the receiver's signature; the sender pays the default fee", async () => {
     const depositAmount = new BN(100).mul(lst);
     const transferAmount = depositAmount.divn(2);
     await deposit(users[0], collateralBank, depositAmount);
 
+    const refused = await transfer(users[0], users[1], collateralBank, transferAmount);
+    // PositionTransferConsentRequired
+    assertBankrunTxFailed(refused, 6904);
+
     const feeWalletBefore = await lamports(feeWallet);
     const receiverBefore = await lamports(users[1].wallet.publicKey);
-    const result = await transfer(users[0], users[1], collateralBank, transferAmount);
+    const result = await transfer(
+      users[0],
+      users[1],
+      collateralBank,
+      transferAmount,
+      users[1],
+    );
     assert.isNull(result.result);
 
     // No borrows exist in this bank, so one share is exactly one native unit.
@@ -202,6 +215,28 @@ describe("Position transfer", () => {
       feeWalletBefore + DEFAULT_POSITION_TRANSFER_FEE,
     );
     assert.equal(await lamports(users[1].wallet.publicKey), receiverBefore);
+  });
+
+  it("(user 0 -> user 1) tops up the receiver's deposit on the sender's signature", async () => {
+    const sourceBefore = toI80Scaled(
+      (await balance(users[0], collateralBank)).assetShares,
+    );
+    const destBefore = toI80Scaled(
+      (await balance(users[1], collateralBank)).assetShares,
+    );
+
+    const result = await transfer(users[0], users[1], collateralBank, lst);
+    assert.isNull(result.result);
+
+    // With no borrows in this bank, one share is one native unit.
+    assert.equal(
+      toI80Scaled((await balance(users[0], collateralBank)).assetShares),
+      sourceBefore - nativeToI80Scaled(lst),
+    );
+    assert.equal(
+      toI80Scaled((await balance(users[1], collateralBank)).assetShares),
+      destBefore + nativeToI80Scaled(lst),
+    );
   });
 
   it("(user 0 -> user 0) rejects a transfer to the same account", async () => {
@@ -311,7 +346,7 @@ describe("Position transfer", () => {
 
     const debtAmount = new BN(5).mul(lst);
     const refused = await transfer(users[0], users[2], debtBank, debtAmount);
-    // PositionTransferDebtConsentRequired
+    // PositionTransferConsentRequired
     assertBankrunTxFailed(refused, 6904);
 
     const result = await transfer(users[0], users[2], debtBank, debtAmount, users[2]);
@@ -325,6 +360,87 @@ describe("Position transfer", () => {
     assert.equal(
       toI80Scaled((await balance(users[2], debtBank)).liabilityShares),
       nativeToI80Scaled(debtAmount),
+    );
+  });
+
+  /** Sends `amount` from user 0 into its escrow for `receiver` in the collateral bank */
+  const escrow = async (receiver: MockUser, amount: BN) => {
+    const tx = new Transaction().add(
+      await escrowPositionIx(bankrunProgram, {
+        group,
+        sourceMarginfiAccount: account(users[0]),
+        receiverMarginfiAccount: account(receiver),
+        bank: collateralBank,
+        authority: users[0].wallet.publicKey,
+        feePayer: users[0].wallet.publicKey,
+        globalFeeWallet: feeWallet,
+        amount,
+        sourceRemaining: await observation(account(users[0])),
+      }),
+    );
+    const result = await send(tx, users[0]);
+    assert.isNull(result.result);
+  };
+
+  /** Releases user 0's escrow for `receiver` into `destination`, signed by `signer` */
+  const release = async (
+    ixFn: typeof claimPositionEscrowIx,
+    receiver: MockUser,
+    destination: MockUser,
+    signer: MockUser,
+  ) => {
+    const tx = new Transaction().add(
+      await ixFn(bankrunProgram, {
+        group,
+        bank: collateralBank,
+        sourceMarginfiAccount: account(users[0]),
+        receiverMarginfiAccount: account(receiver),
+        destinationMarginfiAccount: account(destination),
+        authority: signer.wallet.publicKey,
+        rentPayer: users[0].wallet.publicKey,
+      }),
+    );
+    return send(tx, signer);
+  };
+
+  const escrowedShares = async () =>
+    toI80Scaled(
+      (await bankrunProgram.account.bank.fetch(collateralBank))
+        .totalEscrowedAssetShares,
+    );
+
+  it("(user 0 -> user 3) escrows a position until user 3 accepts it", async () => {
+    const sourceBefore = toI80Scaled(
+      (await balance(users[0], collateralBank)).assetShares,
+    );
+    await escrow(users[3], lst);
+    // With no borrows in this bank, one share is one native unit.
+    assert.equal(
+      toI80Scaled((await balance(users[0], collateralBank)).assetShares),
+      sourceBefore - nativeToI80Scaled(lst),
+    );
+    assert.equal(await escrowedShares(), nativeToI80Scaled(lst));
+
+    const result = await release(claimPositionEscrowIx, users[3], users[3], users[3]);
+    assert.isNull(result.result);
+    assert.equal(
+      toI80Scaled((await balance(users[3], collateralBank)).assetShares),
+      nativeToI80Scaled(lst),
+    );
+    assert.equal(await escrowedShares(), 0n);
+  });
+
+  it("(user 0 -> user 3) user 3 declines an escrowed position, which returns to user 0", async () => {
+    const sourceBefore = toI80Scaled(
+      (await balance(users[0], collateralBank)).assetShares,
+    );
+    await escrow(users[3], lst);
+
+    const result = await release(returnPositionEscrowIx, users[3], users[0], users[3]);
+    assert.isNull(result.result);
+    assert.equal(
+      toI80Scaled((await balance(users[0], collateralBank)).assetShares),
+      sourceBefore,
     );
   });
 });

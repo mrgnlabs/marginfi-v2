@@ -267,6 +267,34 @@ pub struct LendingAccountTransferPositionEvent {
     pub protocol_fee_lamports: u32,
 }
 
+#[event]
+pub struct LendingAccountEscrowPositionEvent {
+    pub header: AccountEventHeader,
+    pub position_escrow: Pubkey,
+    pub receiver_account: Pubkey,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub share_amount: WrappedI80F48,
+    /// Shares the escrow holds after this send.
+    pub escrow_shares: WrappedI80F48,
+    pub expires_at: i64,
+    pub protocol_fee_lamports: u32,
+}
+
+#[event]
+pub struct PositionEscrowReleasedEvent {
+    /// `marginfi_account` is the account the shares landed in.
+    pub header: AccountEventHeader,
+    pub position_escrow: Pubkey,
+    pub bank: Pubkey,
+    pub mint: Pubkey,
+    /// True when the shares went back to the sender, false when the receiver took them.
+    pub returned: bool,
+    pub amount: u64,
+    pub share_amount: WrappedI80F48,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct LiquidationBalances {
     pub liquidatee_asset_balance: f64,

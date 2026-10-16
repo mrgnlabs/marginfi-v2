@@ -2723,8 +2723,9 @@ impl<'a> BankAccountWrapper<'a> {
         // the SAME `Balance::is_empty` predicate); the LIQUIDATOR's asset_bank leg — the one
         // reachable full close — settles via `settle_premium` in `lending_account_liquidate`
         // before the credit lands here; receivership's `repay_all` settles likewise. So this
-        // write-off only ever clears a receivable that was already settled or legitimately
-        // forgiven (bankruptcy / tokenless repayment / asset-side flips).
+        // write-off only ever clears a receivable that was already settled, legitimately
+        // forgiven (bankruptcy / tokenless repayment / asset-side flips), or carried to the
+        // receiver of a full debt transfer.
         if had_liabs && balance.is_empty(BalanceSide::Liabilities) {
             balance.write_off_premium();
         }

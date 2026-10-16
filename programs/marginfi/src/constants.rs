@@ -132,6 +132,9 @@ pub const DEFAULT_POSITION_TRANSFER_FEE_LAMPORTS: u32 = 500_000;
 /// `FeeState.position_transfer_min_value_usd_cents` is 0.
 pub const DEFAULT_POSITION_TRANSFER_MIN_VALUE_USD_CENTS: u32 = 100;
 
+/// Seconds an escrowed position waits for the receiver before anyone may return it to the sender.
+pub const POSITION_ESCROW_EXPIRY_SECONDS: i64 = 30 * 24 * 60 * 60;
+
 /// When creating a mrgn account using a PDA, programs that wish to specify a third_party_id must be
 /// registered here. This confers no other benefits. Creating accounts with third_party_id = 0 or
 /// (the default) or id < PDA_FREE_THRESHOLD is freely available to any caller.

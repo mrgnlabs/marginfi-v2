@@ -554,9 +554,11 @@ pub enum MarginfiError {
     PositionTransferInsufficientFunds, // 6902
     #[msg("Cannot transfer a position to the same account")]
     PositionTransferIdenticalAccounts, // 6903
-    #[msg("Receiving debt requires the destination authority's consent")]
-    PositionTransferDebtConsentRequired, // 6904
-                                         // ************** END POSITION TRANSFER ERRORS
+    #[msg("Receiving debt or a new position requires the destination authority's consent")]
+    PositionTransferConsentRequired, // 6904
+    #[msg("Only the receiver may return an escrowed position before it expires")]
+    PositionEscrowNotExpired, // 6905
+                              // ************** END POSITION TRANSFER ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -853,7 +855,8 @@ impl From<u32> for MarginfiError {
             6901 => MarginfiError::InvalidPositionTransferAmount,
             6902 => MarginfiError::PositionTransferInsufficientFunds,
             6903 => MarginfiError::PositionTransferIdenticalAccounts,
-            6904 => MarginfiError::PositionTransferDebtConsentRequired,
+            6904 => MarginfiError::PositionTransferConsentRequired,
+            6905 => MarginfiError::PositionEscrowNotExpired,
 
             _ => MarginfiError::InternalLogicError,
         }

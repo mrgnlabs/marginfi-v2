@@ -12,6 +12,7 @@ import {
   deriveGlobalFeeState,
   deriveLiquidationRecord,
   deriveOrderPda,
+  derivePositionEscrow,
 } from "./pdas";
 import { WrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { createHash } from "crypto";
@@ -1060,7 +1061,7 @@ export type LendingAccountTransferPositionArgs = {
   sourceMarginfiAccount: PublicKey;
   destinationMarginfiAccount: PublicKey;
   authority: PublicKey;
-  /** Signs only to consent to receiving debt; null for a collateral move */
+  /** Signs to consent to receiving debt or a new position; null for a top-up of an existing deposit */
   destinationAuthority: PublicKey | null;
   feePayer: PublicKey;
   bank: PublicKey;
@@ -1073,8 +1074,8 @@ export type LendingAccountTransferPositionArgs = {
 };
 
 /**
- * Move part of a position to another account in the same bank. `destinationAuthority` signs only to
- * consent to receiving debt; `feePayer` pays the flat fee.
+ * Move part of a position to another account in the same bank. `destinationAuthority` signs to
+ * consent to receiving debt or a new position; `feePayer` pays the flat fee.
  */
 export const lendingAccountTransferPositionIx = (
   program: Program<Marginfi>,
@@ -1107,4 +1108,98 @@ export const lendingAccountTransferPositionIx = (
     .instruction();
 
   return ix;
+};
+
+export type EscrowPositionArgs = {
+  group: PublicKey;
+  sourceMarginfiAccount: PublicKey;
+  receiverMarginfiAccount: PublicKey;
+  bank: PublicKey;
+  /** The source account's authority */
+  authority: PublicKey;
+  /** Pays the escrow rent on the first send and the flat fee on each send */
+  feePayer: PublicKey;
+  globalFeeWallet: PublicKey;
+  amount: BN;
+  /** Source observation set: `[bank, oracles...]` per active balance, as it stands after the send */
+  sourceRemaining: PublicKey[];
+};
+
+/** Send part of the source's deposit into its escrow for the receiver, opening it on the first send. */
+export const escrowPositionIx = (
+  program: Program<Marginfi>,
+  args: EscrowPositionArgs,
+) => {
+  return program.methods
+    .lendingAccountEscrowPosition(args.amount)
+    .accounts({
+      group: args.group,
+      sourceMarginfiAccount: args.sourceMarginfiAccount,
+      receiverMarginfiAccount: args.receiverMarginfiAccount,
+      authority: args.authority,
+      feePayer: args.feePayer,
+      bank: args.bank,
+      globalFeeWallet: args.globalFeeWallet,
+      // positionEscrow = derivePositionEscrow(id, bank, receiver, source)
+      // feeState = deriveGlobalFeeState(id)
+    })
+    .remainingAccounts(
+      args.sourceRemaining.map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: false,
+      })),
+    )
+    .instruction();
+};
+
+export type ReleasePositionEscrowArgs = {
+  group: PublicKey;
+  bank: PublicKey;
+  sourceMarginfiAccount: PublicKey;
+  receiverMarginfiAccount: PublicKey;
+  /** The account the shares land in */
+  destinationMarginfiAccount: PublicKey;
+  /** Receiver's authority to accept or decline, sender's to pick the return account; null otherwise */
+  authority: PublicKey | null;
+  rentPayer: PublicKey;
+};
+
+const releasePositionEscrowAccounts = (
+  program: Program<Marginfi>,
+  args: ReleasePositionEscrowArgs,
+) => ({
+  group: args.group,
+  positionEscrow: derivePositionEscrow(
+    program.programId,
+    args.bank,
+    args.receiverMarginfiAccount,
+    args.sourceMarginfiAccount,
+  )[0],
+  destinationMarginfiAccount: args.destinationMarginfiAccount,
+  bank: args.bank,
+  authority: args.authority,
+  rentPayer: args.rentPayer,
+});
+
+/** Move the escrowed shares into a receiver account and close the escrow. */
+export const claimPositionEscrowIx = (
+  program: Program<Marginfi>,
+  args: ReleasePositionEscrowArgs,
+) => {
+  return program.methods
+    .lendingAccountClaimPositionEscrow()
+    .accounts(releasePositionEscrowAccounts(program, args))
+    .instruction();
+};
+
+/** Move the escrowed shares back to the sender and close the escrow. */
+export const returnPositionEscrowIx = (
+  program: Program<Marginfi>,
+  args: ReleasePositionEscrowArgs,
+) => {
+  return program.methods
+    .lendingAccountReturnPositionEscrow()
+    .accounts(releasePositionEscrowAccounts(program, args))
+    .instruction();
 };

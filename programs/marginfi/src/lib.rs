@@ -606,8 +606,9 @@ pub mod marginfi {
         marginfi_account::lending_account_withdraw(ctx, amount, withdraw_all)
     }
 
-    /// (source authority) Move part of a position in one bank to another account. Debt needs the
-    /// receiver's consent (shared authority or `destination_authority`); an over-ask moves it all.
+    /// (source authority) Move part of a position in one bank to another account. Without the
+    /// receiver's consent (shared authority or `destination_authority`) it only tops up a deposit
+    /// the receiver holds outside any order. A debt over-ask moves all of the debt.
     pub fn lending_account_transfer_position<'info>(
         ctx: Context<'info, LendingAccountTransferPosition<'info>>,
         transfer_amount: u64,
@@ -618,6 +619,33 @@ pub mod marginfi {
             transfer_amount,
             destination_accounts,
         )
+    }
+
+    /// (source authority) Move part of a deposit into the escrow for the receiver to accept. The
+    /// first send opens the escrow. The fee payer pays its rent and gets it back when the escrow
+    /// closes. Each send restarts the expiry.
+    pub fn lending_account_escrow_position<'info>(
+        ctx: Context<'info, LendingAccountEscrowPosition<'info>>,
+        amount: u64,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_escrow_position(ctx, amount)
+    }
+
+    /// (receiver authority, or permissionless sweep) Move the escrowed shares into an account of
+    /// the receiver's authority, or into the receiver's account once it holds a deposit in the
+    /// bank that no order tags. Closes the escrow.
+    pub fn lending_account_claim_position_escrow(
+        ctx: Context<ReleasePositionEscrow>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_claim_position_escrow(ctx)
+    }
+
+    /// (receiver authority, or permissionless after expiry) Move the escrowed shares back to the
+    /// source account, or to an account of the sender's authority when it signs. Closes the escrow.
+    pub fn lending_account_return_position_escrow(
+        ctx: Context<ReleasePositionEscrow>,
+    ) -> MarginfiResult {
+        marginfi_account::lending_account_return_position_escrow(ctx)
     }
 
     /// (account authority) Borrow assets from a bank. Accrues interest, records liability, applies

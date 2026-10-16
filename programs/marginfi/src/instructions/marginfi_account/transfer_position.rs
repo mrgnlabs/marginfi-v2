@@ -10,7 +10,7 @@ use crate::{
     state::{
         bank::BankImpl,
         marginfi_account::{
-            account_not_frozen_for_authority, calc_value, check_account_init_health,
+            account_not_frozen_for_authority, calc_value, check_account_init_health_and_clear_tag,
             deposit_is_halt_safe, is_signer_authorized, run_cb_price_gate, BankAccountWrapper,
             LendingAccountImpl, MarginfiAccountImpl,
         },
@@ -29,7 +29,7 @@ use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{EMPTY_BALANCE_THRESHOLD, FEE_STATE_SEED, TOKENLESS_REPAYMENTS_ALLOWED},
     types::{
-        is_marginfi_asset_tag, BalanceSide, Bank, FeeState, HealthCache, MarginfiAccount,
+        is_marginfi_asset_tag, Balance, BalanceSide, Bank, FeeState, HealthCache, MarginfiAccount,
         MarginfiGroup, RiskTier, ACCOUNT_DISABLED, ACCOUNT_FROZEN, ACCOUNT_IN_DELEVERAGE,
         ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_ORDER_EXECUTION, ACCOUNT_IN_REBALANCE,
         ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_POSITION_TRANSFER_RECEIVE_DISABLED,
@@ -60,39 +60,9 @@ pub fn lending_account_transfer_position<'info>(
     let mut bank = ctx.accounts.bank.load_mut()?;
     let group = ctx.accounts.group.load()?;
 
-    check_eq!(
-        ctx.accounts.global_fee_wallet.key(),
-        group.fee_state_cache.global_fee_wallet,
-        MarginfiError::InvalidGlobalFeeWallet
-    );
-
-    for account in [&*source_account, &*destination_account] {
-        check!(
-            !account.get_flag(ACCOUNT_DISABLED),
-            MarginfiError::AccountDisabled
-        );
-        check!(
-            !account.get_flag(ACCOUNT_IN_FLASHLOAN),
-            MarginfiError::AccountInFlashloan
-        );
-        check!(
-            !account.get_flag(
-                ACCOUNT_IN_RECEIVERSHIP
-                    | ACCOUNT_IN_ORDER_EXECUTION
-                    | ACCOUNT_IN_DELEVERAGE
-                    | ACCOUNT_IN_REBALANCE
-            ),
-            MarginfiError::ForbiddenIx
-        );
-    }
-    check!(
-        !destination_account.get_flag(ACCOUNT_FROZEN),
-        MarginfiError::AccountFrozen
-    );
-    check!(
-        !destination_account.get_flag(ACCOUNT_POSITION_TRANSFER_RECEIVE_DISABLED),
-        MarginfiError::PositionTransferReceiveDisabled
-    );
+    check_position_flags(&source_account)?;
+    check_position_flags(&destination_account)?;
+    check_can_receive(&destination_account)?;
 
     let source_balance = source_account
         .lending_account
@@ -103,7 +73,7 @@ pub fn lending_account_transfer_position<'info>(
         Some(BalanceSide::Assets) => (false, source_balance.asset_shares.into()),
         None => return err!(MarginfiError::NoAssetFound),
     };
-    if is_liability {
+    if is_liability || !takes_unsolicited_deposit(&destination_account, &bank_key) {
         let receiver_consents = destination_account.authority == ctx.accounts.authority.key()
             || ctx
                 .accounts
@@ -112,7 +82,7 @@ pub fn lending_account_transfer_position<'info>(
                 .is_some_and(|signer| signer.key() == destination_account.authority);
         check!(
             receiver_consents,
-            MarginfiError::PositionTransferDebtConsentRequired
+            MarginfiError::PositionTransferConsentRequired
         );
     }
 
@@ -126,24 +96,19 @@ pub fn lending_account_transfer_position<'info>(
         halt_safe,
     )?;
 
-    let fee_state = ctx.accounts.fee_state.load()?;
-    let min_value_usd_cents = match fee_state.position_transfer_min_value_usd_cents {
-        0 => DEFAULT_POSITION_TRANSFER_MIN_VALUE_USD_CENTS,
-        cents => cents,
-    };
-    let position_transfer_fee = match fee_state.position_transfer_fee {
-        0 => DEFAULT_POSITION_TRANSFER_FEE_LAMPORTS,
-        fee => fee,
-    };
-
     let amount = I80F48::from_num(transfer_amount);
-    let price =
-        fetch_asset_price_for_bank_low_bias(&bank_key, &bank, &clock, ctx.remaining_accounts)?;
-    let transfer_usd_value = calc_value(amount, price, bank.get_balance_decimals(), None)?;
-    check!(
-        transfer_usd_value >= I80F48::from_num(min_value_usd_cents) / I80F48::from_num(100),
-        MarginfiError::InvalidPositionTransferAmount
-    );
+    let position_transfer_fee = charge_position_transfer(
+        &*ctx.accounts.fee_state.load()?,
+        &group,
+        &bank_key,
+        &bank,
+        &clock,
+        ctx.remaining_accounts,
+        amount,
+        ctx.accounts.fee_payer.to_account_info(),
+        ctx.accounts.global_fee_wallet.to_account_info(),
+        &ctx.accounts.system_program,
+    )?;
 
     bank.accrue_interest(
         clock.unix_timestamp,
@@ -172,8 +137,11 @@ pub fn lending_account_transfer_position<'info>(
             source_position.claim_premium()?;
             let receivable: I80F48 = source_position.balance.premium_outstanding.into();
             let shares = source_position.repay(amount)?;
+            check_no_liability_dust(source_position.balance)?;
             if source_position.balance.is_empty(BalanceSide::Liabilities) {
                 carried_premium = receivable;
+                // The emptied slot stays active, so it keeps no order tag.
+                source_position.balance.tag = 0;
             }
             shares
         } else {
@@ -193,12 +161,7 @@ pub fn lending_account_transfer_position<'info>(
         )?;
         if is_liability {
             destination_position.debt_transfer_in(moved_amount)?;
-            check!(
-                I80F48::from(destination_position.balance.liability_shares)
-                    >= EMPTY_BALANCE_THRESHOLD,
-                MarginfiError::IllegalBalanceState,
-                "Transfer would leave positive liability shares below the empty balance threshold"
-            );
+            check_no_liability_dust(destination_position.balance)?;
             destination_position.balance.premium_outstanding =
                 I80F48::from(destination_position.balance.premium_outstanding)
                     .checked_add(carried_premium)
@@ -211,11 +174,6 @@ pub fn lending_account_transfer_position<'info>(
     if is_liability && bank.config.risk_tier == RiskTier::Isolated {
         destination_account.indexer_flags.has_isolated = 1;
     }
-
-    anchor_lang::system_program::transfer(
-        ctx.accounts.transfer_fee(),
-        u64::from(position_transfer_fee),
-    )?;
 
     for account in [&mut *source_account, &mut *destination_account] {
         account.last_update = clock.unix_timestamp as u64;
@@ -242,6 +200,7 @@ pub fn lending_account_transfer_position<'info>(
             &clock,
             source_carries_risk,
             false,
+            true,
         )?;
     }
     check_health_and_refresh_premium(
@@ -251,6 +210,7 @@ pub fn lending_account_transfer_position<'info>(
         &clock,
         is_liability,
         is_liability,
+        false,
     )?;
 
     let maybe_price = fetch_unbiased_price_for_bank_cache(
@@ -288,20 +248,127 @@ pub fn lending_account_transfer_position<'info>(
     Ok(())
 }
 
+/// Errors if `account` is disabled, or mid flashloan, receivership, order execution, deleverage or
+/// rebalance.
+pub(super) fn check_position_flags(account: &MarginfiAccount) -> MarginfiResult {
+    check!(
+        !account.get_flag(ACCOUNT_DISABLED),
+        MarginfiError::AccountDisabled
+    );
+    check!(
+        !account.get_flag(ACCOUNT_IN_FLASHLOAN),
+        MarginfiError::AccountInFlashloan
+    );
+    check!(
+        !account.get_flag(
+            ACCOUNT_IN_RECEIVERSHIP
+                | ACCOUNT_IN_ORDER_EXECUTION
+                | ACCOUNT_IN_DELEVERAGE
+                | ACCOUNT_IN_REBALANCE
+        ),
+        MarginfiError::ForbiddenIx
+    );
+    Ok(())
+}
+
+/// Errors if `account` is frozen or has disabled receiving positions.
+pub(super) fn check_can_receive(account: &MarginfiAccount) -> MarginfiResult {
+    check!(
+        !account.get_flag(ACCOUNT_FROZEN),
+        MarginfiError::AccountFrozen
+    );
+    check!(
+        !account.get_flag(ACCOUNT_POSITION_TRANSFER_RECEIVE_DISABLED),
+        MarginfiError::PositionTransferReceiveDisabled
+    );
+    Ok(())
+}
+
+/// True if `account` holds a deposit in `bank_key` that no order tags. Only such a deposit takes
+/// positions without its authority's signature.
+pub(super) fn takes_unsolicited_deposit(account: &MarginfiAccount, bank_key: &Pubkey) -> bool {
+    account
+        .lending_account
+        .get_balance(bank_key)
+        .is_some_and(|b| b.tag == 0 && matches!(b.get_side(), Some(BalanceSide::Assets)))
+}
+
+/// Errors if `amount` of the bank's token is worth less than the configured minimum, then charges
+/// the flat fee from `fee_payer`. Returns the fee in lamports.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn charge_position_transfer<'info>(
+    fee_state: &FeeState,
+    group: &MarginfiGroup,
+    bank_key: &Pubkey,
+    bank: &Bank,
+    clock: &Clock,
+    remaining_accounts: &'info [AccountInfo<'info>],
+    amount: I80F48,
+    fee_payer: AccountInfo<'info>,
+    global_fee_wallet: AccountInfo<'info>,
+    system_program: &Program<'info, System>,
+) -> MarginfiResult<u32> {
+    check_eq!(
+        global_fee_wallet.key(),
+        group.fee_state_cache.global_fee_wallet,
+        MarginfiError::InvalidGlobalFeeWallet
+    );
+    let min_value_usd_cents = match fee_state.position_transfer_min_value_usd_cents {
+        0 => DEFAULT_POSITION_TRANSFER_MIN_VALUE_USD_CENTS,
+        cents => cents,
+    };
+    let fee = match fee_state.position_transfer_fee {
+        0 => DEFAULT_POSITION_TRANSFER_FEE_LAMPORTS,
+        fee => fee,
+    };
+
+    let price =
+        fetch_asset_price_for_bank_low_bias(bank_key, bank, clock, remaining_accounts, false)?;
+    let usd_value = calc_value(amount, price, bank.get_balance_decimals(), None)?;
+    check!(
+        usd_value >= I80F48::from_num(min_value_usd_cents) / I80F48::from_num(100),
+        MarginfiError::InvalidPositionTransferAmount
+    );
+
+    anchor_lang::system_program::transfer(
+        CpiContext::new(
+            system_program.key(),
+            anchor_lang::system_program::Transfer {
+                from: fee_payer,
+                to: global_fee_wallet,
+            },
+        ),
+        u64::from(fee),
+    )?;
+    Ok(fee)
+}
+
+/// Errors if `balance` holds positive liability shares below the empty balance threshold.
+fn check_no_liability_dust(balance: &Balance) -> MarginfiResult {
+    let shares: I80F48 = balance.liability_shares.into();
+    check!(
+        shares <= I80F48::ZERO || shares >= EMPTY_BALANCE_THRESHOLD,
+        MarginfiError::IllegalBalanceState,
+        "Transfer would leave positive liability shares below the empty balance threshold"
+    );
+    Ok(())
+}
+
 /// Non-inlined so each account's `PremiumScratch` gets its own frame within the SBF stack budget.
 #[inline(never)]
-fn check_health_and_refresh_premium<'info>(
+pub(super) fn check_health_and_refresh_premium<'info>(
     account: &mut MarginfiAccount,
     group: &MarginfiGroup,
     observation_ais: &'info [AccountInfo<'info>],
     clock: &Clock,
     carries_risk: bool,
     takes_on_debt: bool,
+    ratchet_on_incomplete: bool,
 ) -> MarginfiResult {
     let mut health_cache = HealthCache::zeroed();
     health_cache.timestamp = clock.unix_timestamp;
     let mut premium_scratch = PremiumScratch::default();
-    check_account_init_health(
+    check_account_init_health_and_clear_tag(
         account,
         group,
         observation_ais,
@@ -320,7 +387,12 @@ fn check_health_and_refresh_premium<'info>(
     if carries_risk {
         run_cb_price_gate(account, observation_ais)?;
     }
-    account.update_premium_snapshots(group, &premium_scratch, clock.unix_timestamp as u64)
+    account.update_premium_snapshots(
+        group,
+        &premium_scratch,
+        clock.unix_timestamp as u64,
+        ratchet_on_incomplete,
+    )
 }
 
 #[derive(Accounts)]
@@ -340,7 +412,7 @@ pub struct LendingAccountTransferPosition<'info> {
         constraint = {
             let a = source_marginfi_account.load()?;
             let g = group.load()?;
-            is_signer_authorized(&a, g.admin, authority.key(), false, false, false)
+            is_signer_authorized(&a, g.governance_admin, authority.key(), false, false, false)
         } @ MarginfiError::Unauthorized
     )]
     pub source_marginfi_account: AccountLoader<'info, MarginfiAccount>,
@@ -350,7 +422,7 @@ pub struct LendingAccountTransferPosition<'info> {
 
     pub authority: Signer<'info>,
 
-    /// Signs only to consent to receiving debt.
+    /// Signs to consent to receiving debt or a new position.
     pub destination_authority: Option<Signer<'info>>,
 
     #[account(mut)]
@@ -377,18 +449,4 @@ pub struct LendingAccountTransferPosition<'info> {
     pub fee_state: AccountLoader<'info, FeeState>,
 
     pub system_program: Program<'info, System>,
-}
-
-impl<'info> LendingAccountTransferPosition<'info> {
-    fn transfer_fee(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, anchor_lang::system_program::Transfer<'info>> {
-        CpiContext::new(
-            self.system_program.key(),
-            anchor_lang::system_program::Transfer {
-                from: self.fee_payer.to_account_info(),
-                to: self.global_fee_wallet.to_account_info(),
-            },
-        )
-    }
 }
