@@ -965,15 +965,15 @@ describe("jlr14: JupLend protocol lockdown (bankrun)", () => {
         () => liquidity.setStatus(Status.LOCKED),
       ],
       [
-        "unreadable bad discriminator disables borrow power without failing pricing",
+        "unreadable bad discriminator disables borrow power without breaking pricing",
         () => liquidity.corruptDiscriminator(),
       ],
       [
-        "unreadable wrong owner disables borrow power without failing pricing",
+        "unreadable wrong owner disables borrow power without breaking pricing",
         () => liquidity.useWrongOwner(),
       ],
       [
-        "truncated data disables borrow power without failing pricing",
+        "truncated data disables borrow power without breaking pricing",
         () => liquidity.truncate(),
       ],
     ];
