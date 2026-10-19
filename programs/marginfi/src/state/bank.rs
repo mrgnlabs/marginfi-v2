@@ -190,6 +190,9 @@ pub trait BankImpl {
     fn get_asset_amount(&self, shares: I80F48) -> MarginfiResult<I80F48>;
     fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
     fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
+    /// Conservative deposit allowance in whole bank-accounting units (Drift uses scaled balances).
+    /// Reserves one accounting unit of headroom, then rounds down. Returns 0 near or above the
+    /// ceiling and `u64::MAX` when unlimited. Accrue interest first to account for pending yield.
     fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64>;
     fn change_asset_shares(&mut self, shares: I80F48, bypass_deposit_limit: bool)
         -> MarginfiResult;
