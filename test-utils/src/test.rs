@@ -771,6 +771,8 @@ impl TestFixture {
         program.add_program("test_transfer_hook", TEST_HOOK_ID, None);
         program.add_program("mocks", mocks::ID, None);
 
+        program.prefer_bpf(true);
+        program.add_program("spl_stake_pool", spl_stake_pool::id(), None);
         program.prefer_bpf(false);
         let requires_real_kamino_program = add_integration_programs;
         let mut original_sbf_out_dir = None;
