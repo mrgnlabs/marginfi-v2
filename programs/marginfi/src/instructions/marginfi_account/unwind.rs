@@ -314,11 +314,11 @@ pub struct UnwindLst<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn unwind_lst<'info>(mut ctx: Context<'info, UnwindLst<'info>>, max_lst_in: u64) -> Result<()> {
+pub fn unwind_lst<'info>(ctx: Context<'info, UnwindLst<'info>>, max_lst_in: u64) -> Result<()> {
     let clock = Clock::get()?;
     let ticket_bump = ctx.bumps.unwind_ticket;
     let remaining = ctx.remaining_accounts;
-    let accounts: &UnwindLst<'info> = &ctx.accounts;
+    let accounts: &UnwindLst<'info> = ctx.accounts;
     let sol_bank_key = accounts.sol_bank.key();
     #[cfg(not(feature = "client"))]
     let lst_bank_key = accounts.lst_bank.key();
@@ -416,7 +416,7 @@ pub fn unwind_lst<'info>(mut ctx: Context<'info, UnwindLst<'info>>, max_lst_in: 
         sol_vault_authority_bump,
     )?;
     create_unwind_ticket_and_emit(
-        &mut ctx.accounts,
+        ctx.accounts,
         ticket_bump,
         &plan,
         stake_rent_prefund_lamports,
