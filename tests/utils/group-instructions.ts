@@ -7,6 +7,12 @@ import {
 import { Marginfi } from "../../target/types/marginfi";
 import {
   deriveBankWithSeed,
+  deriveFeeVault,
+  deriveFeeVaultAuthority,
+  deriveInsuranceVault,
+  deriveInsuranceVaultAuthority,
+  deriveLiquidityVault,
+  deriveLiquidityVaultAuthority,
   deriveOnRampPool,
   deriveSameAssetEmodeRegistry,
   deriveStakedSettings,
@@ -1209,9 +1215,28 @@ export type CloseBankArgs = {
   /** Admin escape hatch: skip the CLOSE_ENABLED_FLAG + open-position checks. */
   forceClose?: boolean;
   admin: PublicKey;
+  /** Also close the bank's three vaults (they must be empty), with this as their token program. */
+  closeVaultsWith?: PublicKey;
 };
 
 export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
+  const pid = program.programId;
+  const meta = (pubkey: PublicKey, isWritable: boolean): AccountMeta => ({
+    pubkey,
+    isSigner: false,
+    isWritable,
+  });
+  const vaults = args.closeVaultsWith
+    ? [
+        meta(args.closeVaultsWith, false),
+        meta(deriveLiquidityVault(pid, args.bank)[0], true),
+        meta(deriveLiquidityVaultAuthority(pid, args.bank)[0], false),
+        meta(deriveInsuranceVault(pid, args.bank)[0], true),
+        meta(deriveInsuranceVaultAuthority(pid, args.bank)[0], false),
+        meta(deriveFeeVault(pid, args.bank)[0], true),
+        meta(deriveFeeVaultAuthority(pid, args.bank)[0], false),
+      ]
+    : [];
   const ix = program.methods
     .lendingPoolCloseBank(args.forceClose ?? null)
     .accounts({
@@ -1219,6 +1244,7 @@ export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
       bank: args.bank,
       // admin: args.admin,
     })
+    .remainingAccounts(vaults)
     .instruction();
   return ix;
 };

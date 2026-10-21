@@ -27,9 +27,22 @@ import {
   depositIx,
   withdrawIx,
 } from "../../utils/user-instructions";
-import { deriveBankWithSeed } from "../../utils/pdas";
+import {
+  deriveBankWithSeed,
+  deriveFeeVault,
+  deriveInsuranceVault,
+  deriveLiquidityVault,
+} from "../../utils/pdas";
+import {
+  createTransferInstruction,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { assert } from "chai";
-import { assertBNEqual, expectFailedTxWithError } from "../../utils/genericTests";
+import {
+  assertBNEqual,
+  expectFailedTxWithError,
+  expectFailedTxWithMessage,
+} from "../../utils/genericTests";
 import { closeBank } from "../../utils/group-instructions";
 import { USER_ACCOUNT } from "../../utils/mocks";
 import { dumpAccBalances } from "../../utils/tools";
@@ -170,6 +183,117 @@ describe("Close bank", () => {
 
     const info = await provider.connection.getAccountInfo(bankKey);
     assert.isNull(info);
+  });
+
+  describe("closing the vaults", () => {
+    const vaultSeed = new BN(987614);
+    let vaultBank: PublicKey;
+    let vaults: PublicKey[];
+
+    before(async () => {
+      [vaultBank] = deriveBankWithSeed(
+        program.programId,
+        marginfiGroup.publicKey,
+        ecosystem.tokenAMint.publicKey,
+        vaultSeed
+      );
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await addBankWithSeed(groupAdmin.mrgnProgram, {
+            marginfiGroup: marginfiGroup.publicKey,
+            feePayer: groupAdmin.wallet.publicKey,
+            bankMint: ecosystem.tokenAMint.publicKey,
+            config: defaultBankConfig(),
+            seed: vaultSeed,
+          })
+        )
+      );
+      vaults = [deriveLiquidityVault, deriveInsuranceVault, deriveFeeVault].map(
+        (derive) => derive(program.programId, vaultBank)[0]
+      );
+    });
+
+    const closeWithVaults = async () =>
+      groupAdmin.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await closeBank(groupAdmin.mrgnProgram, {
+            marginfiGroup: marginfiGroup.publicKey,
+            bank: vaultBank,
+            admin: groupAdmin.wallet.publicKey,
+            closeVaultsWith: TOKEN_PROGRAM_ID,
+          })
+        )
+      );
+
+    it("rejects a partial vault list", async () => {
+      const ix = await closeBank(groupAdmin.mrgnProgram, {
+        marginfiGroup: marginfiGroup.publicKey,
+        bank: vaultBank,
+        admin: groupAdmin.wallet.publicKey,
+        closeVaultsWith: TOKEN_PROGRAM_ID,
+      });
+      ix.keys = ix.keys.slice(0, ix.keys.length - 2); // drop the fee vault and its authority
+      await expectFailedTxWithMessage(async () => {
+        await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+          new Transaction().add(ix)
+        );
+      }, "expected 7 vault accounts, got 5");
+    });
+
+    it("rejects a non-empty vault", async () => {
+      // Anyone can send tokens to a vault; the close must then fail rather than burn them.
+      await users[0].mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          createTransferInstruction(
+            users[0].tokenAAccount,
+            vaults[1],
+            users[0].wallet.publicKey,
+            1
+          )
+        )
+      );
+      await expectFailedTxWithMessage(
+        closeWithVaults,
+        "Insurance vault still holds 1 tokens"
+      );
+      assert.isNotNull(await provider.connection.getAccountInfo(vaultBank));
+    });
+
+    it("closes the bank and all three vaults, rent to the admin", async () => {
+      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
+        new Transaction().add(
+          await groupAdmin.mrgnProgram.methods
+            .lendingPoolWithdrawInsurance(new BN(1))
+            .accountsPartial({
+              bank: vaultBank,
+              dstTokenAccount: users[0].tokenAAccount,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            })
+            .instruction()
+        )
+      );
+
+      const accounts = [vaultBank, ...vaults];
+      const rent = (
+        await Promise.all(
+          accounts.map((k) => provider.connection.getAccountInfo(k))
+        )
+      ).reduce((sum, info) => sum + info.lamports, 0);
+      const adminBefore = await provider.connection.getBalance(
+        groupAdmin.wallet.publicKey
+      );
+
+      await closeWithVaults();
+
+      for (const k of accounts) {
+        assert.isNull(await provider.connection.getAccountInfo(k));
+      }
+      const adminAfter = await provider.connection.getBalance(
+        groupAdmin.wallet.publicKey
+      );
+      // The admin also paid the tx fee.
+      assert.isAtLeast(adminAfter - adminBefore, rent - 10_000);
+    });
   });
 
   // Uses a real mainnet fixture: the legacy staked bank Hco1P3dGRXz3ZGFvMkbDgghZQy47Tp7vp7koSYRvP6nm

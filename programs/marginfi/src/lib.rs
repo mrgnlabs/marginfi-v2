@@ -759,8 +759,12 @@ pub mod marginfi {
     ///   is lost **FOREVER**), including the liquidity vault
     /// * all three outstanding-fee fields are zero (or you don't care if anything remaining is lost
     ///   **FOREVER**)
-    pub fn lending_pool_close_bank(
-        ctx: Context<LendingPoolCloseBank>,
+    ///
+    /// Optionally pass the bank's token program and its three vaults with their authorities as
+    /// remaining accounts to close the vaults too and recover their rent; the close then fails
+    /// unless every vault is empty. See `lending_pool_close_bank` in `close_bank.rs` for the order.
+    pub fn lending_pool_close_bank<'info>(
+        ctx: Context<'info, LendingPoolCloseBank<'info>>,
         force_close: Option<bool>,
     ) -> MarginfiResult {
         marginfi_group::lending_pool_close_bank(ctx, force_close)
