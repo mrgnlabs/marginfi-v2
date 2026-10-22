@@ -5,9 +5,8 @@ use crate::{
     prelude::{MarginfiError, MarginfiResult},
     state::bank::BankImpl,
     state::premium::{
-        accrued_premium_total, premium_elapsed_seconds, BalancePremiumImpl, PremiumScratch,
-        PremiumScratchEntry, SCRATCH_ASSET, SCRATCH_LIABILITY, SCRATCH_PREMIUM_ACTIVE,
-        SCRATCH_UNPRICEABLE,
+        BalancePremiumImpl, PremiumScratch, PremiumScratchEntry, SCRATCH_ASSET, SCRATCH_LIABILITY,
+        SCRATCH_PREMIUM_ACTIVE, SCRATCH_UNPRICEABLE,
     },
     utils::{is_integration_asset_tag, NumTraitsWithTolerance},
 };
@@ -21,13 +20,13 @@ use marginfi_type_crate::{
         PREMIUM_ACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
-        compute_same_asset_emode_weight, reconcile_emode_configs, u32_to_basis, Balance,
-        BalanceSide, Bank, BankOperationalState, EmodeConfig, HealthCache, HealthPriceMode,
-        LendingAccount, LiquidationPriceCache, MarginfiAccount, MarginfiGroup, OracleFeedFamily,
-        OraclePriceType, OraclePriceWithConfidence, OracleSetup, PriceBias, ReconciledEmodeConfig,
-        RequirementType, RiskTier, ACCOUNT_DISABLED, ACCOUNT_FROZEN, ACCOUNT_IN_DELEVERAGE,
-        ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_ORDER_EXECUTION, ACCOUNT_IN_REBALANCE,
-        ACCOUNT_IN_RECEIVERSHIP,
+        compute_same_asset_emode_weight, premium_liability_value, reconcile_emode_configs,
+        u32_to_basis, Balance, BalanceSide, Bank, BankOperationalState, EmodeConfig, HealthCache,
+        HealthPriceMode, LendingAccount, LiquidationPriceCache, MarginfiAccount, MarginfiGroup,
+        OracleFeedFamily, OraclePriceType, OraclePriceWithConfidence, OracleSetup, PriceBias,
+        ReconciledEmodeConfig, RequirementType, RiskTier, ACCOUNT_DISABLED, ACCOUNT_FROZEN,
+        ACCOUNT_IN_DELEVERAGE, ACCOUNT_IN_FLASHLOAN, ACCOUNT_IN_ORDER_EXECUTION,
+        ACCOUNT_IN_REBALANCE, ACCOUNT_IN_RECEIVERSHIP, ACCOUNT_IN_RISK_ADMIN_LIQUIDATION,
     },
 };
 use std::{
@@ -89,6 +88,7 @@ pub trait MarginfiAccountImpl {
     fn unset_flag(&mut self, flag: u64, msg: bool);
     fn get_flag(&self, flag: u64) -> bool;
     fn defers_health_to_end_instruction(&self) -> bool;
+    fn prices_through_pt_emergency(&self) -> bool;
     fn increment_active_orders(&mut self) -> MarginfiResult;
     fn decrement_active_orders(&mut self) -> MarginfiResult;
     fn can_be_closed(&self) -> bool;
@@ -265,6 +265,7 @@ pub fn run_cb_price_gate<'info>(
                     oracle_ais,
                     &clock,
                     OraclePriceType::RealTime,
+                    marginfi_account.prices_through_pt_emergency(),
                 )?;
             bank.cb_price_gate(cache_price.cb_observation()?)?;
         }
@@ -313,6 +314,12 @@ impl MarginfiAccountImpl for MarginfiAccount {
     /// transaction: receivership, order execution, and auto-rebalance.
     fn defers_health_to_end_instruction(&self) -> bool {
         self.get_flag(ACCOUNT_IN_RECEIVERSHIP | ACCOUNT_IN_ORDER_EXECUTION | ACCOUNT_IN_REBALANCE)
+    }
+
+    /// Risk-admin unwinds (deleverage, risk-admin liquidation) price PT banks through an Exponent
+    /// emergency.
+    fn prices_through_pt_emergency(&self) -> bool {
+        self.get_flag(ACCOUNT_IN_DELEVERAGE | ACCOUNT_IN_RISK_ADMIN_LIQUIDATION)
     }
     fn increment_active_orders(&mut self) -> MarginfiResult {
         // Note: Sanity check, expected to be unreachable, as this vastly exceeds max theoretical
@@ -596,31 +603,9 @@ fn calc_premium_liab_value(
     price: I80F48,
     now: u64,
 ) -> MarginfiResult<I80F48> {
-    if !bank.get_flag(PREMIUM_ACTIVE)
-        || !matches!(balance.get_side(), Some(BalanceSide::Liabilities))
-    {
-        return Ok(I80F48::ZERO);
-    }
-
-    let liability_amount = bank.get_liability_amount(balance.liability_shares.into())?;
-    let total_premium = accrued_premium_total(
-        liability_amount,
-        balance.premium_rate_snapshot,
-        balance.premium_outstanding.into(),
-        premium_elapsed_seconds(balance, bank.premium_activated_at, now),
-    )?;
-    if total_premium <= I80F48::ZERO || price <= I80F48::ZERO {
-        return Ok(I80F48::ZERO);
-    }
-
-    let liability_weight = bank
-        .config
-        .get_weight(requirement_type, BalanceSide::Liabilities);
-    calc_value(
-        total_premium,
-        price,
-        bank.get_balance_decimals(),
-        Some(liability_weight),
+    Ok(
+        premium_liability_value(balance, bank, requirement_type, price, now)
+            .ok_or_else(math_error!())?,
     )
 }
 
@@ -1068,7 +1053,7 @@ pub fn get_health_components<'info>(
         HealthPriceMode::Client(clock) => (false, None, clock),
     };
 
-    let in_deleverage = marginfi_account.get_flag(ACCOUNT_IN_DELEVERAGE);
+    let ignore_pt_emergency = marginfi_account.prices_through_pt_emergency();
 
     let lending_account = &marginfi_account.lending_account;
 
@@ -1162,8 +1147,12 @@ pub fn get_health_components<'info>(
             let oracle_ais = &remaining_ais[oracle_ai_idx..end_idx];
 
             // Create oracle adapter (heap allocation happens here)
-            let price_adapter_result =
-                OraclePriceFeedAdapter::try_from_bank(&bank, oracle_ais, &clock, in_deleverage);
+            let price_adapter_result = OraclePriceFeedAdapter::try_from_bank(
+                &bank,
+                oracle_ais,
+                &clock,
+                ignore_pt_emergency,
+            );
 
             // Premium weights reuse the biased health price computed inside the calc — no
             // extra adapter work (see the premium module docs for the accepted rate wobble).
@@ -1285,14 +1274,13 @@ pub fn get_health_components<'info>(
         heap_restore(heap_checkpoint);
     }
 
-    // Only complete if every balance priced cleanly, so a refresh can't be written from a pass
-    // that dropped a stale leg — flagged either by the health pass (`err_code`) or by the
-    // premium-price path itself (`unpriceable_leg`, for legs health soft-zeroes without
-    // inspecting the oracle, e.g. ReduceOnly under Initial).
-    if first_err_index == NO_INDEX_FOUND {
-        if let Some(scratch) = premium_scratch.as_mut() {
-            scratch.complete = !scratch.unpriceable_leg;
-        }
+    // Only complete if every premium-relevant leg priced cleanly, so a refresh can't be written
+    // from a pass that dropped a stale leg. `unpriceable_leg` covers exactly those legs: both
+    // Operational stale-skips (which also set `err_code`) and ReduceOnly/Paused soft-zeroes
+    // (which don't). Legs the weighting ignores (isolated, zero-weight) can't taint the pass,
+    // and neither can any leg under an empty matrix, where every rate is 0 regardless.
+    if let Some(scratch) = premium_scratch.as_mut() {
+        scratch.complete = !scratch.unpriceable_leg;
     }
 
     // Update health cache totals
@@ -1688,7 +1676,8 @@ fn check_account_health<'info>(
 
 /// Runs `check_account_init_health`, then clears the account's premium-growth tag if the account
 /// is also healthy at maintenance weights and real-time prices (the init pass uses EMA prices).
-/// Inside a flashloan, where risk checks are skipped, the tag is left alone.
+/// If the maintenance pass errors, the tag stays and no error is returned. Inside a flashloan,
+/// where risk checks are skipped, the tag is left alone.
 pub fn check_account_init_health_and_clear_tag<'info>(
     marginfi_account: &mut MarginfiAccount,
     group: &MarginfiGroup,
@@ -1708,7 +1697,7 @@ pub fn check_account_init_health_and_clear_tag<'info>(
     {
         return Ok(());
     }
-    let (assets, liabs) = get_health_components(
+    if let Ok((assets, liabs)) = get_health_components(
         marginfi_account,
         group,
         remaining_ais,
@@ -1716,9 +1705,10 @@ pub fn check_account_init_health_and_clear_tag<'info>(
         &mut None,
         HealthPriceMode::Live { liq_cache: None },
         &mut None,
-    )?;
-    if assets > liabs {
-        marginfi_account.liquidation_tagged_at = 0;
+    ) {
+        if assets > liabs {
+            marginfi_account.liquidation_tagged_at = 0;
+        }
     }
     Ok(())
 }
@@ -1905,11 +1895,13 @@ fn calc_weighted_asset_value_standalone(
                 )
             ) {
                 debug!("Paused/ReduceOnly bank assets worth 0 for Initial margin");
+                // Premium weighting only: health never prices this leg, so a wide confidence
+                // band must not revert the instruction. The bias still haircuts by the
+                // interval, capped at 5% of price.
                 let premium_price = match (need_premium_price, price_adapter_result) {
-                    (true, Ok(feed)) => feed.get_price_of_type(
+                    (true, Ok(feed)) => feed.get_price_of_type_ignore_conf(
                         requirement_type.get_oracle_price_type(),
                         Some(PriceBias::Low),
-                        bank.config.oracle_max_confidence,
                     )?,
                     // Err: caller marks `unpriceable_leg`; zero weight is never consumed.
                     _ => I80F48::ZERO,
@@ -1952,11 +1944,11 @@ fn calc_weighted_asset_value_standalone(
                 && matches!(requirement_type, RequirementType::Initial)
             {
                 debug!("Bank without borrow power is worth 0 for Initial margin");
+                // Same as the Paused/ReduceOnly exit: premium-only read, confidence ignored.
                 let premium_price = if need_premium_price {
-                    price_feed.get_price_of_type(
+                    price_feed.get_price_of_type_ignore_conf(
                         requirement_type.get_oracle_price_type(),
                         Some(PriceBias::Low),
-                        bank.config.oracle_max_confidence,
                     )?
                 } else {
                     I80F48::ZERO

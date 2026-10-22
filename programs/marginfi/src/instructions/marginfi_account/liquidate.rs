@@ -1,4 +1,7 @@
-use crate::events::{AccountEventHeader, LendingAccountLiquidateEvent, LiquidationBalances};
+use crate::events::{
+    AccountEventHeader, LendingAccountLiquidateEvent, LendingAccountPremiumSettledEvent,
+    LiquidationBalances,
+};
 use crate::state::{
     bank::BankImpl,
     liquidation_record::tag_after_liquidation,
@@ -34,6 +37,7 @@ use marginfi_type_crate::{
     types::{
         is_marginfi_asset_tag, BalanceSide, Bank, BankVaultType, HealthPriceMode, MarginfiAccount,
         MarginfiGroup, OraclePriceType, PriceBias, RequirementType, ACCOUNT_IN_RECEIVERSHIP,
+        ACCOUNT_IN_RISK_ADMIN_LIQUIDATION,
     },
 };
 
@@ -160,6 +164,13 @@ pub fn lending_account_liquidate<'info>(
     let cb_admin_liquidation =
         any_balance_bank_is_cb_halted(&liquidatee_marginfi_account, liquidatee_remaining_accounts)?;
 
+    // Like deleverage, only the risk admin may liquidate through an Exponent PT emergency.
+    let risk_admin_liquidation = ctx.accounts.authority.key() == group.risk_admin;
+    if risk_admin_liquidation {
+        liquidatee_marginfi_account.set_flag(ACCOUNT_IN_RISK_ADMIN_LIQUIDATION, false);
+        liquidator_marginfi_account.set_flag(ACCOUNT_IN_RISK_ADMIN_LIQUIDATION, false);
+    }
+
     {
         let group = marginfi_group_loader.load()?;
 
@@ -238,6 +249,7 @@ pub fn lending_account_liquidate<'info>(
 
     // ##Accounting changes##
 
+    let mut liquidator_premium_settlement: Option<(Pubkey, I80F48, I80F48)> = None;
     let (pre_balances, post_balances, repaid_maint) = {
         let asset_amount: I80F48 = I80F48::from_num(asset_amount);
 
@@ -249,7 +261,7 @@ pub fn lending_account_liquidate<'info>(
             &asset_bank,
             &clock,
             ctx.remaining_accounts,
-            false,
+            risk_admin_liquidation,
         )?;
         check!(asset_price > I80F48::ZERO, MarginfiError::ZeroAssetPrice);
 
@@ -258,8 +270,12 @@ pub fn lending_account_liquidate<'info>(
         let liab_price: I80F48 = {
             let oracle_ais = &ctx.remaining_accounts[asset_bank_remaining_accounts_len
                 ..(asset_bank_remaining_accounts_len + liab_bank_remaining_accounts_len)];
-            let liab_pf =
-                OraclePriceFeedAdapter::try_from_bank(&liab_bank, oracle_ais, &clock, false)?;
+            let liab_pf = OraclePriceFeedAdapter::try_from_bank(
+                &liab_bank,
+                oracle_ais,
+                &clock,
+                risk_admin_liquidation,
+            )?;
             liab_pf.get_price_of_type(
                 OraclePriceType::RealTime,
                 Some(PriceBias::High),
@@ -423,6 +439,14 @@ pub fn lending_account_liquidate<'info>(
                 .bank
                 .get_asset_amount(bank_account.balance.asset_shares.into())?;
 
+            if premium_settled > I80F48::ZERO {
+                liquidator_premium_settlement = Some((
+                    bank_account.bank.mint,
+                    premium_settled,
+                    I80F48::from(bank_account.balance.premium_outstanding),
+                ));
+            }
+
             liquidator_marginfi_account.last_update = current_timestamp as u64;
 
             (pre_balance, post_balance)
@@ -583,6 +607,29 @@ pub fn lending_account_liquidate<'info>(
     if !cb_admin_liquidation {
         run_cb_price_gate(&liquidator_marginfi_account, liquidator_remaining_accounts)?;
     }
+    liquidatee_marginfi_account.unset_flag(ACCOUNT_IN_RISK_ADMIN_LIQUIDATION, false);
+    liquidator_marginfi_account.unset_flag(ACCOUNT_IN_RISK_ADMIN_LIQUIDATION, false);
+
+    let asset_mint = ctx.accounts.asset_bank.load_mut()?.mint;
+    let liability_mint = ctx.accounts.liab_bank.load_mut()?.mint;
+
+    if let Some((mint, premium_settled, premium_outstanding_remaining)) =
+        liquidator_premium_settlement
+    {
+        emit!(LendingAccountPremiumSettledEvent {
+            header: AccountEventHeader {
+                signer: Some(ctx.accounts.authority.key()),
+                marginfi_account: liquidator_marginfi_account_loader.key(),
+                marginfi_account_authority: liquidator_marginfi_account.authority,
+                marginfi_group: marginfi_group_loader.key(),
+            },
+            bank: asset_bank_key,
+            mint,
+            premium_settled: premium_settled.to_num(),
+            premium_written_off: 0.0,
+            premium_outstanding_remaining: premium_outstanding_remaining.to_num(),
+        });
+    }
 
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
@@ -593,10 +640,10 @@ pub fn lending_account_liquidate<'info>(
         },
         liquidatee_marginfi_account: liquidatee_marginfi_account_loader.key(),
         liquidatee_marginfi_account_authority: liquidatee_marginfi_account.authority,
-        asset_bank: ctx.accounts.asset_bank.key(),
-        asset_mint: ctx.accounts.asset_bank.load_mut()?.mint,
+        asset_bank: asset_bank_key,
+        asset_mint,
         liability_bank: ctx.accounts.liab_bank.key(),
-        liability_mint: ctx.accounts.liab_bank.load_mut()?.mint,
+        liability_mint,
         liquidatee_pre_health: pre_liquidation_health.to_num::<f64>(),
         liquidatee_post_health: post_liquidation_health.to_num::<f64>(),
         pre_balances,

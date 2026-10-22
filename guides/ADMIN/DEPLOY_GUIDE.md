@@ -62,6 +62,8 @@ IDL=$PWD/target/idl/marginfi.json
 PAYER=~/keys/staging-admin.json
 ```
 
+Make sure payer has a decent amount of SOL (around .35 for rent, plus what is needed for tx fees).
+
 Confirm the multisig is still the program upgrade authority:
 
 ```
@@ -77,6 +79,8 @@ npx --yes @solana-program/program-metadata@0.5.1 \
   --rpc $RPC \
   --keypair $PAYER
 ```
+
+Fails with `[Error] The provided transaction plan failed to execute.`? Add more SOL to Payer.
 
 Save the printed buffer address:
 
@@ -107,6 +111,8 @@ npx --yes @solana-program/program-metadata@0.5.1 \
   --rpc $RPC \
   --keypair $PAYER
 ```
+
+You can also use `--close-buffer $REFUND_WALLET` where REFUND_WALLET is where you would like the rent returned to, by default it will go to $MS.
 
 Before this executes, signers can check the contents of the buffer like so:
 ```
