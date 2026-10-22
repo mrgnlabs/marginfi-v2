@@ -1157,6 +1157,12 @@ pub mod marginfi {
         kamino::propagate_kamino_market_emergency(ctx)
     }
 
+    pub fn propagate_juplend_liquidity_lockdown(
+        ctx: Context<PropagateJuplendLiquidityLockdown>,
+    ) -> MarginfiResult {
+        juplend::propagate_juplend_liquidity_lockdown(ctx)
+    }
+
     /// (permissionless) Harvest the specified reward index from the Kamino Farm attached to this
     /// bank. Rewards are always sent to the global fee wallet's canonical ATA.
     ///

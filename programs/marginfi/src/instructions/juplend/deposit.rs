@@ -53,6 +53,15 @@ pub fn juplend_deposit(ctx: Context<JuplendDeposit>, amount: u64) -> MarginfiRes
         )?;
     }
 
+    {
+        let mut bank = ctx.accounts.bank.load_mut()?;
+        crate::instructions::juplend::refresh_juplend_liquidity_lockdown(
+            &mut bank,
+            ctx.accounts.bank.key(),
+            &ctx.accounts.liquidity.to_account_info(),
+        )?;
+    }
+
     // Refresh the exchange price (interest/rewards) for this slot.
     ctx.accounts.cpi_update_rate()?;
 

@@ -36,6 +36,13 @@ pub struct MarginfiGroupConfigureEvent {
 }
 
 #[event]
+pub struct JuplendLiquidityLockdownChangedEvent {
+    pub bank: Pubkey,
+    pub was_locked: bool,
+    pub is_locked: bool,
+}
+
+#[event]
 pub struct LendingPoolBankCreateEvent {
     pub header: GroupEventHeader,
     pub bank: Pubkey,
