@@ -119,7 +119,7 @@ pub fn lending_account_repay<'info>(
         // Unlike repay_all, a full non-repay_all repayment keeps the balance slot active. Its
         // order tag must not be reused if a later deposit or borrow gives that slot a new side.
         if bank_account.balance.get_side().is_none() {
-            bank_account.balance.tag = 0;
+            bank_account.balance.clear_tag();
         }
 
         (amount, share_amount)

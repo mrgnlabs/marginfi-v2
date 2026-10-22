@@ -3,7 +3,7 @@ use fixed_macro::types::I80F48 as fp;
 use fixtures::{assert_custom_error, prelude::*};
 use marginfi::prelude::MarginfiError;
 use marginfi_type_crate::constants::INTEREST_MAX_EXIT_BUDGET_SECONDS;
-use marginfi_type_crate::types::{milli_to_u32, u32_to_milli};
+use marginfi_type_crate::types::{milli_to_u32, u32_to_milli, OrderTagType};
 use solana_program_test::tokio;
 
 use super::interest_order_common::*;
@@ -362,6 +362,31 @@ async fn execution_holds_up_with_the_account_near_max_balances() -> anyhow::Resu
             .count(),
         active - 1,
         "only the liability balance should have closed"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn non_repay_all_full_repayment_clears_the_interest_tag_type() -> anyhow::Result<()> {
+    let fx = setup(Params::default()).await?;
+    let sol = fx.test_f.get_bank(&BankMint::Sol);
+    let account = fx.account_f.load().await;
+    let liability = account.lending_account.get_balance(&sol.key).unwrap();
+    assert_eq!(liability.tag_type, OrderTagType::Interest as u8);
+
+    let funded = sol
+        .mint
+        .create_token_account_and_mint_to(fx.borrow_sol)
+        .await;
+    fx.account_f
+        .try_bank_repay(funded.key, sol, fx.borrow_sol, Some(false))
+        .await?;
+
+    let account = fx.account_f.load().await;
+    let liability = account.lending_account.get_balance(&sol.key).unwrap();
+    assert_eq!(
+        (liability.tag, liability.tag_type),
+        (0, OrderTagType::TpSl as u8)
     );
     Ok(())
 }
