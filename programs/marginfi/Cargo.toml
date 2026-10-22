@@ -66,6 +66,7 @@ marinade-mocks = { path = "../marinade-mocks" , features = ["no-entrypoint"]}
 exponent-mocks = { path = "../exponent-mocks" , features = ["no-entrypoint"]}
 
 [dev-dependencies]
+juplend-mocks = { path = "../juplend-mocks", features = ["no-entrypoint", "test-utils"] }
 solana-account-decoder = { workspace = true }
 solana-cli-output = { workspace = true }
 solana-program-test = { workspace = true }

@@ -11,8 +11,9 @@ use anchor_spl::token_interface::*;
 use bytemuck::from_bytes;
 use marginfi_type_crate::{
     constants::{
-        BANK_SEED_KNOWN, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-        INSURANCE_VAULT_SEED, IS_T22, LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
+        ASSET_TAG_JUPLEND, BANK_SEED_KNOWN, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED,
+        INSURANCE_VAULT_AUTHORITY_SEED, INSURANCE_VAULT_SEED, IS_T22, JUPLEND_LIQUIDITY_LOCKDOWN,
+        LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
     },
     types::{Bank, MarginfiGroup},
 };
@@ -120,6 +121,9 @@ pub fn lending_pool_clone_bank(
     );
 
     bank.flags = source_flags;
+    if source_config.asset_tag == ASSET_TAG_JUPLEND {
+        bank.flags |= JUPLEND_LIQUIDITY_LOCKDOWN;
+    }
     bank.flags |= BANK_SEED_KNOWN;
     if ctx.accounts.bank_mint.to_account_info().owner == &anchor_spl::token_2022::ID {
         bank.flags |= IS_T22;

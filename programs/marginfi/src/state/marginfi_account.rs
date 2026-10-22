@@ -16,8 +16,8 @@ use marginfi_type_crate::{
     constants::{
         ASSET_TAG_DEFAULT, ASSET_TAG_DRIFT, ASSET_TAG_JUPLEND, ASSET_TAG_KAMINO, ASSET_TAG_SOL,
         ASSET_TAG_SOLEND, ASSET_TAG_STAKED, BANKRUPT_THRESHOLD, BANK_SAME_ASSET_EMODE_ELIGIBLE,
-        CIRCUIT_BREAKER_ENABLED, EXP_10_I80F48, MAX_COSTLY_POSITIONS, ORDER_ACTIVE_TAGS,
-        PREMIUM_ACTIVE, ZERO_AMOUNT_THRESHOLD,
+        CIRCUIT_BREAKER_ENABLED, EXP_10_I80F48, JUPLEND_LIQUIDITY_LOCKDOWN, MAX_COSTLY_POSITIONS,
+        ORDER_ACTIVE_TAGS, PREMIUM_ACTIVE, ZERO_AMOUNT_THRESHOLD,
     },
     types::{
         compute_same_asset_emode_weight, premium_liability_value, reconcile_emode_configs,
@@ -36,47 +36,31 @@ use std::{
 
 /// Returns the number of remaining accounts required for a bank (bank account + oracle/venue accounts).
 ///
-/// Account counts by oracle setup and asset tag:
-/// - `Fixed`: 1 (bank only)
-/// - `FixedKamino`: 2 (bank + reserve)
-/// - `FixedDrift`: 2 (bank + spot market)
-/// - `FixedJuplend`: 2 (bank + lending state)
-/// - `ASSET_TAG_STAKED`: 5 (bank + oracle + lst_mint + stake_pool + onramp)
-/// - `ASSET_TAG_KAMINO` / `ASSET_TAG_DRIFT` / `ASSET_TAG_SOLEND` / `ASSET_TAG_JUPLEND`: 3 (bank + oracle + reserve)
-/// - `ASSET_TAG_DEFAULT` / `ASSET_TAG_SOL`: 2 (bank + oracle)
+/// Accounts per bank in the remaining-accounts list: the bank itself plus its oracle slice.
+/// JupLend setups: `1 + OracleSetup::juplend_layout().len`. Other setups: see arms below.
 pub fn get_remaining_accounts_per_bank(bank: &Bank) -> MarginfiResult<usize> {
+    if let Some(layout) = bank.config.oracle_setup.juplend_layout() {
+        return Ok(1 + layout.len);
+    }
     match bank.config.oracle_setup {
-        OracleSetup::Fixed => Ok(1),
-        // Fixed + Kamino: bank + reserve (no oracle)
-        OracleSetup::FixedKamino => Ok(2),
-        // Fixed + Drift: bank + spot market (no oracle)
-        OracleSetup::FixedDrift => Ok(2),
-        // Fixed + JupLend: bank + lending state (no oracle)
-        OracleSetup::FixedJuplend => Ok(2),
-        // PythMSOL: bank + Pyth + Marinade State
-        OracleSetup::PythMSOL => Ok(3),
-        // KaminoMSOL / JuplendMSOL: bank + Pyth + reserve/lending + Marinade State
-        OracleSetup::KaminoMSOL | OracleSetup::JuplendMSOL => Ok(4),
-        // PythLST: bank + Pyth + SPL StakePool
-        OracleSetup::PythLST => Ok(3),
-        // KaminoLST / JuplendLST: bank + Pyth + reserve/lending + SPL StakePool
-        OracleSetup::KaminoLST | OracleSetup::JuplendLST => Ok(4),
-        // PTPyth: bank + Pyth + Exponent vault
-        OracleSetup::PTPyth => Ok(3),
-        // PTFixed: bank + Exponent vault (no base feed, i.e. the token is assumed to be ~= $1)
+        OracleSetup::FixedKamino | OracleSetup::FixedDrift => Ok(2),
+        OracleSetup::PythMSOL | OracleSetup::PythLST | OracleSetup::PTPyth => Ok(3),
+        OracleSetup::KaminoMSOL | OracleSetup::KaminoLST => Ok(4),
         OracleSetup::PTFixed => Ok(2),
-        // ScopeKamino / ScopeJuplend: bank + Scope feed + reserve/lending
-        OracleSetup::ScopeKamino | OracleSetup::ScopeJuplend => Ok(3),
+        OracleSetup::ScopeKamino => Ok(3),
+        OracleSetup::Fixed => Ok(1),
         _ => get_remaining_accounts_per_asset_tag(bank.config.asset_tag),
     }
 }
 
 /// 5 for `ASSET_TAG_STAKED` (bank, oracle, lst mint, lst pool, onramp), 2 for most others (bank, oracle), 3
-/// for Kamino (bank, oracle, reserve), 1 for Fixed
+/// for Kamino (bank, oracle, reserve). JupLend requires an explicit OracleSetup configuration and is not supported
+/// as a generic asset tag.
 fn get_remaining_accounts_per_asset_tag(asset_tag: u8) -> MarginfiResult<usize> {
     match asset_tag {
         ASSET_TAG_DEFAULT | ASSET_TAG_SOL => Ok(2),
-        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND | ASSET_TAG_JUPLEND => Ok(3),
+        ASSET_TAG_KAMINO | ASSET_TAG_DRIFT | ASSET_TAG_SOLEND => Ok(3),
+        ASSET_TAG_JUPLEND => Err(MarginfiError::InvalidOracleSetup.into()),
         ASSET_TAG_STAKED => Ok(5),
         _ => err!(MarginfiError::AssetTagMismatch),
     }
@@ -543,6 +527,15 @@ fn calc_weighted_asset_value_cached_standalone(
             ) {
                 debug!("Paused/ReduceOnly bank assets worth 0 for Initial margin");
                 return Ok((I80F48::ZERO, I80F48::ZERO));
+            }
+            if matches!(requirement_type, RequirementType::Initial)
+                && bank.config.asset_tag == ASSET_TAG_JUPLEND
+                && bank.get_flag(JUPLEND_LIQUIDITY_LOCKDOWN)
+            {
+                let price_with_confidence =
+                    get_cached_price_with_confidence(bank, requirement_type);
+                let lower_price = apply_price_bias(price_with_confidence, PriceBias::Low)?;
+                return Ok((I80F48::ZERO, lower_price));
             }
 
             let mut asset_weight = bank.get_asset_weight(requirement_type, reconciled_emode_config);
@@ -3076,6 +3069,68 @@ mod test {
         assert_eq!(price, I80F48::ZERO);
     }
 
+    fn cached_asset_test_bank(asset_tag: u8) -> (Bank, Balance) {
+        let mut bank = Bank::zeroed();
+        bank.mint_decimals = 6;
+        bank.asset_share_value = I80F48::ONE.into();
+        bank.config.risk_tier = RiskTier::Collateral;
+        bank.config.operational_state = BankOperationalState::Operational;
+        bank.config.asset_tag = asset_tag;
+        bank.config.asset_weight_init = I80F48!(0.8).into();
+        bank.config.asset_weight_maint = I80F48!(0.9).into();
+        bank.cache.last_oracle_price = I80F48::ONE.into();
+        bank.cache.last_oracle_price_confidence = I80F48::ZERO.into();
+        bank.cache.liquidation_price_rt = I80F48::ONE.into();
+        bank.cache.liquidation_price_rt_confidence = I80F48::ZERO.into();
+        bank.cache.liquidation_price_twap = I80F48::ONE.into();
+        bank.cache.liquidation_price_twap_confidence = I80F48::ZERO.into();
+
+        let mut balance = Balance::empty_deactivated();
+        balance.set_active(true);
+        balance.asset_shares = I80F48!(1_000_000).into();
+        (bank, balance)
+    }
+
+    #[test]
+    fn juplend_lockdown_cached_path_zeroes_initial_but_preserves_maintenance() {
+        let (mut bank, balance) = cached_asset_test_bank(ASSET_TAG_JUPLEND);
+        bank.update_flag(true, JUPLEND_LIQUIDITY_LOCKDOWN);
+
+        let (initial_value, _) = calc_weighted_asset_value_cached_standalone(
+            &balance,
+            &bank,
+            RequirementType::Initial,
+            &ReconciledEmodeConfig::default(),
+        )
+        .unwrap();
+        let (maintenance_value, _) = calc_weighted_asset_value_cached_standalone(
+            &balance,
+            &bank,
+            RequirementType::Maintenance,
+            &ReconciledEmodeConfig::default(),
+        )
+        .unwrap();
+
+        assert_eq!(initial_value, I80F48::ZERO);
+        assert!(maintenance_value > I80F48::ZERO);
+    }
+
+    #[test]
+    fn juplend_lockdown_flag_does_not_affect_kamino_cached_initial_value() {
+        let (mut bank, balance) = cached_asset_test_bank(ASSET_TAG_KAMINO);
+        bank.update_flag(true, JUPLEND_LIQUIDITY_LOCKDOWN);
+
+        let (initial_value, _) = calc_weighted_asset_value_cached_standalone(
+            &balance,
+            &bank,
+            RequirementType::Initial,
+            &ReconciledEmodeConfig::default(),
+        )
+        .unwrap();
+
+        assert!(initial_value > I80F48::ZERO);
+    }
+
     #[test]
     fn same_asset_leverage_for_requirement_selects_enabled_non_equity_values() {
         let group = MarginfiGroup {
@@ -3918,6 +3973,32 @@ mod test {
             assert_eq!(
                 bank.borrowing_position_count, 0,
                 "borrowing_position_count incorrectly decremented for sub-threshold liability dust"
+            );
+        }
+    }
+
+    #[test]
+    fn get_remaining_accounts_per_bank_juplend_counts() {
+        let mut bank = Bank::zeroed();
+        bank.config.asset_tag = ASSET_TAG_JUPLEND;
+
+        let cases = [
+            (OracleSetup::FixedJuplend, 3),
+            (OracleSetup::JuplendPythPull, 4),
+            (OracleSetup::JuplendSwitchboardPull, 4),
+            (OracleSetup::ScopeJuplend, 4),
+            (OracleSetup::JuplendMSOL, 5),
+            (OracleSetup::JuplendLST, 5),
+        ];
+
+        for (setup, expected_count) in &cases {
+            bank.config.oracle_setup = *setup;
+            assert_eq!(
+                get_remaining_accounts_per_bank(&bank).unwrap(),
+                *expected_count,
+                "oracle setup {:?} should require {} accounts",
+                setup,
+                expected_count
             );
         }
     }

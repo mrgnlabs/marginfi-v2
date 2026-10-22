@@ -31,6 +31,15 @@ pub fn juplend_init_position(ctx: Context<JuplendInitPosition>, amount: u64) -> 
         MarginfiError::JuplendInitPositionDepositInsufficient
     );
 
+    {
+        let mut bank = ctx.accounts.bank.load_mut()?;
+        crate::instructions::juplend::refresh_juplend_liquidity_lockdown(
+            &mut bank,
+            ctx.accounts.bank.key(),
+            &ctx.accounts.liquidity.to_account_info(),
+        )?;
+    }
+
     // Transfer underlying tokens from fee payer -> liquidity vault
     ctx.accounts.cpi_transfer_user_to_liquidity_vault(amount)?;
 

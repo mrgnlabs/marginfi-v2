@@ -16,8 +16,8 @@ use anchor_spl::token_interface::*;
 use juplend_mocks::state::Lending as JuplendLending;
 use marginfi_type_crate::constants::{
     BANK_SEED_KNOWN, FEE_VAULT_AUTHORITY_SEED, FEE_VAULT_SEED, INSURANCE_VAULT_AUTHORITY_SEED,
-    INSURANCE_VAULT_SEED, IS_T22, JUPLEND_F_TOKEN_VAULT_SEED, LIQUIDITY_VAULT_AUTHORITY_SEED,
-    LIQUIDITY_VAULT_SEED,
+    INSURANCE_VAULT_SEED, IS_T22, JUPLEND_F_TOKEN_VAULT_SEED, JUPLEND_LIQUIDITY_LOCKDOWN,
+    LIQUIDITY_VAULT_AUTHORITY_SEED, LIQUIDITY_VAULT_SEED,
 };
 use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 
@@ -26,7 +26,7 @@ use marginfi_type_crate::types::{Bank, MarginfiGroup, OracleSetup};
 /// Bank starts `Uninitialized` because once the fToken vault exists, the bank can be interacted
 /// with even without a seed deposit. Call `juplend_init_position` to activate.
 ///
-/// Remaining accounts: 0. oracle feed, 1. JupLend `Lending` state
+/// Remaining accounts: 0. oracle feed, 1. JupLend `Lending` state, 2. JupLend liquidity account
 pub fn lending_pool_add_bank_juplend(
     ctx: Context<LendingPoolAddBankJuplend>,
     bank_config: JuplendConfigCompact,
@@ -83,6 +83,7 @@ pub fn lending_pool_add_bank_juplend(
         fee_vault_authority_bump,
         bank_seed,
     );
+    bank.flags |= JUPLEND_LIQUIDITY_LOCKDOWN;
     bank.flags |= BANK_SEED_KNOWN;
     if bank_mint.to_account_info().owner == &anchor_spl::token_2022::ID {
         bank.flags |= IS_T22;

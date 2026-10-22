@@ -59,6 +59,15 @@ pub fn juplend_withdraw<'info>(
 ) -> MarginfiResult {
     let withdraw_all = withdraw_all.unwrap_or(false);
 
+    {
+        let mut bank = ctx.accounts.bank.load_mut()?;
+        crate::instructions::juplend::refresh_juplend_liquidity_lockdown(
+            &mut bank,
+            ctx.accounts.bank.key(),
+            &ctx.accounts.liquidity.to_account_info(),
+        )?;
+    }
+
     // Refresh exchange pricing (interest/rewards) for this slot.
     ctx.accounts.cpi_update_rate()?;
 
