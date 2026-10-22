@@ -253,12 +253,15 @@ pub const ACCOUNT_IN_ORDER_EXECUTION: u64 = 1 << 7;
 /// The account is mid auto-rebalance (keeper moving one asset between same-mint venues). Transient,
 /// only set within a `start_rebalance`..`end_rebalance` sandwich.
 pub const ACCOUNT_IN_REBALANCE: u64 = 1 << 8;
+/// A liquidation signed by the risk admin, which (like deleverage) may price PT banks through an
+/// Exponent emergency. Transient: cleared within `lending_account_liquidate`, or at `end_liquidation`.
+pub const ACCOUNT_IN_RISK_ADMIN_LIQUIDATION: u64 = 1 << 9;
 /// The account is mid borrow-rate-order fill (keeper borrowing on its behalf, and optionally
 /// redeploying). Transient, only set within a `start`..`end` sandwich.
-pub const ACCOUNT_IN_BORROW_ORDER: u64 = 1 << 9;
+pub const ACCOUNT_IN_BORROW_ORDER: u64 = 1 << 10;
 /// Set alongside `ACCOUNT_IN_BORROW_ORDER` while the fill moves tokens between two marginfi banks
 /// (a redeploying open, any close), which the rate limiter does not count as outflow.
-pub const ACCOUNT_IN_BORROW_ORDER_INTERNAL: u64 = 1 << 10;
+pub const ACCOUNT_IN_BORROW_ORDER_INTERNAL: u64 = 1 << 11;
 
 /// Account states that block placing or starting an order/rebalance sandwich (disabled, in a
 /// flashloan, frozen, in receivership, or being deleveraged). The transient in-flight flags
