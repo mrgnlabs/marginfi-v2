@@ -193,6 +193,8 @@ pub trait BankImpl {
     fn get_liability_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
     fn get_asset_shares(&self, value: I80F48) -> MarginfiResult<I80F48>;
     fn get_remaining_deposit_capacity(&self) -> MarginfiResult<u64>;
+    fn get_remaining_borrow_capacity(&self) -> MarginfiResult<u64>;
+    fn get_available_liquidity(&self) -> MarginfiResult<I80F48>;
     fn change_asset_shares(&mut self, shares: I80F48, bypass_deposit_limit: bool)
         -> MarginfiResult;
     fn maybe_get_asset_weight_init_discount(&self, price: I80F48)
@@ -374,6 +376,29 @@ impl BankImpl for Bank {
             .ok_or_else(math_error!())?;
 
         Ok(remaining)
+    }
+
+    fn get_remaining_borrow_capacity(&self) -> MarginfiResult<u64> {
+        if !self.config.is_borrow_limit_active() {
+            return Ok(u64::MAX);
+        }
+
+        let current_liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
+        let remaining = I80F48::from_num(self.config.borrow_limit)
+            .saturating_sub(current_liabilities)
+            .saturating_sub(I80F48::ONE)
+            .max(I80F48::ZERO)
+            .floor()
+            .checked_to_num::<u64>()
+            .ok_or_else(math_error!())?;
+
+        Ok(remaining)
+    }
+
+    fn get_available_liquidity(&self) -> MarginfiResult<I80F48> {
+        let assets = self.get_asset_amount(self.total_asset_shares.into())?;
+        let liabilities = self.get_liability_amount(self.total_liability_shares.into())?;
+        Ok(assets.saturating_sub(liabilities).max(I80F48::ZERO))
     }
 
     fn change_asset_shares(

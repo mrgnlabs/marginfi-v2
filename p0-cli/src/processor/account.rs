@@ -18,11 +18,7 @@ use {
     anyhow::{anyhow, bail, ensure, Context, Result},
     base64::Engine as _,
     fixed::types::I80F48,
-    marginfi::state::{
-        bank::BankImpl,
-        borrow_order::{available_liquidity, remaining_borrow_capacity},
-        rate::borrow_rate_at,
-    },
+    marginfi::state::{bank::BankImpl, rate::borrow_rate_at},
     marginfi_type_crate::types::BankVaultType,
     marginfi_type_crate::{
         constants::MARGINFI_ACCOUNT_SEED,
@@ -932,10 +928,11 @@ fn max_borrow_order_fill(
             .to_num::<u64>();
         Ok(order.opens_at(borrow_rate_at(bank, group, booked)?))
     };
-    let mut cap = available_liquidity(bank)?
-        .min(remaining_borrow_capacity(bank)?)
+    let mut cap = bank
+        .get_available_liquidity()?
         .floor()
-        .to_num::<u64>();
+        .to_num::<u64>()
+        .min(bank.get_remaining_borrow_capacity()?);
     if let Some(destination) = destination {
         cap = cap.min(destination.get_remaining_deposit_capacity()?);
     }
@@ -1143,7 +1140,7 @@ pub fn marginfi_account_close_borrow_order(config: &Config, order_pk: Pubkey) ->
     let owed =
         bank.get_liability_amount(order.closable_shares(balance_shares(&order.bank, true)))?;
     let held = dst.get_asset_amount(balance_shares(&order.destination_bank, false))?;
-    let reachable = owed.min(held).min(available_liquidity(dst)?);
+    let reachable = owed.min(held).min(dst.get_available_liquidity()?);
     ensure!(reachable > I80F48::ZERO, "Nothing to close");
     let amount = reachable.floor().to_num::<u64>();
     // The binding side moves by its own "all" flag.

@@ -1,7 +1,7 @@
 //! Borrow orders: a keeper borrows on the user's behalf while the bank's realized rate sits under
 //! the order's level, and repays from the destination bank once it rises over the close level.
 
-use super::rebalance::pay_from_fee_pool;
+use super::rebalance::{fee_pool_spendable, pay_from_fee_pool};
 use crate::{
     check, check_eq,
     constants::PROGRAM_VERSION,
@@ -17,10 +17,7 @@ use crate::{
     prelude::*,
     state::{
         bank::BankImpl,
-        borrow_order::{
-            available_liquidity, remaining_borrow_capacity, BorrowDestination, BorrowOrderImpl,
-            BorrowOrderRecordImpl,
-        },
+        borrow_order::{BorrowDestination, BorrowOrderImpl, BorrowOrderRecordImpl},
         marginfi_account::{
             check_account_init_health_and_clear_tag, check_account_maint_health, run_cb_price_gate,
             LendingAccountImpl, MarginfiAccountImpl,
@@ -494,8 +491,8 @@ pub fn end_borrow_order_open<'info>(
         );
         let one_more = I80F48::from_num(granule);
         let mut maximal = delivered_atoms.saturating_add(granule) >= order.remaining()
-            || one_more > available_liquidity(&bank)?
-            || one_more > remaining_borrow_capacity(&bank)?
+            || one_more > bank.get_available_liquidity()?
+            || granule > bank.get_remaining_borrow_capacity()?
             || !order.opens_at(borrow_rate_at(&bank, &group, granule)?);
 
         if order.to_bank() {
@@ -595,7 +592,8 @@ pub fn end_borrow_order_close<'info>(
         let reachable = closable
             .min(destination.get_asset_amount(record.pre_destination_shares.into())?)
             .min(
-                available_liquidity(&destination)?
+                destination
+                    .get_available_liquidity()?
                     .checked_add(withdrawn)
                     .ok_or_else(math_error!())?,
             );
@@ -671,11 +669,7 @@ fn end_sandwich<'info>(
         account.last_update = now as u64;
     }
 
-    let spendable = ctx
-        .accounts
-        .fee_pool
-        .lamports()
-        .saturating_sub(Rent::get()?.minimum_balance(0));
+    let spendable = fee_pool_spendable(&ctx.accounts.fee_pool)?;
     let order = ctx.accounts.borrow_order.load()?;
     let earned = u128::from(order.keeper_tip) * u128::from(moved) / u128::from(order.amount);
     let tip = u64::try_from(earned)

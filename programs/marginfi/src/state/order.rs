@@ -11,7 +11,7 @@ use marginfi_type_crate::{
         ORDER_ACTIVE_TAGS, SECONDS_PER_YEAR,
     },
     types::{
-        u32_to_milli, BalanceSide, ExecuteOrderBalanceRecord, ExecuteOrderRecord,
+        u32_to_milli, Balance, BalanceSide, ExecuteOrderBalanceRecord, ExecuteOrderRecord,
         InterestTriggerConfig, MarginfiAccount, Order, OrderTrigger, OrderTriggerType,
         WrappedI80F48, MAX_EXECUTE_RECORD_BALANCES,
     },
@@ -199,10 +199,15 @@ pub trait ExecuteOrderRecordImpl {
     fn check_health_and_verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
+        order_tags: &[u16],
         closed_order_balances_count: usize,
         order_current_health: &I80F48,
         is_healthy: bool,
     ) -> MarginfiResult;
+}
+
+fn is_order_balance(balance: &Balance, order_tags: &[u16]) -> bool {
+    balance.tag != 0 && order_tags.contains(&balance.tag)
 }
 
 impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
@@ -219,53 +224,20 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
         self.order = order;
         self.executor = executor;
         self.balance_states = [ExecuteOrderBalanceRecord::default(); MAX_EXECUTE_RECORD_BALANCES];
-
-        let mut idx: usize = 0;
-        let mut inactive_count: u8 = 0;
-
-        for balance in marginfi_account.lending_account.balances.iter() {
-            if !balance.is_active() {
-                inactive_count += 1;
-                continue;
-            }
-
-            // Skip balances that belong to this order, they can be changed by the keeper
-            if balance.tag != 0 && order_tags.contains(&balance.tag) {
-                continue;
-            }
-            let Some(side) = balance.get_side() else {
-                continue;
-            };
-
-            check!(
-                idx < self.balance_states.len(),
-                MarginfiError::IllegalBalanceState
-            );
-
-            let ExecuteOrderBalanceRecord {
-                bank,
-                tag,
-                is_asset,
-                shares,
-                ..
-            } = &mut self.balance_states[idx];
-
-            *bank = balance.bank_pk;
-            *tag = balance.tag;
-            *is_asset = matches!(side, BalanceSide::Assets) as u8;
-            *shares = match side {
-                BalanceSide::Assets => balance.asset_shares,
-                BalanceSide::Liabilities => balance.liability_shares,
-            };
-
-            idx += 1;
-        }
+        self.active_balance_count =
+            snapshot_balances_outside(&mut self.balance_states, marginfi_account, |balance| {
+                is_order_balance(balance, order_tags)
+            })?;
 
         self.order_start_health = (*order_start_health).into();
         self.met_conditions = met_conditions;
         self.interest_carry = interest_carry.into();
-        self.inactive_balance_count = inactive_count;
-        self.active_balance_count = idx.try_into().unwrap();
+        self.inactive_balance_count = marginfi_account
+            .lending_account
+            .balances
+            .iter()
+            .filter(|balance| !balance.is_active())
+            .count() as u8;
 
         Ok(())
     }
@@ -273,6 +245,7 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
     fn check_health_and_verify_unchanged(
         &self,
         marginfi_account: &MarginfiAccount,
+        order_tags: &[u16],
         closed_order_balances_count: usize,
         order_current_health: &I80F48,
         is_healthy: bool,
@@ -291,38 +264,12 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
             .filter(|balance| !balance.is_active())
             .count();
 
-        for record in self.balance_states[..self.active_balance_count as usize].iter() {
-            let index = marginfi_account
-                .lending_account
-                .get_balance_index(&record.bank)?;
-
-            let balance = &marginfi_account.lending_account.balances[index];
-
-            let side = balance
-                .get_side()
-                .ok_or_else(|| error!(MarginfiError::IllegalBalanceState))?;
-
-            let expected_is_asset = matches!(side, BalanceSide::Assets) as u8;
-
-            check_eq!(
-                record.is_asset,
-                expected_is_asset,
-                MarginfiError::IllegalBalanceState
-            );
-
-            check_eq!(record.tag, balance.tag, MarginfiError::IllegalBalanceState);
-
-            let expected_shares = match side {
-                BalanceSide::Assets => balance.asset_shares,
-                BalanceSide::Liabilities => balance.liability_shares,
-            };
-
-            check_eq!(
-                record.shares,
-                expected_shares,
-                MarginfiError::IllegalBalanceState
-            );
-        }
+        verify_balances_outside_unchanged(
+            &self.balance_states[..self.active_balance_count as usize],
+            marginfi_account,
+            |balance| is_order_balance(balance, order_tags),
+            MarginfiError::IllegalBalanceState,
+        )?;
 
         // This implies that the inactive balances were also not touched.
         // This check is not strictly necessary since deposits & borrows are not allowed
@@ -338,16 +285,16 @@ impl ExecuteOrderRecordImpl for ExecuteOrderRecord {
     }
 }
 
-/// Snapshot every non-empty active balance whose bank is not `excluded` into `slots`, in account
-/// order. Returns how many were written.
+/// Snapshot every non-empty active balance that is not `excluded` into `slots`, in account order.
+/// Returns how many were written.
 pub fn snapshot_balances_outside(
     slots: &mut [ExecuteOrderBalanceRecord],
     account: &MarginfiAccount,
-    excluded: impl Fn(&Pubkey) -> bool,
+    excluded: impl Fn(&Balance) -> bool,
 ) -> MarginfiResult<u8> {
     let mut count: u8 = 0;
     for balance in account.lending_account.balances.iter() {
-        if !balance.is_active() || excluded(&balance.bank_pk) {
+        if !balance.is_active() || excluded(balance) {
             continue;
         }
         let Some(side) = balance.get_side() else {
@@ -369,18 +316,18 @@ pub fn snapshot_balances_outside(
 }
 
 /// Every snapshotted balance still holds its side, order tag and shares. Any other non-empty active
-/// balance outside `excluded` reports `untracked_err`.
+/// balance that is not `excluded` reports `untracked_err`.
 pub fn verify_balances_outside_unchanged(
     slots: &[ExecuteOrderBalanceRecord],
     account: &MarginfiAccount,
-    excluded: impl Fn(&Pubkey) -> bool,
+    excluded: impl Fn(&Balance) -> bool,
     untracked_err: MarginfiError,
 ) -> MarginfiResult {
     let untracked = account
         .lending_account
         .balances
         .iter()
-        .filter(|b| b.is_active() && b.get_side().is_some() && !excluded(&b.bank_pk))
+        .filter(|b| b.is_active() && b.get_side().is_some() && !excluded(b))
         .count();
     check!(untracked == slots.len(), untracked_err);
 
@@ -483,7 +430,7 @@ mod tests {
             .unwrap();
         assert_eq!(record.active_balance_count, 0);
         assert!(record
-            .check_health_and_verify_unchanged(&account, 0, &I80F48::ZERO, true)
+            .check_health_and_verify_unchanged(&account, &order_tags, 0, &I80F48::ZERO, true)
             .is_ok());
     }
 
@@ -508,12 +455,12 @@ mod tests {
             )
             .unwrap();
         assert!(record
-            .check_health_and_verify_unchanged(&account, 0, &I80F48::ZERO, true)
+            .check_health_and_verify_unchanged(&account, &order_tags, 0, &I80F48::ZERO, true)
             .is_ok());
 
         account.lending_account.balances[1].tag = 0;
         let err = record
-            .check_health_and_verify_unchanged(&account, 0, &I80F48::ZERO, true)
+            .check_health_and_verify_unchanged(&account, &order_tags, 0, &I80F48::ZERO, true)
             .unwrap_err();
         assert_eq!(err, MarginfiError::IllegalBalanceState.into());
     }

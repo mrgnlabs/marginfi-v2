@@ -3,11 +3,7 @@ use crate::{
     errors::MarginfiError,
     math_error,
     prelude::MarginfiResult,
-    state::{
-        bank::BankImpl,
-        bank_config::BankConfigImpl,
-        order::{snapshot_balances_outside, verify_balances_outside_unchanged},
-    },
+    state::order::{snapshot_balances_outside, verify_balances_outside_unchanged},
 };
 use anchor_lang::prelude::*;
 use fixed::types::I80F48;
@@ -16,7 +12,7 @@ use marginfi_type_crate::{
         BORROW_ORDER_DEFAULT_COOLDOWN_SECONDS, INTEREST_DEFAULT_WINDOW_SECONDS,
         INTEREST_MAX_WINDOW_SECONDS, INTEREST_MIN_WINDOW_SECONDS,
     },
-    types::{Bank, BorrowOrder, BorrowOrderRecord, MarginfiAccount},
+    types::{BorrowOrder, BorrowOrderRecord, MarginfiAccount},
 };
 
 /// Where a fill's borrowed funds land.
@@ -26,25 +22,6 @@ pub enum BorrowDestination {
     Bank(Pubkey),
     /// Sent to the authority's wallet.
     Wallet,
-}
-
-/// Tokens a native bank can pay out before its liabilities exceed its assets.
-pub fn available_liquidity(bank: &Bank) -> MarginfiResult<I80F48> {
-    let assets = bank.get_asset_amount(bank.total_asset_shares.into())?;
-    let liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
-    Ok(assets.saturating_sub(liabilities).max(I80F48::ZERO))
-}
-
-/// Tokens a bank can still lend under its borrow limit; unbounded when the limit is off.
-pub fn remaining_borrow_capacity(bank: &Bank) -> MarginfiResult<I80F48> {
-    if !bank.config.is_borrow_limit_active() {
-        return Ok(I80F48::MAX);
-    }
-    let liabilities = bank.get_liability_amount(bank.total_liability_shares.into())?;
-    Ok(I80F48::from_num(bank.config.borrow_limit)
-        .saturating_sub(liabilities)
-        .saturating_sub(I80F48::ONE)
-        .max(I80F48::ZERO))
 }
 
 pub trait BorrowOrderImpl {
@@ -195,8 +172,8 @@ impl BorrowOrderRecordImpl for BorrowOrderRecord {
         excluded: &[Pubkey],
     ) -> MarginfiResult {
         self.active_balance_count =
-            snapshot_balances_outside(&mut self.balance_states, account, |bank| {
-                excluded.contains(bank)
+            snapshot_balances_outside(&mut self.balance_states, account, |balance| {
+                excluded.contains(&balance.bank_pk)
             })?;
         Ok(())
     }
@@ -209,7 +186,7 @@ impl BorrowOrderRecordImpl for BorrowOrderRecord {
         verify_balances_outside_unchanged(
             &self.balance_states[..self.active_balance_count as usize],
             account,
-            |bank| excluded.contains(bank),
+            |balance| excluded.contains(&balance.bank_pk),
             MarginfiError::BorrowOrderUntrackedBalance,
         )
     }

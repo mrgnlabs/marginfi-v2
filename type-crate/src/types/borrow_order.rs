@@ -100,13 +100,10 @@ impl BorrowOrder {
         self.has_close_side() && apr > u32_to_milli(self.close_above_apr)
     }
 
-    /// The balances a fill may move: the borrow bank, and the destination when redeploying.
-    pub fn banks(&self) -> Vec<Pubkey> {
-        let mut banks = vec![self.bank];
-        if self.to_bank() {
-            banks.push(self.destination_bank);
-        }
-        banks
+    /// The balances a fill may move: the borrow bank and the destination bank. A wallet order's
+    /// destination is the default key, which matches no balance.
+    pub fn banks(&self) -> [Pubkey; 2] {
+        [self.bank, self.destination_bank]
     }
 
     /// Liability shares a close may repay: what the order's fills hold, capped at what the account

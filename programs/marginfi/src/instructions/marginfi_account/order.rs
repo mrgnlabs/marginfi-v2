@@ -14,16 +14,14 @@ use crate::state::premium::{MarginfiAccountPremiumImpl, PremiumScratch};
 use crate::state::rate::{
     debt_index_of, realized_borrow_apr, realized_supply_apr, venue_multiplier, yield_index_of,
 };
-use crate::utils::is_integration_asset_tag;
+use crate::utils::{is_integration_asset_tag, oracle_accounts_for_bank};
 use crate::{
     check,
     constants::PROGRAM_VERSION,
     prelude::*,
     state::{
         bank::BankImpl,
-        marginfi_account::{
-            get_remaining_accounts_per_bank, LendingAccountImpl, MarginfiAccountImpl,
-        },
+        marginfi_account::{LendingAccountImpl, MarginfiAccountImpl},
         marginfi_group::MarginfiGroupImpl,
         order::{ExecuteOrderRecordImpl, OrderImpl},
     },
@@ -308,41 +306,17 @@ fn read_order_rates<'info>(
     let mut supply_apr: Option<I80F48> = None;
     let mut borrow_apr: Option<I80F48> = None;
     let mut premium_apr = I80F48::ZERO;
-    let mut account_index = 0usize;
 
     for balance in marginfi_account
         .lending_account
         .balances
         .iter()
-        .filter(|b| b.is_active())
+        .filter(|b| b.is_active() && order_tags.contains(&b.tag))
     {
         let bank_ai = remaining_ais
-            .get(account_index)
+            .iter()
+            .find(|ai| *ai.key == balance.bank_pk)
             .ok_or(MarginfiError::InvalidBankAccount)?;
-        let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
-        check_eq!(
-            balance.bank_pk,
-            *bank_ai.key,
-            MarginfiError::InvalidBankAccount
-        );
-        let num_accounts = {
-            let bank = bank_al.load()?;
-            get_remaining_accounts_per_bank(&bank)?
-        };
-
-        if !order_tags.contains(&balance.tag) {
-            account_index += num_accounts;
-            continue;
-        }
-
-        let end_idx = account_index + num_accounts;
-        require_gte!(
-            remaining_ais.len(),
-            end_idx,
-            MarginfiError::WrongNumberOfOracleAccounts
-        );
-        let oracle_ais = &remaining_ais[account_index + 1..end_idx];
-
         check!(
             bank_ai.is_writable,
             MarginfiError::OrderInterestBankNotWritable
@@ -350,6 +324,7 @@ fn read_order_rates<'info>(
         let side = balance
             .get_side()
             .ok_or_else(|| error!(MarginfiError::IllegalBalanceState))?;
+        let bank_al = AccountLoader::<Bank>::try_from(bank_ai)?;
 
         {
             let mut bank = bank_al.load_mut()?;
@@ -365,6 +340,7 @@ fn read_order_rates<'info>(
         }
 
         let bank = bank_al.load()?;
+        let oracle_ais = oracle_accounts_for_bank(&balance.bank_pk, &bank, remaining_ais)?;
         let multiplier = venue_multiplier(&bank, oracle_ais, clock)?;
         match side {
             BalanceSide::Assets => {
@@ -388,7 +364,6 @@ fn read_order_rates<'info>(
                 }
             }
         }
-        account_index += num_accounts;
     }
 
     Ok(OrderRates {
@@ -703,6 +678,7 @@ pub fn end_execute_order<'info>(ctx: Context<'info, EndExecuteOrder<'info>>) -> 
     // execution to avoid the position taking on more risk.
     execute_record.check_health_and_verify_unchanged(
         &marginfi_account,
+        &order.tags,
         closed_order_balances_count,
         &order_current_health,
         is_healthy,

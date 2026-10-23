@@ -201,8 +201,8 @@ impl RebalanceRecordImpl for RebalanceRecord {
         self.move_count = moves.len() as u8;
 
         self.active_balance_count =
-            snapshot_balances_outside(&mut self.balance_states, marginfi_account, |bank| {
-                ref_banks.iter().any(|r| r.bank == *bank)
+            snapshot_balances_outside(&mut self.balance_states, marginfi_account, |balance| {
+                ref_banks.iter().any(|r| r.bank == balance.bank_pk)
             })?;
         Ok(())
     }
@@ -275,7 +275,7 @@ impl RebalanceRecordImpl for RebalanceRecord {
         verify_balances_outside_unchanged(
             &self.balance_states[..self.active_balance_count as usize],
             marginfi_account,
-            |bank| ref_banks.iter().any(|r| r.bank == *bank),
+            |balance| ref_banks.iter().any(|r| r.bank == balance.bank_pk),
             MarginfiError::RebalanceUntrackedBalance,
         )
     }

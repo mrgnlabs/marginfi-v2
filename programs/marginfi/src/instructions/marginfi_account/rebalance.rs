@@ -441,6 +441,13 @@ pub struct UpdateRebalanceOrder<'info> {
     pub rebalance_order: AccountLoader<'info, RebalanceOrder>,
 }
 
+/// Lamports a fee pool can pay out without dipping into its rent-exempt reserve.
+pub(crate) fn fee_pool_spendable(fee_pool: &SystemAccount) -> MarginfiResult<u64> {
+    Ok(fee_pool
+        .lamports()
+        .saturating_sub(Rent::get()?.minimum_balance(0)))
+}
+
 /// Transfer `amount` lamports out of a marginfi account's fee-pool PDA, which signs via its seeds.
 /// No-op for a zero amount.
 pub(crate) fn pay_from_fee_pool<'info>(
@@ -1226,11 +1233,7 @@ pub fn end_rebalance<'info>(ctx: Context<'info, EndRebalance<'info>>) -> Marginf
         // draining a single small source earns no more. The tip is drawn only from lamports above the
         // pool's rent-exempt reserve, so the reserve is never paid out and the pool is never left in a
         // rent-paying state.
-        let spendable = ctx
-            .accounts
-            .fee_pool
-            .lamports()
-            .saturating_sub(Rent::get()?.minimum_balance(0));
+        let spendable = fee_pool_spendable(&ctx.accounts.fee_pool)?;
         let target_value = amount_budget
             .map(|cap| cap.min(total_ref_pre))
             .unwrap_or(total_ref_pre);
