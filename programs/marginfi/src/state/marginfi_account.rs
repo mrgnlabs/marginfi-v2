@@ -121,15 +121,13 @@ pub fn is_signer_authorized(
     allow: u8,
 ) -> bool {
     // Within a rebalance sandwich, any keeper may drive the withdraw/deposit legs between the user's
-    // same-mint banks. Opt-in per caller (only the withdraw/deposit legs pass `true`) so the flag
+    // same-mint banks. Opt-in per caller (only the withdraw/deposit legs opt in) so the flag
     // cannot authorize unrelated instructions; bounded by the rebalance start/end value-conservation
     // checks and the exclusive-ix allowlist (only withdraw/deposit + start/end may appear).
     if allow & ALLOW_REBALANCE != 0 && marginfi_account.get_flag(ACCOUNT_IN_REBALANCE) {
         return true;
     }
 
-    // Within a borrow-order sandwich, the keeper drives the borrow and the redeploy deposit.
-    // Bounded by the exclusive-ix allowlist and the fill checks in `end_borrow_order`.
     if allow & ALLOW_BORROW_ORDER != 0 && marginfi_account.get_flag(ACCOUNT_IN_BORROW_ORDER) {
         return true;
     }

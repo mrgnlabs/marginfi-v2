@@ -30,14 +30,6 @@
 //! A tipped execution escrows the tip in the record until `settle_rebalance_tip`; an untipped one
 //! closes the record at `end_rebalance`. The record's lifetime is independent of the order's and
 //! the account's.
-//!
-//! Residual risk: the sandwich forbids in-transaction rate manipulation. The rate window compares
-//! the yield each bank paid in total, not how long a rate held. So inducing a move costs
-//! `min_improvement` on the destination's whole deposit base for the window, paid as borrow
-//! interest over any stretch or as a same-mint emissions deposit. That goes to the destination's
-//! depositors, so a keeper that deposits there gets its share back. Diluting the source with a
-//! deposit held for the window costs only capital. Settlement pays the tip only on realized yield,
-//! by any margin above zero: a move realizing nothing refunds it, any realized edge pays in full.
 
 use crate::{
     check, check_eq,

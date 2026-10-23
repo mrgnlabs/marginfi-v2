@@ -121,16 +121,12 @@ impl BorrowOrderImpl for BorrowOrder {
             MarginfiError::BorrowOrderInvalidConfig
         );
         if self.has_close_side() {
-            // The two levels must never both hold for one rate, and a close repays from the
-            // destination bank, so it needs one.
             check!(
                 self.close_above_apr > self.open_below_apr,
                 MarginfiError::BorrowOrderInvalidConfig
             );
             check!(self.to_bank(), MarginfiError::BorrowOrderNoCloseSide);
         }
-        // Exactly one destination, and never the borrow bank itself: one balance cannot hold both
-        // sides, so redeploying there would net the position out.
         check!(
             self.to_wallet() != self.to_bank(),
             MarginfiError::BorrowOrderInvalidConfig

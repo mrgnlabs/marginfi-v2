@@ -256,7 +256,7 @@ pub const ACCOUNT_IN_REBALANCE: u64 = 1 << 8;
 /// A liquidation signed by the risk admin, which (like deleverage) may price PT banks through an
 /// Exponent emergency. Transient: cleared within `lending_account_liquidate`, or at `end_liquidation`.
 pub const ACCOUNT_IN_RISK_ADMIN_LIQUIDATION: u64 = 1 << 9;
-/// The account is mid borrow-rate-order fill (keeper borrowing on its behalf, and optionally
+/// The account is mid borrow-order fill (keeper borrowing on its behalf, and optionally
 /// redeploying). Transient, only set within a `start`..`end` sandwich.
 pub const ACCOUNT_IN_BORROW_ORDER: u64 = 1 << 10;
 /// Set alongside `ACCOUNT_IN_BORROW_ORDER` while the fill moves tokens between two marginfi banks

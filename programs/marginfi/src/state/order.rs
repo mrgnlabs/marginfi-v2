@@ -28,8 +28,8 @@ pub trait OrderImpl {
         current_timestamp: i64,
     ) -> MarginfiResult;
 
-    /// Net carry for the pair in USD per year, negative when interest is a net cost. `liabs` carries
-    /// the accrued premium receivable, which then also pays the borrow rate (accepted overstatement).
+    /// Net carry for the pair in USD per year, negative when interest is a net cost. `liabs`
+    /// includes the accrued premium, so the borrow rate applies to it too.
     fn realized_carry(
         &self,
         supply_apr: I80F48,

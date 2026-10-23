@@ -560,7 +560,7 @@ pub enum MarginfiError {
     #[msg("Interest trigger requires both order banks writable to accrue their indices")]
     OrderInterestBankNotWritable, // 6903
     // ************** END INTEREST ORDER ERRORS
-    // Borrow order errors (7000 block)
+    // ************** BEGIN BORROW ORDER ERRORS (starting at 7000)
     #[msg("Borrow order configuration is not actionable")]
     BorrowOrderInvalidConfig = 1000, // 7000
     #[msg("Fill exceeds what the order has left to borrow, or a close what it owes")]
@@ -597,6 +597,7 @@ pub enum MarginfiError {
     BorrowOrderCloseIncomplete, // 7016
     #[msg("Fill moved less than a granule of the order")]
     BorrowOrderFillBelowGranule, // 7017
+                                 // ************** END BORROW ORDER ERRORS
 }
 
 impl From<MarginfiError> for ProgramError {
@@ -897,7 +898,7 @@ impl From<u32> for MarginfiError {
             6902 => MarginfiError::OrderInterestInvalidConfig,
             6903 => MarginfiError::OrderInterestBankNotWritable,
 
-            // Borrow order errors (7000 block)
+            // Borrow order errors (starting at 7000)
             7000 => MarginfiError::BorrowOrderInvalidConfig,
             7001 => MarginfiError::BorrowOrderExceedsRemaining,
             7002 => MarginfiError::BorrowOrderRateNotLowEnough,

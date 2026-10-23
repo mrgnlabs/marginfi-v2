@@ -783,7 +783,7 @@ pub fn marginfi_account_place_borrow_order(
     let marginfi_account = config
         .mfi_program
         .account::<MarginfiAccount>(marginfi_account_pk)?;
-    ensure_account_unblocked(&marginfi_account, "place-borrow-rate-order")?;
+    ensure_account_unblocked(&marginfi_account, "place-borrow-order")?;
     let group = marginfi_account.group;
     let fee_state_pk = find_fee_state_pda(&config.program_id).0;
     let fee_state: FeeState = config.mfi_program.account(fee_state_pk)?;

@@ -1,20 +1,5 @@
 //! Borrow orders: a keeper borrows on the user's behalf while the bank's realized rate sits under
 //! the order's level, and repays from the destination bank once it rises over the close level.
-//!
-//! The rate is the growth of `liability_share_value` since the bank's youngest reading at least a
-//! window old (`Bank::rate_readings`), which no single transaction can move. Each side is a
-//! sandwich: `start` gates and grants the keeper leg authority for the transaction, the keeper runs
-//! the ordinary borrow/deposit or withdraw/repay legs, and `end` proves what moved: an open took
-//! what fits under the level to within a granule, a close repaid all the destination could cover,
-//! every other balance is untouched, and the account is healthy over the finished position.
-//!
-//! Residual risk, accepted as auto-rebalance accepts its equivalent: a keeper who also lends can
-//! move a bank's utilization around a fill (lowering the rate before an open, or draining the
-//! destination's liquidity to shrink what a close must repay); the window gate and `amount` bound
-//! the damage, and it ties up the keeper's capital. Accrual excludes circuit-breaker halts but the
-//! span does not, so the realized rate reads low for up to one window after a halt. A token-2022
-//! transfer fee is not priced: an open on such a mint passes only for the post-fee amount, and a
-//! redeploying open pays the fee again on the deposit.
 
 use super::rebalance::pay_from_fee_pool;
 use crate::{
@@ -231,7 +216,6 @@ pub fn update_borrow_order(
     let mut order = ctx.accounts.borrow_order.load_mut()?;
 
     if let Some(amount) = amount {
-        // Shrinking below what is already borrowed would leave the order owing more than it holds.
         check!(
             amount >= order.filled,
             MarginfiError::BorrowOrderExceedsRemaining

@@ -388,10 +388,8 @@ impl_dual_window_rate_limiter!(
 );
 
 /// Checks if rate limiting should be skipped based on account flags.
-/// Returns true for flashloan, liquidation, deleverage, auto-rebalance, and bank-to-bank borrow-rate
-/// fills. Those last two are internal same-mint moves (withdraw or borrow from one bank, deposit or
-/// repay into another), so they are net-neutral to protocol outflow and must not consume a bank's
-/// rate-limit budget.
+/// True for flashloan, liquidation, deleverage, auto-rebalance and bank-to-bank borrow-order fills.
+/// The last two move tokens between same-mint banks, so they are not protocol outflow.
 pub fn should_skip_rate_limit(account_flags: u64) -> bool {
     (account_flags & ACCOUNT_IN_FLASHLOAN) != 0
         || (account_flags & ACCOUNT_IN_RECEIVERSHIP) != 0
