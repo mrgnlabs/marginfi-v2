@@ -7,14 +7,12 @@ import { Marginfi } from "../../../target/types/marginfi";
 import {
   bankrunContext,
   bankrunProgram,
-  banksClient,
   ecosystem,
   groupAdmin,
   oracles,
   users,
 } from "../../rootHooks";
 import {
-  accountInit,
   borrowIx,
   closeOrderIx,
   composeRemainingAccounts,
@@ -28,19 +26,20 @@ import {
   startExecuteOrderIx,
   withdrawIx,
 } from "../../utils/user-instructions";
+import { groupInitialize } from "../../utils/group-instructions";
+import { u32_MAX } from "../../utils/types";
 import {
-  addBankWithSeed,
-  configureBankOracle,
-  groupInitialize,
-} from "../../utils/group-instructions";
-import { defaultBankConfig, ORACLE_SETUP_PYTH_PUSH } from "../../utils/types";
+  addBankWithSeedAndOracle,
+  advanceBankrunClock,
+  buildHealthRemainingAccounts,
+} from "../../utils/tools";
+import { createThrowawayMarginfiAccount } from "../../utils/drift-utils";
 import {
   deriveBankWithSeed,
   deriveExecuteOrderPda,
   deriveOrderPda,
 } from "../../utils/pdas";
 import { expectFailedTxWithError } from "../../utils/genericTests";
-import { Clock } from "../../utils/litesvm";
 import { toI80Scaled } from "../../utils/bn-utils";
 import {
   INTEREST_MAX_WINDOW_SECONDS,
@@ -74,8 +73,7 @@ describe("Interest trigger orders", () => {
 
   const bankKeys = (): PublicKey[] => [solBank, usdcBank];
 
-  const U32_MAX = 0xffff_ffff;
-  const maxSlippage = Math.floor((100 / 10_000) * U32_MAX);
+  const maxSlippage = Math.floor((100 / 10_000) * u32_MAX);
   /** Far below the pair's value, so only the carry condition is ever live here. */
   const stopLossThreshold = bigNumberToWrappedI80F48(1);
 
@@ -87,41 +85,6 @@ describe("Interest trigger orders", () => {
     exitBudgetSeconds,
     minNegativeApr: null,
   });
-
-  /** The health observation set in the account's own balance order. `extra` is a balance the
-   *  instruction is about to open, which takes the next free slot and so trails the active ones. */
-  const remainingKeys = async (
-    account: PublicKey,
-    extra?: PublicKey,
-  ): Promise<PublicKey[]> => {
-    const acc = await program.account.marginfiAccount.fetch(account);
-    const oracleFor = new Map<string, PublicKey>([
-      [solBank.toBase58(), oracles.wsolOracle.publicKey],
-      [usdcBank.toBase58(), oracles.usdcOracle.publicKey],
-    ]);
-    const pairs: [PublicKey, PublicKey][] = acc.lendingAccount.balances
-      .filter((b: any) => b.active !== 0)
-      .map((b: any) => [b.bankPk, oracleFor.get(b.bankPk.toBase58())!]);
-    if (extra && !pairs.some(([bank]) => bank.equals(extra))) {
-      pairs.push([extra, oracleFor.get(extra.toBase58())!]);
-    }
-    return composeRemainingAccounts(pairs);
-  };
-
-  /** Move the clock on. The banks below carry an oracle window wider than the span stepped over
-   *  here, so no republish is needed. */
-  const advance = async (seconds: number) => {
-    const before = await banksClient.getClock();
-    bankrunContext.setClock(
-      new Clock(
-        before.slot,
-        before.epochStartTimestamp,
-        before.epoch,
-        before.leaderScheduleEpoch,
-        before.unixTimestamp + BigInt(seconds),
-      ),
-    );
-  };
 
   const place = async (cfg: InterestTriggerArgs | null): Promise<PublicKey> => {
     const common = {
@@ -147,7 +110,7 @@ describe("Interest trigger orders", () => {
       feePayer: keeper.wallet.publicKey,
       executor: keeper.wallet.publicKey,
       order,
-      remaining: await remainingKeys(ownerAcc),
+      remaining: await buildHealthRemainingAccounts(ownerAcc),
       bankWritable: [solBank, usdcBank],
     });
     const repay = await repayIx(keeper.mrgnProgram, {
@@ -211,58 +174,27 @@ describe("Interest trigger orders", () => {
       [interestGroup],
     );
 
-    const addBank = async (
-      mint: PublicKey,
-      seed: BN,
-      bank: PublicKey,
-      oracle: PublicKey,
-    ) => {
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await addBankWithSeed(groupAdmin.mrgnProgram, {
-            marginfiGroup: group,
-            feePayer: groupAdmin.wallet.publicKey,
-            bankMint: mint,
-            config: {
-              ...defaultBankConfig(),
-              // The field's u16 ceiling, ~18h, which spans every clock step this spec takes so
-              // the multiplier read stays fresh without republishing the shared oracles.
-              oracleMaxAge: 65_535,
-            },
-            seed,
-          }),
-        ),
-      );
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await configureBankOracle(groupAdmin.mrgnProgram, {
-            bank,
-            type: ORACLE_SETUP_PYTH_PUSH,
-            oracle,
-          }),
-        ),
-      );
-    };
-    await addBank(wsolMint, SOL_SEED, solBank, oracles.wsolOracle.publicKey);
-    await addBank(usdcMint, USDC_SEED, usdcBank, oracles.usdcOracle.publicKey);
+    // The u16 ceiling, ~18h, outlasts every clock step this spec takes.
+    const config = { oracleMaxAge: 65_535 };
+    await addBankWithSeedAndOracle(
+      group,
+      wsolMint,
+      SOL_SEED,
+      solBank,
+      oracles.wsolOracle.publicKey,
+      config,
+    );
+    await addBankWithSeedAndOracle(
+      group,
+      usdcMint,
+      USDC_SEED,
+      usdcBank,
+      oracles.usdcOracle.publicKey,
+      config,
+    );
 
-    const initAcc = async (u: typeof owner) => {
-      const kp = Keypair.generate();
-      await u.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await accountInit(program, {
-            marginfiGroup: group,
-            marginfiAccount: kp.publicKey,
-            authority: u.wallet.publicKey,
-            feePayer: u.wallet.publicKey,
-          }),
-        ),
-        [kp],
-      );
-      return kp.publicKey;
-    };
-    ownerAcc = await initAcc(owner);
-    const lenderAcc = await initAcc(lender);
+    ownerAcc = await createThrowawayMarginfiAccount(owner, group);
+    const lenderAcc = await createThrowawayMarginfiAccount(lender, group);
 
     const mintAuth = bankrunContext.payer.publicKey;
     await bankrunProgram.provider.sendAndConfirm!(
@@ -320,7 +252,9 @@ describe("Interest trigger orders", () => {
           bank: usdcBank,
           amount: new BN(100 * 10 ** ecosystem.usdcDecimals),
           tokenAccount: owner.usdcAccount,
-          remaining: await remainingKeys(ownerAcc, usdcBank),
+          remaining: await buildHealthRemainingAccounts(ownerAcc, {
+            includedBankPks: [usdcBank],
+          }),
         }),
       ),
     );
@@ -409,7 +343,7 @@ describe("Interest trigger orders", () => {
   });
 
   it("cannot execute before the banks hold a window of history - RateHistoryTooShort", async () => {
-    await advance(INTEREST_MIN_WINDOW_SECONDS - 60);
+    await advanceBankrunClock(bankrunContext, INTEREST_MIN_WINDOW_SECONDS - 60);
     await expectFailedTxWithError(
       async () => {
         await keeper.mrgnProgram.provider.sendAndConfirm!(await sandwich());
@@ -422,7 +356,7 @@ describe("Interest trigger orders", () => {
   it("unwinds the pair through the keeper sandwich", async () => {
     // A full window since both banks' first readings. The liability bank charged interest over it
     // and the idle asset bank earned none, so the measured carry is negative and fires.
-    await advance(120);
+    await advanceBankrunClock(bankrunContext, 120);
     await keeper.mrgnProgram.provider.sendAndConfirm!(await sandwich());
 
     assert.isNull(

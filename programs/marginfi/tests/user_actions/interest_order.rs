@@ -1,6 +1,6 @@
 use fixed::types::I80F48;
 use fixed_macro::types::I80F48 as fp;
-use fixtures::{assert_custom_error, prelude::*};
+use fixtures::{assert_custom_error, prelude::*, test::BASE_TS};
 use marginfi::prelude::MarginfiError;
 use marginfi_type_crate::constants::INTEREST_MAX_EXIT_BUDGET_SECONDS;
 use marginfi_type_crate::types::{milli_to_u32, u32_to_milli, OrderTagType};
@@ -232,8 +232,9 @@ async fn execution_accrues_both_order_banks() -> anyhow::Result<()> {
     let mut fx = setup(Params::default()).await?;
 
     fx.advance(TEST_WINDOW).await;
-    assert!(
-        fx.bank_last_update(&BankMint::Usdc).await < fx.now,
+    assert_eq!(
+        fx.bank_last_update(&BankMint::Usdc).await,
+        BASE_TS,
         "the asset bank should be stale going in, or this proves nothing"
     );
 

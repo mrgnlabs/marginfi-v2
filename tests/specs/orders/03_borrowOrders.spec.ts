@@ -6,14 +6,12 @@ import { Marginfi } from "../../../target/types/marginfi";
 import {
   bankrunContext,
   bankrunProgram,
-  banksClient,
   ecosystem,
   groupAdmin,
   oracles,
   users,
 } from "../../rootHooks";
 import {
-  accountInit,
   borrowIx,
   cancelBorrowOrderIx,
   composeRemainingAccounts,
@@ -27,22 +25,23 @@ import {
   updateBorrowOrderIx,
   withdrawIx,
 } from "../../utils/user-instructions";
+import { groupInitialize } from "../../utils/group-instructions";
 import {
-  addBankWithSeed,
-  configureBankOracle,
-  groupInitialize,
-} from "../../utils/group-instructions";
-import { defaultBankConfig, ORACLE_SETUP_PYTH_PUSH } from "../../utils/types";
+  addBankWithSeedAndOracle,
+  advanceBankrunClock,
+  buildHealthRemainingAccounts,
+} from "../../utils/tools";
+import { createThrowawayMarginfiAccount } from "../../utils/drift-utils";
 import { deriveBankWithSeed, deriveBorrowOrderPda } from "../../utils/pdas";
 import {
   INTEREST_MAX_WINDOW_SECONDS,
   INTEREST_MIN_WINDOW_SECONDS,
 } from "../../utils/rate-readings";
 import {
+  aprToU32,
   expectFailedTxWithError,
   getTokenBalance,
 } from "../../utils/genericTests";
-import { Clock } from "../../utils/litesvm";
 import {
   bnToBigIntSafe,
   divI80,
@@ -51,12 +50,6 @@ import {
   nativeToI80Scaled,
   toI80Scaled,
 } from "../../utils/bn-utils";
-
-const I80F48_ONE = I80F48_SCALE;
-
-const U32_MAX = 0xffff_ffff;
-/** `milli_to_u32`: a percent on the 0-1000% scale. */
-const aprPercent = (pct: number) => Math.floor((pct / 1000) * U32_MAX);
 
 /**
  * Steps the shared clock past a rate window, so this lives in the orders mocha process (see the
@@ -89,39 +82,12 @@ describe("Borrow orders", () => {
   const PART = new BN(40 * 10 ** ecosystem.usdcDecimals);
   /** Lifts utilization past 70%, which the test curve prices at ~170%, over the close level. */
   const SPIKE = new BN(7_000 * 10 ** ecosystem.usdcDecimals);
-  const CLOSE_LEVEL = aprPercent(120);
-
-  const advance = async (seconds: number) => {
-    const before = await banksClient.getClock();
-    bankrunContext.setClock(
-      new Clock(
-        before.slot,
-        before.epochStartTimestamp,
-        before.epoch,
-        before.leaderScheduleEpoch,
-        before.unixTimestamp + BigInt(seconds),
-      ),
-    );
-  };
+  const CLOSE_LEVEL = aprToU32(1.2);
 
   const oracleFor = (bank: PublicKey) =>
     bank.equals(solBank)
       ? oracles.wsolOracle.publicKey
       : oracles.usdcOracle.publicKey;
-
-  /** The health observation set, with `extra` for balances the sandwich is about to open. */
-  const remainingKeys = async (
-    extra: PublicKey[] = [],
-  ): Promise<PublicKey[]> => {
-    const acc = await program.account.marginfiAccount.fetch(ownerAcc);
-    const banks: PublicKey[] = acc.lendingAccount.balances
-      .filter((b: any) => b.active !== 0)
-      .map((b: any) => b.bankPk as PublicKey);
-    for (const bank of extra) {
-      if (!banks.some((b) => b.equals(bank))) banks.push(bank);
-    }
-    return composeRemainingAccounts(banks.map((b) => [b, oracleFor(b)]));
-  };
 
   const place = async (args: {
     windowSeconds?: number | null;
@@ -136,7 +102,7 @@ describe("Borrow orders", () => {
       feePayer: owner.wallet.publicKey,
       bank: usdcBank,
       amount: AMOUNT,
-      openBelowApr: args.openBelowApr ?? aprPercent(100),
+      openBelowApr: args.openBelowApr ?? aprToU32(1),
       closeAboveApr: args.closeAboveApr,
       cooldownSeconds: 0,
       windowSeconds: args.windowSeconds,
@@ -176,7 +142,9 @@ describe("Borrow orders", () => {
       bank: usdcBank,
       tokenAccount: redeploy ? keeper.usdcAccount : owner.usdcAccount,
       amount,
-      remaining: await remainingKeys([usdcBank]),
+      remaining: await buildHealthRemainingAccounts(ownerAcc, {
+        includedBankPks: [usdcBank],
+      }),
     });
     const legs = [start, borrow];
     if (redeploy) {
@@ -198,7 +166,9 @@ describe("Borrow orders", () => {
         bank: usdcBank,
         destinationBank: redeploy ? usdcDstBank : null,
         executor: keeper.wallet.publicKey,
-        remaining: await remainingKeys(opened),
+        remaining: await buildHealthRemainingAccounts(ownerAcc, {
+          includedBankPks: opened,
+        }),
       }),
     );
     await keeper.mrgnProgram.provider.sendAndConfirm!(
@@ -221,7 +191,7 @@ describe("Borrow orders", () => {
       bank: usdcDstBank,
       tokenAccount: keeper.usdcAccount,
       amount,
-      remaining: await remainingKeys(),
+      remaining: await buildHealthRemainingAccounts(ownerAcc),
     });
     const repay = await repayIx(keeper.mrgnProgram, {
       marginfiAccount: ownerAcc,
@@ -236,7 +206,7 @@ describe("Borrow orders", () => {
       bank: usdcBank,
       destinationBank: usdcDstBank,
       executor: keeper.wallet.publicKey,
-      remaining: await remainingKeys(),
+      remaining: await buildHealthRemainingAccounts(ownerAcc),
     });
     await keeper.mrgnProgram.provider.sendAndConfirm!(
       new Transaction().add(start, withdraw, repay, end),
@@ -283,57 +253,30 @@ describe("Borrow orders", () => {
       [borrowGroup],
     );
 
-    const addBank = async (mint: PublicKey, seed: BN, bank: PublicKey) => {
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await addBankWithSeed(groupAdmin.mrgnProgram, {
-            marginfiGroup: group,
-            feePayer: groupAdmin.wallet.publicKey,
-            bankMint: mint,
-            config: {
-              ...defaultBankConfig(),
-              // Room for the collateral the third-party borrower posts.
-              depositLimit: new BN(1_000_000_000_000),
-              // The field's u16 ceiling, ~18h, which spans every clock step this spec takes so
-              // the oracle stays fresh without republishing the shared feeds.
-              oracleMaxAge: 65_535,
-            },
-            seed,
-          }),
-        ),
-      );
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await configureBankOracle(groupAdmin.mrgnProgram, {
-            bank,
-            type: ORACLE_SETUP_PYTH_PUSH,
-            oracle: oracleFor(bank),
-          }),
-        ),
-      );
+    const config = {
+      // Room for the collateral the third-party borrower posts.
+      depositLimit: new BN(1_000_000_000_000),
+      // The u16 ceiling, ~18h, outlasts every clock step this spec takes.
+      oracleMaxAge: 65_535,
     };
-    await addBank(wsolMint, SOL_SEED, solBank);
-    await addBank(usdcMint, USDC_SEED, usdcBank);
-    await addBank(usdcMint, USDC_DST_SEED, usdcDstBank);
+    for (const [mint, seed, bank] of [
+      [wsolMint, SOL_SEED, solBank],
+      [usdcMint, USDC_SEED, usdcBank],
+      [usdcMint, USDC_DST_SEED, usdcDstBank],
+    ] as [PublicKey, BN, PublicKey][]) {
+      await addBankWithSeedAndOracle(
+        group,
+        mint,
+        seed,
+        bank,
+        oracleFor(bank),
+        config,
+      );
+    }
 
-    const initAcc = async (u: typeof owner) => {
-      const kp = Keypair.generate();
-      await u.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await accountInit(program, {
-            marginfiGroup: group,
-            marginfiAccount: kp.publicKey,
-            authority: u.wallet.publicKey,
-            feePayer: u.wallet.publicKey,
-          }),
-        ),
-        [kp],
-      );
-      return kp.publicKey;
-    };
-    ownerAcc = await initAcc(owner);
-    keeperAcc = await initAcc(keeper);
-    const lenderAcc = await initAcc(lender);
+    ownerAcc = await createThrowawayMarginfiAccount(owner, group);
+    keeperAcc = await createThrowawayMarginfiAccount(keeper, group);
+    const lenderAcc = await createThrowawayMarginfiAccount(lender, group);
 
     const mintAuth = bankrunContext.payer.publicKey;
     await bankrunProgram.provider.sendAndConfirm!(
@@ -423,7 +366,7 @@ describe("Borrow orders", () => {
     assert.equal(bnToBigIntSafe(fetched.amount), bnToBigIntSafe(AMOUNT));
     assert.equal(bnToBigIntSafe(fetched.filled), 0n);
     assert.equal(fetched.windowSeconds, INTEREST_MIN_WINDOW_SECONDS);
-    assert.equal(fetched.openBelowApr, aprPercent(100));
+    assert.equal(fetched.openBelowApr, aprToU32(1));
     assert.equal(fetched.flags, 1); // DESTINATION_WALLET
     assert.isTrue(fetched.destinationBank.equals(PublicKey.default));
   });
@@ -434,12 +377,12 @@ describe("Borrow orders", () => {
       authority: owner.wallet.publicKey,
       order,
       windowSeconds: INTEREST_MIN_WINDOW_SECONDS * 2,
-      openBelowApr: aprPercent(50),
+      openBelowApr: aprToU32(0.5),
     });
     await owner.mrgnProgram.provider.sendAndConfirm(new Transaction().add(ix));
     const fetched = await program.account.borrowOrder.fetch(order);
     assert.equal(fetched.windowSeconds, INTEREST_MIN_WINDOW_SECONDS * 2);
-    assert.equal(fetched.openBelowApr, aprPercent(50));
+    assert.equal(fetched.openBelowApr, aprToU32(0.5));
 
     // Back to the minimum window for the fills below.
     const back = await updateBorrowOrderIx(program, {
@@ -447,7 +390,7 @@ describe("Borrow orders", () => {
       authority: owner.wallet.publicKey,
       order,
       windowSeconds: INTEREST_MIN_WINDOW_SECONDS,
-      openBelowApr: aprPercent(100),
+      openBelowApr: aprToU32(1),
     });
     await owner.mrgnProgram.provider.sendAndConfirm(
       new Transaction().add(back),
@@ -455,7 +398,7 @@ describe("Borrow orders", () => {
   });
 
   it("cannot fill before the bank's reading is a window old - RateHistoryTooShort", async () => {
-    await advance(INTEREST_MIN_WINDOW_SECONDS - 60);
+    await advanceBankrunClock(bankrunContext, INTEREST_MIN_WINDOW_SECONDS - 60);
     await expectFailedTxWithError(
       async () => {
         await fill(AMOUNT);
@@ -466,7 +409,7 @@ describe("Borrow orders", () => {
   });
 
   it("refuses a wallet fill that delivers to the keeper - BorrowOrderWrongDestination", async () => {
-    await advance(120);
+    await advanceBankrunClock(bankrunContext, 120);
     await expectFailedTxWithError(
       async () => {
         const start = await startBorrowOrderOpenIx(program, {
@@ -482,7 +425,9 @@ describe("Borrow orders", () => {
           bank: usdcBank,
           tokenAccount: keeper.usdcAccount,
           amount: AMOUNT,
-          remaining: await remainingKeys([usdcBank]),
+          remaining: await buildHealthRemainingAccounts(ownerAcc, {
+            includedBankPks: [usdcBank],
+          }),
         });
         const end = await endBorrowOrderOpenIx(program, {
           group,
@@ -491,7 +436,9 @@ describe("Borrow orders", () => {
           bank: usdcBank,
           destinationBank: null,
           executor: keeper.wallet.publicKey,
-          remaining: await remainingKeys([usdcBank]),
+          remaining: await buildHealthRemainingAccounts(ownerAcc, {
+            includedBankPks: [usdcBank],
+          }),
         });
         await keeper.mrgnProgram.provider.sendAndConfirm!(
           new Transaction().add(start, borrow, end),
@@ -526,7 +473,7 @@ describe("Borrow orders", () => {
       (b: any) => b.active !== 0 && b.bankPk.equals(usdcBank),
     );
     const bank = await program.account.bank.fetch(usdcBank);
-    assert.equal(toI80Scaled(bank.liabilityShareValue), I80F48_ONE);
+    assert.equal(toI80Scaled(bank.liabilityShareValue), I80F48_SCALE);
     const fillScaled = bnToBigIntSafe(AMOUNT) << 48n;
     const feeScaled = toI80Scaled(
       bank.config.interestRateConfig.protocolOriginationFee,
@@ -615,7 +562,7 @@ describe("Borrow orders", () => {
         }),
       ),
     );
-    await advance(INTEREST_MIN_WINDOW_SECONDS);
+    await advanceBankrunClock(bankrunContext, INTEREST_MIN_WINDOW_SECONDS);
     const sharesBefore = await liabilitySharesIn(usdcBank);
     const before = await program.account.borrowOrder.fetch(order);
     const orderSharesBefore = toI80Scaled(before.liabilityShares);

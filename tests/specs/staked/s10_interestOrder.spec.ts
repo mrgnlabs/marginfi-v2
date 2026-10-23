@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import { assert } from "chai";
 import {
@@ -14,7 +14,6 @@ import {
   validators,
 } from "../../rootHooks";
 import {
-  accountInit,
   borrowIx,
   composeRemainingAccounts,
   depositIx,
@@ -22,19 +21,17 @@ import {
   pulseBankPrice,
 } from "../../utils/user-instructions";
 import { deriveOrderPda } from "../../utils/pdas";
-import { LST_ATA, USER_ACCOUNT } from "../../utils/mocks";
+import { LST_ATA } from "../../utils/mocks";
 import { refreshPullOraclesBankrun } from "../../utils/bankrun-oracles";
 import { advanceBankrunClock, getBankrunBlockhash } from "../../utils/tools";
+import { createThrowawayMarginfiAccount } from "../../utils/drift-utils";
+import { BANK_RATE_READING_SPACING_SECONDS } from "../../utils/rate-readings";
 import {
   bnToBigIntSafe,
   I80F48_SCALE,
   mulI80,
   toI80Scaled,
 } from "../../utils/bn-utils";
-
-const I80F48_ONE = I80F48_SCALE;
-/** Matches `BANK_RATE_READING_SPACING_SECONDS`. */
-const READING_SPACING = 10_800;
 
 /**
  * Staked is the only non-integration asset tag whose multiplier is not 1, and `validate_asset_tags`
@@ -44,8 +41,6 @@ const READING_SPACING = 10_800;
  */
 describe("Interest trigger on a staked asset balance", () => {
   const solBank = stakedBankKeypairSol.publicKey;
-  const U32_MAX = 0xffff_ffff;
-  const maxSlippage = Math.floor((100 / 10_000) * U32_MAX);
 
   /** The staked bank needs its LST mint, SOL pool and on-ramp alongside the oracle. */
   const stakedLegAccounts = () => [
@@ -66,19 +61,10 @@ describe("Interest trigger on a staked asset balance", () => {
 
     // A fresh account, so the health check here depends only on the LST position this spec opens
     // and not on what s01-s09 left on this user.
-    const kp = Keypair.generate();
-    userAccount = kp.publicKey;
-    const initTx = new Transaction().add(
-      await accountInit(bankrunProgram, {
-        marginfiGroup: stakedMarginfiGroup.publicKey,
-        marginfiAccount: userAccount,
-        authority: user.wallet.publicKey,
-        feePayer: user.wallet.publicKey,
-      }),
+    userAccount = await createThrowawayMarginfiAccount(
+      user,
+      stakedMarginfiGroup.publicKey,
     );
-    initTx.recentBlockhash = await getBankrunBlockhash(bankrunContext);
-    initTx.sign(user.wallet, kp);
-    await banksClient.processTransaction(initTx);
   });
 
   it("(user 3) re-opens an LST lend against a SOL borrow", async () => {
@@ -145,7 +131,10 @@ describe("Interest trigger on a staked asset balance", () => {
   it("reads the staked asset balance at the pool's NAV per LST, not the share value", async () => {
     // Earlier specs priced this bank at the current clock, and a bank records at most one reading
     // per spacing, so step past it and republish the oracles at the new time.
-    await advanceBankrunClock(bankrunContext, READING_SPACING);
+    await advanceBankrunClock(
+      bankrunContext,
+      BANK_RATE_READING_SPACING_SECONDS,
+    );
     await refreshPullOraclesBankrun(oracles, bankrunContext, banksClient);
 
     // Pricing the bank takes its reading; the staked bank prices off its pool accounts too.
@@ -163,7 +152,11 @@ describe("Interest trigger on a staked asset balance", () => {
       validators[0].bank,
     );
     const multiplier = toI80Scaled(stakedBank.cache.priceMultiplier);
-    assert.notEqual(multiplier, I80F48_ONE, "a staked pool prices away from 1");
+    assert.notEqual(
+      multiplier,
+      I80F48_SCALE,
+      "a staked pool prices away from 1",
+    );
     const newest = stakedBank.rateReadings.reduce((a: any, b: any) =>
       b.timestamp.gt(a.timestamp) ? b : a,
     );

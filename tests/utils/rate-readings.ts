@@ -16,6 +16,8 @@ import { pulseBankPrice } from "./user-instructions";
 
 /** Match `BANK_RATE_READINGS`. `Bank.rate_readings` starts where the v1 layout ends. */
 export const BANK_RATE_READINGS = 17;
+/** Match `BANK_RATE_READING_SPACING_SECONDS`. */
+export const BANK_RATE_READING_SPACING_SECONDS = 10_800;
 /** One rate reading: asset index, debt index, timestamp. */
 export const RATE_READING_LEN = 24;
 /** Match `INTEREST_MIN_WINDOW_SECONDS` and `INTEREST_MAX_WINDOW_SECONDS`. */
