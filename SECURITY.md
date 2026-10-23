@@ -494,7 +494,7 @@ currently-unhealthy account.
 
 ### Keepers Can "Bump" Rates With Their Own Funds to Steal Rebalance Tips
 
-A keeper moving funds from bank A -> B as part of a rebalance can manipulate rates by using their own money (not the user's) to  (1) withdraw from B, (2) borrow from B, (3) deposit into A, (4) repay debt from A. The user's rate then improves, and they keep the tip. This satisfies the covenant lenders make with Keepers from our point of view: the lender's rate genuinely improved to the level they approved. Doing this also isn't free to the Keeper (e.g., they might pay interest to B), and is likely not economical given the relatively small value of tips compared to the large amount of funds that would be required to actually affect rates.
+A keeper moving funds from bank A -> B as part of a rebalance can manipulate rates by using their own money (not the user's) to  (1) withdraw from B, (2) borrow from B, (3) deposit into A, (4) repay debt from A. The user's rate then improves. A bump at the moment of the move does not earn the tip, though. B must also have out-earned A by the order's `min_improvement` over the order's cooldown (counted as at least 6 hours and at most 48), read from each bank's rate history. So the bump has to be held for that whole period. Raising B's yield means paying the improvement on B's entire deposit base. With a tip no larger than what the move earns over one cooldown, that costs more than the tip unless B holds less than the user's position or the keeper holds most of B's deposits. Lowering A's yield with a deposit held in A for the period costs only the capital it ties up. The period stops growing at 48 hours, so on longer cooldowns the tip should stay under about two days of the move's gain. This satisfies the covenant lenders make with Keepers from our point of view: the lender's rate genuinely improved to the level they approved.
 
 ### Tiny Keeper Caps Can Lead to Small Moves Earning the Entire Rebalance Tip
 
@@ -633,48 +633,3 @@ The fee pool needs R, the rent, to be reopened. To avoid Alice griefing in this 
 from the Keeper, the Keeper gets to keep T instead -- this is Alice's fault for draining her fee
 pool. At some point we may instead reopen the fee pool if T > R, but the current behavior
 discourages trolls from closing their fee pool.
-
-### Rebalance Keepers Can Pay to Induce a Move or to Collect a Tip
-
-Rebalance execution is permissionless by design: anyone can act as the keeper for any open order,
-and anyone can settle a tip, which goes to the keeper that executed or back to the fee pool. The
-user is protected by the checks below, not by who the keeper is.
-
-Before an auto-rebalance moves a deposit, the program checks that the destination bank pays more
-than the source right now, and that it paid more in total over the order's cooldown period (counted
-as at least 6 hours and at most 48), each by the order's `min_improvement`. Both checks read real
-yield, so a keeper can still pass them by paying for it: borrowing from the destination, depositing
-same-mint emissions into it, or depositing into the source to dilute it. This costs the keeper
-roughly `min_improvement` on the destination's entire deposit base for that period, less whatever
-it gets back as a depositor there. On a small bank, or one where the keeper holds most of the
-deposits, that can be less than the tip.
-
-After a move, the tip is paid if the destination earned more than the source over the settlement
-window (10 minutes to 1 hour), by any margin. A keeper can borrow from the destination during that
-window to make sure it does. We do not scale the tip by the size of that margin, because honest
-keepers do not control where rates go after a move.
-
-In both cases the user's principal is never at risk, the loss is capped at one tip per order per
-cooldown, and moves only happen between banks the user picked.
-
-Users choose their own banks and tips. A sensible tip is no more than a move earns before the next
-one can happen: `min_improvement` on the user's position for one cooldown. Faking a move costs the
-same rate on the destination's entire deposit base for the same period, so with a tip in that range
-it only pays when the position is larger than the destination bank itself. A deposit that large
-normally pushes the destination's rate below the required margin, and the check on the current
-rate, which counts the incoming deposit, refuses the move. For cooldowns longer than 48 hours the
-period looked back over stops growing, so the tip should stay under about two days of the move's
-gain. A user who lists very small banks or sets a larger tip accepts the risk of paying it for a
-move that did not help. We consider this sufficiently mitigated by economic realities.
-
-Relatedly, a bank must hold rate history as old as that period before a deposit can move into or
-out of it. Rebalance being unavailable for a bank that is new, or that nobody has priced for a
-while, is expected.
-
-### Interest Triggers Measure the Rates Banks Actually Paid
-
-An interest trigger reads what a pair's two banks charged and paid over the Order's window. Bank
-rates follow utilization, so activity in either bank, a Keeper's own included, is part of what the
-Order measures. What an exit can cost is bounded by the Order's own settings: the window, the
-minimum loss (`min_negative_apr`), the exit budget and `max_slippage`. Users pick these themselves,
-as they pick slippage on any Order, and we treat an exit those settings allowed as INFO.
