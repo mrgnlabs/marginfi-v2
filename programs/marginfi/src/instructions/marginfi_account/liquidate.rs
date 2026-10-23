@@ -631,27 +631,6 @@ pub fn lending_account_liquidate<'info>(
         });
     }
 
-    let asset_mint = ctx.accounts.asset_bank.load_mut()?.mint;
-    let liability_mint = ctx.accounts.liab_bank.load_mut()?.mint;
-
-    if let Some((mint, premium_settled, premium_outstanding_remaining)) =
-        liquidator_premium_settlement
-    {
-        emit!(LendingAccountPremiumSettledEvent {
-            header: AccountEventHeader {
-                signer: Some(ctx.accounts.authority.key()),
-                marginfi_account: liquidator_marginfi_account_loader.key(),
-                marginfi_account_authority: liquidator_marginfi_account.authority,
-                marginfi_group: marginfi_group_loader.key(),
-            },
-            bank: asset_bank_key,
-            mint,
-            premium_settled: premium_settled.to_num(),
-            premium_written_off: 0.0,
-            premium_outstanding_remaining: premium_outstanding_remaining.to_num(),
-        });
-    }
-
     emit!(LendingAccountLiquidateEvent {
         header: AccountEventHeader {
             signer: Some(ctx.accounts.authority.key()),
