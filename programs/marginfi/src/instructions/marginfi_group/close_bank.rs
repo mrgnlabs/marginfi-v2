@@ -1,3 +1,4 @@
+use super::close_bank_venue::{close_venue_position, venue_accounts_len};
 use crate::bank_signer;
 use crate::check;
 use crate::ix_utils;
@@ -6,27 +7,26 @@ use crate::utils::NumTraitsWithTolerance;
 use crate::{MarginfiError, MarginfiResult};
 use anchor_lang::prelude::*;
 use anchor_spl::token::accessor;
-use anchor_spl::token_interface::{close_account, CloseAccount};
+use anchor_spl::token_interface::{close_account, CloseAccount, Mint};
 use fixed::types::I80F48;
 use marginfi_type_crate::{
     constants::{CLOSE_ENABLED_FLAG, ZERO_AMOUNT_THRESHOLD},
     types::{Bank, BankVaultType, MarginfiGroup},
 };
 
-/// `[token_program, liquidity_vault, liquidity_vault_authority, insurance_vault,
-/// insurance_vault_authority, fee_vault, fee_vault_authority]`
-const CLOSE_VAULT_ACCOUNTS: usize = 7;
+/// `[token_program, mint, admin_token_account, liquidity_vault, liquidity_vault_authority,
+/// insurance_vault, insurance_vault_authority, fee_vault, fee_vault_authority]`
+const CLOSE_VAULT_ACCOUNTS: usize = 9;
 
 /// * force_close - (admin escape hatch) when `Some(true)`, skips the `CLOSE_ENABLED_FLAG` and
 ///   open-position checks. Intended for legacy pre-0.1.4 banks whose position count is
 ///   non-authoritative. The zero-shares/zero-emissions checks are always enforced, so a bank still
 ///   holding value can never be force-closed.
 ///
-/// Remaining accounts (optional, all or none): the bank's token program, then each of its three
-/// vaults followed by that vault's authority, in liquidity, insurance, fee order (see
-/// `CLOSE_VAULT_ACCOUNTS`). When passed, the vaults are closed with the bank and their rent goes to
-/// the admin. Every vault must be empty, otherwise the close fails. Without them the vaults are
-/// left open, as before.
+/// Optional remaining accounts: `CLOSE_VAULT_ACCOUNTS`, then (Kamino / JupLend) the venue accounts
+/// (see `close_bank_venue`), then transfer hook accounts. Venue banks first withdraw their seed
+/// position into the liquidity vault and close the venue accounts. Then every vault is swept to the
+/// admin's token account and closed. All rent goes to the admin.
 pub fn lending_pool_close_bank<'info>(
     ctx: Context<'info, LendingPoolCloseBank<'info>>,
     force_close: Option<bool>,
@@ -65,44 +65,55 @@ pub fn lending_pool_close_bank<'info>(
         MarginfiError::BankCannotClose
     );
 
-    close_vaults(
-        &bank,
-        ctx.accounts.bank.key(),
-        ctx.remaining_accounts,
-        &ctx.accounts.admin.to_account_info(),
-    )?;
+    let remaining = ctx.remaining_accounts;
+    if !remaining.is_empty() {
+        // Owed to the protocol, not the group admin (sub-unit dust is uncollectable).
+        check!(
+            I80F48::from(bank.collected_program_fees_outstanding) < I80F48::ONE
+                && I80F48::from(bank.collected_premium_outstanding) < I80F48::ONE,
+            MarginfiError::BankCannotClose,
+            "collect the program fees and premium before closing the vaults"
+        );
+        let venue_accounts = venue_accounts_len(bank.config.asset_tag);
+        check!(
+            remaining.len() >= CLOSE_VAULT_ACCOUNTS + venue_accounts,
+            MarginfiError::BankCannotClose,
+            "expected at least {} close accounts, got {}",
+            CLOSE_VAULT_ACCOUNTS + venue_accounts,
+            remaining.len()
+        );
+        let (vault_accounts, rest) = remaining.split_at(CLOSE_VAULT_ACCOUNTS);
+        let (venue, hook_accounts) = rest.split_at(venue_accounts);
+        let admin = ctx.accounts.admin.to_account_info();
+
+        check_vault_accounts(&bank, ctx.accounts.bank.key(), &admin, vault_accounts)?;
+        if venue_accounts > 0 {
+            close_venue_position(
+                &bank,
+                ctx.accounts.bank.key(),
+                vault_accounts,
+                venue,
+                &admin,
+                hook_accounts,
+                &ctx.accounts.instruction_sysvar.to_account_info(),
+            )?;
+        }
+        close_vaults(
+            &bank,
+            ctx.accounts.bank.key(),
+            vault_accounts,
+            &admin,
+            hook_accounts,
+        )?;
+    }
 
     drop(bank);
     Ok(())
 }
 
-/// Closes the bank's three vaults into `admin`, if the caller passed them (see
-/// `lending_pool_close_bank`). Fails on a malformed list or a vault that still holds tokens.
-fn close_vaults<'info>(
-    bank: &Bank,
-    bank_key: Pubkey,
-    remaining: &[AccountInfo<'info>],
-    admin: &AccountInfo<'info>,
-) -> MarginfiResult {
-    if remaining.is_empty() {
-        return Ok(());
-    }
-    check!(
-        remaining.len() == CLOSE_VAULT_ACCOUNTS,
-        MarginfiError::BankCannotClose,
-        "expected {} vault accounts, got {}",
-        CLOSE_VAULT_ACCOUNTS,
-        remaining.len()
-    );
-
-    let token_program = remaining[0].key();
-    check!(
-        token_program == anchor_spl::token::ID || token_program == anchor_spl::token_2022::ID,
-        MarginfiError::BankCannotClose,
-        "first vault account must be the token program"
-    );
-
-    let vaults = [
+/// `[(vault type, vault, authority bump)]` in `CLOSE_VAULT_ACCOUNTS` order.
+fn bank_vaults(bank: &Bank) -> [(BankVaultType, Pubkey, u8); 3] {
+    [
         (
             BankVaultType::Liquidity,
             bank.liquidity_vault,
@@ -118,10 +129,33 @@ fn close_vaults<'info>(
             bank.fee_vault,
             bank.fee_vault_authority_bump,
         ),
-    ];
-    for (i, (vault_type, vault_key, authority_bump)) in vaults.into_iter().enumerate() {
-        let vault = &remaining[1 + 2 * i];
-        let authority = &remaining[2 + 2 * i];
+    ]
+}
+
+fn check_vault_accounts(
+    bank: &Bank,
+    bank_key: Pubkey,
+    admin: &AccountInfo,
+    vault_accounts: &[AccountInfo],
+) -> MarginfiResult {
+    let [token_program, _mint, admin_token_account, vaults @ ..] = vault_accounts else {
+        return err!(MarginfiError::BankCannotClose);
+    };
+    let token_program = token_program.key();
+    check!(
+        token_program == anchor_spl::token::ID || token_program == anchor_spl::token_2022::ID,
+        MarginfiError::BankCannotClose,
+        "first vault account must be the token program"
+    );
+    check!(
+        accessor::authority(admin_token_account)? == admin.key(),
+        MarginfiError::BankCannotClose,
+        "admin_token_account must be owned by the admin"
+    );
+
+    for (i, (vault_type, vault_key, authority_bump)) in bank_vaults(bank).into_iter().enumerate() {
+        let vault = &vaults[2 * i];
+        let authority = &vaults[2 * i + 1];
 
         check!(
             vault.key() == vault_key,
@@ -150,23 +184,55 @@ fn close_vaults<'info>(
             "{:?} vault is not owned by the passed token program",
             vault_type
         );
-        let amount = accessor::amount(vault)?;
-        check!(
-            amount == 0,
-            MarginfiError::BankCannotClose,
-            "{:?} vault still holds {} tokens",
-            vault_type,
-            amount
-        );
+    }
+    Ok(())
+}
 
+/// Sweeps the (checked) vaults to the admin's token account and closes them into `admin`. With no
+/// shares left, whatever they hold is surplus, so donations can't block the close.
+fn close_vaults<'info>(
+    bank: &Bank,
+    bank_key: Pubkey,
+    vault_accounts: &'info [AccountInfo<'info>],
+    admin: &AccountInfo<'info>,
+    hook_accounts: &[AccountInfo<'info>],
+) -> MarginfiResult {
+    let [token_program, mint, admin_token_account, vaults @ ..] = vault_accounts else {
+        return err!(MarginfiError::BankCannotClose);
+    };
+    let maybe_mint: Option<InterfaceAccount<Mint>> =
+        if token_program.key() == anchor_spl::token_2022::ID {
+            Some(InterfaceAccount::try_from(mint)?)
+        } else {
+            None
+        };
+
+    for (i, (vault_type, _, authority_bump)) in bank_vaults(bank).into_iter().enumerate() {
+        let vault = &vaults[2 * i];
+        let authority = &vaults[2 * i + 1];
+        let signer: &[&[&[u8]]] = bank_signer!(vault_type, bank_key, authority_bump);
+
+        let amount = accessor::amount(vault)?;
+        if amount > 0 {
+            bank.withdraw_spl_transfer(
+                amount,
+                vault.clone(),
+                admin_token_account.clone(),
+                authority.clone(),
+                maybe_mint.as_ref(),
+                token_program.clone(),
+                signer,
+                hook_accounts,
+            )?;
+        }
         close_account(CpiContext::new_with_signer(
-            token_program,
+            token_program.key(),
             CloseAccount {
                 account: vault.clone(),
                 destination: admin.clone(),
                 authority: authority.clone(),
             },
-            bank_signer!(vault_type, bank_key, authority_bump),
+            signer,
         ))?;
     }
 

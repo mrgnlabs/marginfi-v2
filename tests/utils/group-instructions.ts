@@ -1215,26 +1215,39 @@ export type CloseBankArgs = {
   /** Admin escape hatch: skip the CLOSE_ENABLED_FLAG + open-position checks. */
   forceClose?: boolean;
   admin: PublicKey;
-  /** Also close the bank's three vaults (they must be empty), with this as their token program. */
-  closeVaultsWith?: PublicKey;
+  /** Sweep the vaults to the admin and close them (Kamino / JupLend: unwind the seed first). */
+  closeVaults?: CloseBankVaultsArgs;
 };
+
+export type CloseBankVaultsArgs = {
+  tokenProgram: PublicKey;
+  mint: PublicKey;
+  /** The admin's token account for the bank's mint. */
+  adminTokenAccount: PublicKey;
+  /** `kaminoCloseBankAccounts` / `juplendCloseBankAccounts`. */
+  venueAccounts?: AccountMeta[];
+};
+
+export const accountMeta = (
+  pubkey: PublicKey,
+  isWritable: boolean,
+): AccountMeta => ({ pubkey, isSigner: false, isWritable });
 
 export const closeBank = (program: Program<Marginfi>, args: CloseBankArgs) => {
   const pid = program.programId;
-  const meta = (pubkey: PublicKey, isWritable: boolean): AccountMeta => ({
-    pubkey,
-    isSigner: false,
-    isWritable,
-  });
-  const vaults = args.closeVaultsWith
+  const close = args.closeVaults;
+  const vaults = close
     ? [
-        meta(args.closeVaultsWith, false),
-        meta(deriveLiquidityVault(pid, args.bank)[0], true),
-        meta(deriveLiquidityVaultAuthority(pid, args.bank)[0], false),
-        meta(deriveInsuranceVault(pid, args.bank)[0], true),
-        meta(deriveInsuranceVaultAuthority(pid, args.bank)[0], false),
-        meta(deriveFeeVault(pid, args.bank)[0], true),
-        meta(deriveFeeVaultAuthority(pid, args.bank)[0], false),
+        accountMeta(close.tokenProgram, false),
+        accountMeta(close.mint, false),
+        accountMeta(close.adminTokenAccount, true),
+        accountMeta(deriveLiquidityVault(pid, args.bank)[0], true),
+        accountMeta(deriveLiquidityVaultAuthority(pid, args.bank)[0], true),
+        accountMeta(deriveInsuranceVault(pid, args.bank)[0], true),
+        accountMeta(deriveInsuranceVaultAuthority(pid, args.bank)[0], false),
+        accountMeta(deriveFeeVault(pid, args.bank)[0], true),
+        accountMeta(deriveFeeVaultAuthority(pid, args.bank)[0], false),
+        ...(close.venueAccounts ?? []),
       ]
     : [];
   const ix = program.methods

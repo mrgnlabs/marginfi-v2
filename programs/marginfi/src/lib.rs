@@ -760,9 +760,8 @@ pub mod marginfi {
     /// * all three outstanding-fee fields are zero (or you don't care if anything remaining is lost
     ///   **FOREVER**)
     ///
-    /// Optionally pass the bank's token program and its three vaults with their authorities as
-    /// remaining accounts to close the vaults too and recover their rent; the close then fails
-    /// unless every vault is empty. See `lending_pool_close_bank` in `close_bank.rs` for the order.
+    /// Optional remaining accounts also close the (empty) vaults and, for Kamino/JupLend banks,
+    /// withdraw the seed position to the admin and close its accounts (see `close_bank.rs`).
     pub fn lending_pool_close_bank<'info>(
         ctx: Context<'info, LendingPoolCloseBank<'info>>,
         force_close: Option<bool>,

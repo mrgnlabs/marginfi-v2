@@ -1,6 +1,11 @@
 import { BN, Program } from "@coral-xyz/anchor";
 import { BankrunProvider } from "../../utils/litesvm";
-import { AccountMeta, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  AccountMeta,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import { Marginfi } from "../../../target/types/marginfi";
 import {
   BANK_ACCOUNT_LEN,
@@ -38,10 +43,13 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { assert } from "chai";
+import { bigNumberToWrappedI80F48 } from "@mrgnlabs/mrgn-common";
 import {
   assertBNEqual,
+  assertI80F48Equal,
   expectFailedTxWithError,
   expectFailedTxWithMessage,
+  getTokenBalance,
 } from "../../utils/genericTests";
 import { closeBank } from "../../utils/group-instructions";
 import { USER_ACCOUNT } from "../../utils/mocks";
@@ -213,63 +221,70 @@ describe("Close bank", () => {
       );
     });
 
-    const closeWithVaults = async () =>
-      groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await closeBank(groupAdmin.mrgnProgram, {
-            marginfiGroup: marginfiGroup.publicKey,
-            bank: vaultBank,
-            admin: groupAdmin.wallet.publicKey,
-            closeVaultsWith: TOKEN_PROGRAM_ID,
-          })
-        )
-      );
-
-    it("rejects a partial vault list", async () => {
-      const ix = await closeBank(groupAdmin.mrgnProgram, {
+    const closeIx = (adminTokenAccount = groupAdmin.tokenAAccount) =>
+      closeBank(groupAdmin.mrgnProgram, {
         marginfiGroup: marginfiGroup.publicKey,
         bank: vaultBank,
         admin: groupAdmin.wallet.publicKey,
-        closeVaultsWith: TOKEN_PROGRAM_ID,
+        closeVaults: {
+          tokenProgram: TOKEN_PROGRAM_ID,
+          mint: ecosystem.tokenAMint.publicKey,
+          adminTokenAccount,
+        },
       });
+    const send = async (ix: TransactionInstruction) =>
+      groupAdmin.mrgnProgram.provider.sendAndConfirm(new Transaction().add(ix));
+
+    it("rejects a partial vault list", async () => {
+      const ix = await closeIx();
       ix.keys = ix.keys.slice(0, ix.keys.length - 2); // drop the fee vault and its authority
-      await expectFailedTxWithMessage(async () => {
-        await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-          new Transaction().add(ix)
-        );
-      }, "expected 7 vault accounts, got 5");
+      await expectFailedTxWithMessage(
+        () => send(ix),
+        "expected at least 9 close accounts, got 7"
+      );
     });
 
-    it("rejects a non-empty vault", async () => {
-      // Anyone can send tokens to a vault; the close must then fail rather than burn them.
+    it("rejects an admin token account the admin doesn't own", async () => {
+      await expectFailedTxWithMessage(
+        async () => send(await closeIx(users[0].tokenAAccount)),
+        "admin_token_account must be owned by the admin"
+      );
+    });
+
+    // Byte offsets: the coder can't re-encode a bank, so patch it in place.
+    const owedToProtocol = [
+      { name: "program fees are", field: "collectedProgramFeesOutstanding", offset: 904 },
+      { name: "premium is", field: "collectedPremiumOutstanding", offset: 1736 },
+    ] as const;
+    for (const { name, field, offset } of owedToProtocol) {
+      it(`rejects while ${name} uncollected`, async () => {
+        const original = await provider.connection.getAccountInfo(vaultBank);
+        const data = Buffer.from(original.data);
+        data.set(bigNumberToWrappedI80F48(1).value, offset);
+        bankrunContext.setAccount(vaultBank, { ...original, data });
+        const bank = await program.account.bank.fetch(vaultBank);
+        assertI80F48Equal(bank[field], 1);
+
+        await expectFailedTxWithMessage(
+          async () => send(await closeIx()),
+          "collect the program fees and premium before closing the vaults"
+        );
+        bankrunContext.setAccount(vaultBank, original);
+      });
+    }
+
+    it("sweeps donations to the admin, closes the bank and all three vaults", async () => {
+      const donations = [1, 2, 3];
       await users[0].mrgnProgram.provider.sendAndConfirm(
         new Transaction().add(
-          createTransferInstruction(
-            users[0].tokenAAccount,
-            vaults[1],
-            users[0].wallet.publicKey,
-            1
+          ...vaults.map((vault, i) =>
+            createTransferInstruction(
+              users[0].tokenAAccount,
+              vault,
+              users[0].wallet.publicKey,
+              donations[i]
+            )
           )
-        )
-      );
-      await expectFailedTxWithMessage(
-        closeWithVaults,
-        "Insurance vault still holds 1 tokens"
-      );
-      assert.isNotNull(await provider.connection.getAccountInfo(vaultBank));
-    });
-
-    it("closes the bank and all three vaults, rent to the admin", async () => {
-      await groupAdmin.mrgnProgram.provider.sendAndConfirm(
-        new Transaction().add(
-          await groupAdmin.mrgnProgram.methods
-            .lendingPoolWithdrawInsurance(new BN(1))
-            .accountsPartial({
-              bank: vaultBank,
-              dstTokenAccount: users[0].tokenAAccount,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            })
-            .instruction()
         )
       );
 
@@ -279,19 +294,22 @@ describe("Close bank", () => {
           accounts.map((k) => provider.connection.getAccountInfo(k))
         )
       ).reduce((sum, info) => sum + info.lamports, 0);
-      const adminBefore = await provider.connection.getBalance(
-        groupAdmin.wallet.publicKey
-      );
+      const [adminBefore, tokensBefore] = await Promise.all([
+        provider.connection.getBalance(groupAdmin.wallet.publicKey),
+        getTokenBalance(provider, groupAdmin.tokenAAccount),
+      ]);
 
-      await closeWithVaults();
+      await send(await closeIx());
 
       for (const k of accounts) {
         assert.isNull(await provider.connection.getAccountInfo(k));
       }
-      const adminAfter = await provider.connection.getBalance(
-        groupAdmin.wallet.publicKey
-      );
-      // The admin also paid the tx fee.
+      const [adminAfter, tokensAfter] = await Promise.all([
+        provider.connection.getBalance(groupAdmin.wallet.publicKey),
+        getTokenBalance(provider, groupAdmin.tokenAAccount),
+      ]);
+      assert.equal(tokensAfter - tokensBefore, 6);
+      // Minus the tx fee.
       assert.isAtLeast(adminAfter - adminBefore, rent - 10_000);
     });
   });
